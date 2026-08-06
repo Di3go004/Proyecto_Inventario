@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Resumen{% endblock %}
+{% block content %}
+<h1 style="font-size:1.4rem; margin:0 0 4px;">Resumen general</h1>
+<p style="color:var(--text-muted); margin:0 0 22px;">Fase 1: primera verificación de que los modelos y sus reglas funcionan de verdad.</p>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:24px;">
+  <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+    <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted);">Artículos activos (Ventas)</div>
+    <div style="font-family:var(--font-data); font-size:1.5rem; font-weight:700;">{{ total_articulos }}</div>
+  </div>
+  <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+    <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted);">Valorización Bodega 1+2</div>
+    <div style="font-family:var(--font-data); font-size:1.5rem; font-weight:700;">Q {{ valorizacion_ventas|floatformat:2 }}</div>
+  </div>
+  <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+    <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted);">Valorización Bodega Técnica</div>
+    <div style="font-family:var(--font-data); font-size:1.5rem; font-weight:700;">Q {{ valorizacion_tecnica|floatformat:2 }}</div>
+  </div>
+  <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:10px; padding:14px 16px;">
+    <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted);">Préstamos / demos abiertos</div>
+    <div style="font-family:var(--font-data); font-size:1.5rem; font-weight:700;">{{ prestamos_demo_abiertos }}</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+  <div style="border:1px solid var(--border); border-radius:10px; background:var(--surface);">
+    <h2 style="margin:0; padding:12px 14px; border-bottom:1px solid var(--border); font-size:.95rem;">Alertas de stock</h2>
+    {% if alertas %}
+      <ul style="list-style:none; margin:0; padding:0;">
+        {% for a in alertas %}
+        <li style="padding:10px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; font-size:.86rem;">
+          <span>{{ a.nombre_producto }} <span style="color:var(--text-muted); font-family:var(--font-data);">{{ a.codigo_interno }}</span></span>
+          <span class="chip {% if a.nivel_alerta == 'critico' %}chip-critical{% else %}chip-warn{% endif %}">{{ a.stock_actual }} uds</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="padding:14px; color:var(--text-muted); font-size:.86rem;">Sin artículos en alerta todavía (o sin datos cargados).</p>
+    {% endif %}
+  </div>
+
+  <div style="border:1px solid var(--border); border-radius:10px; background:var(--surface);">
+    <h2 style="margin:0; padding:12px 14px; border-bottom:1px solid var(--border); font-size:.95rem;">Activos técnicos prestados</h2>
+    {% if activos_prestados %}
+      <ul style="list-style:none; margin:0; padding:0;">
+        {% for p in activos_prestados %}
+        <li style="padding:10px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; font-size:.86rem;">
+          <span>{{ p.activo.nombre_producto }}</span>
+          <span style="color:var(--text-muted);">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="padding:14px; color:var(--text-muted); font-size:.86rem;">Sin préstamos abiertos todavía (o sin datos cargados).</p>
+    {% endif %}
+  </div>
+</div>
+
+<p style="margin-top:24px;"><a href="/admin/">Ir al panel de administración →</a></p>
+{% endblock %}

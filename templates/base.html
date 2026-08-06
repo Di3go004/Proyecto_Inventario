@@ -1,0 +1,79 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Control de Bodega{% endblock %} · Soluciones Exactas</title>
+<style>
+  :root {
+    --bg: #f3f5fb; --surface: #ffffff; --surface-alt: #eceff8; --border: #d9deef;
+    --text: #14152b; --text-muted: #5b5f7d;
+    --brand-primary: #202199; --brand-primary-hover: #15166b;
+    --brand-secondary: #6889cb; --brand-tertiary: #5db2d6;
+    --accent-soft-bg: #e7eafb; --on-brand: #ffffff;
+    --state-good-bg: #e2f4ea; --state-good-fg: #1c7a4d;
+    --state-warn-bg: #fbf0da; --state-warn-fg: #93630f;
+    --state-critical-bg: #fbe4e2; --state-critical-fg: #a3271d;
+    --state-neutral-bg: #e6e7f0; --state-neutral-fg: #4c4f6b;
+    --font-body: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    --font-data: 'Cascadia Code', 'Consolas', monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.5; }
+  a { color: var(--brand-primary); }
+  .topbar {
+    display: flex; align-items: center; gap: 14px; padding: 12px 24px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .brandmark {
+    width: 30px; height: 30px; border-radius: 8px; overflow: hidden;
+    display: grid; grid-template-columns: 1fr 1fr; flex: none;
+  }
+  .brandmark span { display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .72rem; color: #fff; }
+  .brandmark span:first-child { background: var(--brand-primary); }
+  .brandmark span:last-child { background: var(--brand-tertiary); color: #0c0d20; }
+  .topbar .product-name { font-weight: 700; font-size: .92rem; }
+  .topbar .product-sub { font-size: .75rem; color: var(--text-muted); }
+  .topbar .spacer { flex: 1; }
+  .topbar form { margin: 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+    border-radius: 999px; font-size: .72rem; font-weight: 700;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip-good { background: var(--state-good-bg); color: var(--state-good-fg); }
+  .chip-warn { background: var(--state-warn-bg); color: var(--state-warn-fg); }
+  .chip-critical { background: var(--state-critical-bg); color: var(--state-critical-fg); }
+  .chip-neutral { background: var(--state-neutral-bg); color: var(--state-neutral-fg); }
+  .btn {
+    font: inherit; font-weight: 600; font-size: .86rem; border-radius: 8px;
+    padding: 8px 14px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--brand-primary); cursor: pointer;
+  }
+  .btn-primary { background: var(--brand-primary); color: #fff; border-color: transparent; }
+  main { max-width: 1080px; margin: 0 auto; padding: 28px 24px 64px; }
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% if user.is_authenticated %}
+  <header class="topbar">
+    <div class="brandmark" aria-hidden="true"><span>S</span><span>E</span></div>
+    <div>
+      <div class="product-name">Control de Bodega</div>
+      <div class="product-sub">Soluciones Exactas, S.A.</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip chip-neutral">{{ user.get_rol_display }}</span>
+    <span>{{ user.get_full_name|default:user.username }}</span>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn">Salir</button>
+    </form>
+  </header>
+  {% endif %}
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

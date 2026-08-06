@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block content %}
+<div style="max-width:340px; margin:64px auto 0; text-align:center; display:flex; flex-direction:column; align-items:center; gap:18px;">
+  <div class="brandmark" style="width:52px;height:52px;border-radius:13px;" aria-hidden="true"><span style="font-size:1.15rem;">S</span><span style="font-size:1.15rem;">E</span></div>
+  <div>
+    <h1 style="margin:0 0 4px; font-size:1.2rem;">Sistema de Control de Bodega</h1>
+    <p style="margin:0; color:var(--text-muted); font-size:.85rem;">Soluciones Exactas, S.A.</p>
+  </div>
+
+  {% if form.errors %}
+    <p style="color:var(--state-critical-fg); font-size:.85rem;">Usuario o contraseña incorrectos.</p>
+  {% endif %}
+
+  <form method="post" style="width:100%; display:flex; flex-direction:column; gap:12px; text-align:left;">
+    {% csrf_token %}
+    <div>
+      <label for="id_username" style="font-size:.78rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Usuario</label>
+      <input id="id_username" name="username" type="text" required autofocus
+             style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font:inherit;">
+    </div>
+    <div>
+      <label for="id_password" style="font-size:.78rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Contraseña</label>
+      <input id="id_password" name="password" type="password" required
+             style="width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font:inherit;">
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="btn btn-primary" style="width:100%; padding:11px; font-size:.92rem;">Iniciar sesión</button>
+  </form>
+  <p style="font-size:.76rem; color:var(--text-muted); max-width:30ch;">Administrador, Operador de bodega y Contabilidad inician sesión aquí — el rol define qué puedes ver y hacer después.</p>
+</div>
+{% endblock %}

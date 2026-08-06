@@ -1,2 +1,16 @@
 .claude
-PLAN.md
+
+# Entorno / secretos
+.env
+*.local
+
+# Python / Django
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+staticfiles/
+media/
+
+# Excel/PDF de trabajo (pesan mucho, no van al repo)
+~$*.xlsx

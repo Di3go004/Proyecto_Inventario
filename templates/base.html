@@ -1,0 +1,33 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Control de Bodega{% endblock %} · Soluciones Exactas</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% if user.is_authenticated %}
+  <header class="topbar">
+    <div class="brandmark" aria-hidden="true"><span>S</span><span>E</span></div>
+    <div>
+      <div class="product-name">Control de Bodega</div>
+      <div class="product-sub">Soluciones Exactas, S.A.</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="user-info">
+      <span class="chip chip-neutral">{{ user.get_rol_display }}</span>
+      <span>{{ user.get_full_name|default:user.username }}</span>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn">Salir</button>
+      </form>
+    </div>
+  </header>
+  {% endif %}
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Resumen{% endblock %}
+{% block content %}
+<h1 style="font-size:1.4rem; margin:0 0 4px;">Resumen general</h1>
+<p style="color:var(--text-muted); margin:0 0 22px;">Fase 1: primera verificación de que los modelos y sus reglas funcionan de verdad.</p>
+
+<div class="kpi-row" style="margin-bottom:24px;">
+  <div class="kpi-tile">
+    <div class="kpi-label">Artículos activos (Ventas)</div>
+    <div class="kpi-value">{{ total_articulos }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Valorización Bodega 1+2</div>
+    <div class="kpi-value">Q {{ valorizacion_ventas|floatformat:2 }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Valorización Bodega Técnica</div>
+    <div class="kpi-value">Q {{ valorizacion_tecnica|floatformat:2 }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Préstamos / demos abiertos</div>
+    <div class="kpi-value">{{ prestamos_demo_abiertos }}</div>
+  </div>
+</div>
+
+<div class="panel-row">
+  <div class="panel">
+    <h2>Alertas de stock</h2>
+    {% if alertas %}
+      <ul>
+        {% for a in alertas %}
+        <li>
+          <span>{{ a.nombre_producto }} <span style="color:var(--text-muted); font-family:var(--font-data);">{{ a.codigo_interno }}</span></span>
+          <span class="chip {% if a.nivel_alerta == 'critico' %}chip-critical{% else %}chip-warn{% endif %}">{{ a.stock_actual }} uds</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">Sin artículos en alerta todavía (o sin datos cargados).</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Activos técnicos prestados</h2>
+    {% if activos_prestados %}
+      <ul>
+        {% for p in activos_prestados %}
+        <li>
+          <span>{{ p.activo.nombre_producto }}</span>
+          <span style="color:var(--text-muted);">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">Sin préstamos abiertos todavía (o sin datos cargados).</p>
+    {% endif %}
+  </div>
+</div>
+
+<p style="margin-top:24px;"><a href="/admin/">Ir al panel de administración →</a></p>
+{% endblock %}

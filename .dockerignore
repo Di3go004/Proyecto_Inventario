@@ -1,0 +1,12 @@
+.git
+.claude
+.gitignore
+*.xlsx
+mockups/
+pdf/
+__pycache__/
+*.pyc
+.env
+db.sqlite3
+*.md
+BASE_DATOS.sql

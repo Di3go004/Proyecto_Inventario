@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block content %}
+<div class="login-card">
+  <div class="brandmark" style="width:52px;height:52px;border-radius:13px;" aria-hidden="true"><span style="font-size:1.15rem;">S</span><span style="font-size:1.15rem;">E</span></div>
+  <div>
+    <h1 style="margin:0 0 4px; font-size:1.2rem;">Sistema de Control de Bodega</h1>
+    <p style="margin:0; color:var(--text-muted); font-size:.85rem;">Soluciones Exactas, S.A.</p>
+  </div>
+
+  {% if form.errors %}
+    <p style="color:var(--state-critical-fg); font-size:.85rem;">Usuario o contraseña incorrectos.</p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div>
+      <label for="id_username">Usuario</label>
+      <input id="id_username" name="username" type="text" required autofocus autocapitalize="none">
+    </div>
+    <div>
+      <label for="id_password">Contraseña</label>
+      <input id="id_password" name="password" type="password" required>
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="btn btn-primary btn-block" style="padding:12px; font-size:.95rem;">Iniciar sesión</button>
+  </form>
+  <p style="font-size:.76rem; color:var(--text-muted); max-width:30ch;">Administrador, Operador de bodega y Contabilidad inician sesión aquí — el rol define qué puedes ver y hacer después.</p>
+</div>
+{% endblock %}

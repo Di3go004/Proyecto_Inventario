@@ -1,0 +1,128 @@
+/*
+  Hoja de estilos compartida del sistema. Mismos tokens de color que el
+  Artifact de wireframes (paleta de Soluciones Exactas), para que lo que se
+  aprobó ahí y lo que se construye aquí se vean iguales.
+
+  RNF-05 (usabilidad) + pedido explícito del usuario: se va a entrar desde
+  PC, tablet y celular — todo lo de abajo está pensado mobile-first con
+  puntos de quiebre, no solo para pantallas de escritorio.
+*/
+
+:root {
+  --bg: #f3f5fb; --surface: #ffffff; --surface-alt: #eceff8; --border: #d9deef;
+  --text: #14152b; --text-muted: #5b5f7d;
+  --brand-primary: #202199; --brand-primary-hover: #15166b;
+  --brand-secondary: #6889cb; --brand-tertiary: #5db2d6;
+  --accent-soft-bg: #e7eafb; --on-brand: #ffffff;
+  --state-good-bg: #e2f4ea; --state-good-fg: #1c7a4d;
+  --state-warn-bg: #fbf0da; --state-warn-fg: #93630f;
+  --state-critical-bg: #fbe4e2; --state-critical-fg: #a3271d;
+  --state-neutral-bg: #e6e7f0; --state-neutral-fg: #4c4f6b;
+  --font-body: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  --font-data: 'Cascadia Code', 'Consolas', monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%; /* evita que Safari/iOS agrande el texto solo */
+}
+
+a { color: var(--brand-primary); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--brand-secondary);
+  outline-offset: 2px;
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; /* en pantallas angostas el usuario/rol/salir bajan a una 2a línea, en vez de desbordar */
+}
+.brandmark {
+  width: 30px; height: 30px; border-radius: 8px; overflow: hidden;
+  display: grid; grid-template-columns: 1fr 1fr; flex: none;
+}
+.brandmark span { display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .72rem; color: #fff; }
+.brandmark span:first-child { background: var(--brand-primary); }
+.brandmark span:last-child { background: var(--brand-tertiary); color: #0c0d20; }
+.topbar .product-name { font-weight: 700; font-size: .92rem; }
+.topbar .product-sub { font-size: .75rem; color: var(--text-muted); }
+.topbar .spacer { flex: 1; }
+.topbar .user-info { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.topbar form { margin: 0; }
+
+/* ---------- Componentes compartidos ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border-radius: 999px; font-size: .72rem; font-weight: 700; white-space: nowrap;
+}
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-good { background: var(--state-good-bg); color: var(--state-good-fg); }
+.chip-warn { background: var(--state-warn-bg); color: var(--state-warn-fg); }
+.chip-critical { background: var(--state-critical-bg); color: var(--state-critical-fg); }
+.chip-neutral { background: var(--state-neutral-bg); color: var(--state-neutral-fg); }
+
+.btn {
+  font: inherit; font-weight: 600; font-size: .86rem; border-radius: 8px;
+  padding: 10px 16px; /* alto suficiente para dedo en táctil, no solo cursor */
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--brand-primary); cursor: pointer; min-height: 40px;
+}
+.btn-primary { background: var(--brand-primary); color: #fff; border-color: transparent; }
+.btn-block { width: 100%; }
+
+input, select, textarea {
+  font: inherit; font-size: 1rem; /* 16px+ evita que iOS haga zoom automático al enfocar el campo */
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); width: 100%;
+}
+
+/* ---------- Layout general ---------- */
+main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi-tile { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.kpi-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.kpi-value { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 700; }
+
+.panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.panel h2 { margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: .95rem; }
+.panel ul { list-style: none; margin: 0; padding: 0; }
+.panel li {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; gap: 10px; font-size: .86rem; flex-wrap: wrap;
+}
+.panel li:last-child { border-bottom: none; }
+.panel .empty { padding: 14px; color: var(--text-muted); font-size: .86rem; }
+
+.login-card {
+  max-width: 340px; margin: 48px auto 0; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+}
+.login-card form { width: 100%; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.login-card label { font-size: .78rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px; }
+
+/* ---------- Puntos de quiebre ---------- */
+/* Tablet: los paneles de 2 columnas del resumen pasan a 1 columna antes de
+   que se vean apretados (RNF-05, RF-15 desde varios tipos de dispositivo). */
+@media (max-width: 720px) {
+  main { padding: 16px 16px 48px; }
+  .panel-row { grid-template-columns: 1fr; }
+  .topbar { padding: 10px 12px; }
+}
+
+/* Celular: la barra superior se apila para que usuario/rol/salir no se
+   amontonen junto al nombre del sistema. */
+@media (max-width: 480px) {
+  .topbar .product-sub { display: none; }
+  .kpi-value { font-size: 1.25rem; }
+  main { padding: 14px 12px 40px; }
+}

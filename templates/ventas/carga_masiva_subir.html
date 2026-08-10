@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Carga masiva — Ventas{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Carga masiva desde Excel</h1>
+    <p class="page-sub">Bodega 1 y 2. Sube el archivo actual (formato FO-SE-053) y elige de qué hoja/mes importar.</p>
+  </div>
+</div>
+
+<div class="card" style="max-width:560px;">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="field">
+      <label for="archivo">Archivo Excel (.xlsx)</label>
+      <input type="file" id="archivo" name="archivo" accept=".xlsx" required>
+      <span class="hint">El código interno de la columna del archivo se ignora a propósito — se genera de nuevo con el estándar SE-MODELO-capacidad.</span>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Subir y ver hojas</button>
+      <a href="{% url 'catalogo_articulos' %}" class="btn">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+{% if hojas %}
+<div class="card" style="max-width:560px; margin-top:16px;">
+  <h2 style="margin:0 0 4px; font-size:1rem;">{{ nombre_archivo }}</h2>
+  <p class="hint" style="margin-bottom:14px;">Elige la hoja (normalmente un mes) que quieres importar.</p>
+  <form method="post" action="{% url 'carga_masiva_mapear' %}">
+    {% csrf_token %}
+    <div class="field">
+      <label for="hoja">Hoja</label>
+      <select id="hoja" name="hoja" required>
+        {% for h in hojas %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Continuar</button>
+      <a href="{% url 'carga_masiva_cancelar' %}" class="btn">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{% if modo == 'nuevo' %}Nuevo activo{% else %}Editar activo{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">{% if modo == 'nuevo' %}Nuevo activo{% else %}Editar activo{% endif %}</h1>
+    <p class="page-sub">Bodega Técnica (herramientas y activos de uso interno).{% if modo == 'editar' and activo.esta_prestado %} Este activo está prestado actualmente.{% endif %}</p>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card">
+  {% csrf_token %}
+  <div class="form-grid">
+    <div class="field">
+      <label for="{{ form.codigo_interno.id_for_label }}">Código interno</label>
+      {{ form.codigo_interno }}
+      {% for e in form.codigo_interno.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.estado.id_for_label }}">Estado</label>
+      {{ form.estado }}
+      <span class="hint">"De baja" lo saca de disponibilidad para préstamo.</span>
+    </div>
+
+    <div class="field span-2">
+      <label for="{{ form.nombre_producto.id_for_label }}">Producto</label>
+      {{ form.nombre_producto }}
+      {% for e in form.nombre_producto.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.marca.id_for_label }}">Marca</label>
+      {{ form.marca }}
+    </div>
+    <div class="field">
+      <label for="{{ form.modelo.id_for_label }}">Modelo</label>
+      {{ form.modelo }}
+    </div>
+    <div class="field">
+      <label for="{{ form.bodega.id_for_label }}">Bodega</label>
+      {{ form.bodega }}
+      {% for e in form.bodega.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.categoria.id_for_label }}">Categoría</label>
+      {{ form.categoria }}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.proveedor.id_for_label }}">Proveedor</label>
+      {{ form.proveedor }}
+    </div>
+    <div class="field">
+      <label for="{{ form.precio.id_for_label }}">Precio (Q)</label>
+      {{ form.precio }}
+      <span class="hint">Para valorizar el total de la bodega técnica.</span>
+    </div>
+    <div class="field span-2">
+      <label for="{{ form.imagen.id_for_label }}">Foto del activo</label>
+      {% if modo == 'editar' and activo.imagen %}
+        <img src="{{ activo.imagen.url }}" alt="" style="width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--border); margin-bottom:6px;">
+      {% endif %}
+      {{ form.imagen }}
+      <span class="hint">Subida desde el equipo (JPG/PNG, máx. 5 MB). Si subes una foto, tiene prioridad sobre la URL de abajo.</span>
+      {% for e in form.imagen.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field span-2">
+      <label for="{{ form.imagen_url.id_for_label }}">O URL de imagen (alternativa)</label>
+      {{ form.imagen_url }}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="{% url 'catalogo_activos' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

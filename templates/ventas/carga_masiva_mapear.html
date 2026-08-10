@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load form_extras %}
+{% block title %}Carga masiva — Mapear{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Mapear columnas — {{ hoja }}</h1>
+    <p class="page-sub">{{ nombre_archivo }}. Confirma qué columna del archivo corresponde a cada dato. El código interno no se mapea: se genera solo (SE-MODELO-capacidad).</p>
+  </div>
+</div>
+
+<form method="post" action="{% url 'carga_masiva_mapear' %}">
+  {% csrf_token %}
+  <input type="hidden" name="hoja" value="{{ hoja }}">
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="form-grid">
+      {% for clave, etiqueta, obligatorio, _palabras in campos %}
+      <div class="field">
+        <label for="col__{{ clave }}">{{ etiqueta }}{% if obligatorio %} *{% endif %}</label>
+        <select id="col__{{ clave }}" name="col__{{ clave }}">
+          <option value="">— No aplica —</option>
+          {% for letra, texto in columnas %}
+            <option value="{{ letra }}" {% if mapeo_sugerido|get_item:clave == letra %}selected{% endif %}>{{ letra }}: {{ texto }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="form-actions">
+      <button type="submit" name="actualizar_vista" class="btn">Actualizar vista previa</button>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-bottom:16px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th><th>Bodega</th><th>Marca</th><th>Modelo</th><th>Capacidad</th>
+          <th>Precio</th><th>Proveedor</th><th>Serial</th><th>Stock inicial</th><th>Código generado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fila in preview %}
+        <tr>
+          <td>{{ fila.nombre_producto }}</td>
+          <td>{% if fila.bodega_reconocida %}Bodega {{ fila.bodega_num }}{% else %}<span class="chip chip-critical">No reconocida</span>{% endif %}</td>
+          <td>{{ fila.marca|default:"—" }}</td>
+          <td>{{ fila.modelo|default:"—" }}</td>
+          <td>{{ fila.capacidad|default:"—" }}</td>
+          <td class="num">Q {{ fila.precio|floatformat:2 }}</td>
+          <td>{{ fila.proveedor|default:"—" }}</td>
+          <td>{{ fila.numero_serie|default:"—" }}</td>
+          <td class="num">{{ fila.stock_inicial }}</td>
+          <td class="code">{{ fila.codigo_interno_preview }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10" style="padding:16px; text-align:center; color:var(--text-muted);">No se detectaron filas con producto en esta hoja.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="hint" style="margin-bottom:16px;">Vista previa de las primeras {{ preview|length }} filas encontradas. Al confirmar se procesa la hoja completa.</p>
+
+  <div class="form-actions">
+    <button type="submit" name="confirmar" value="1" class="btn btn-primary">Confirmar e importar</button>
+    <a href="{% url 'carga_masiva_cancelar' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

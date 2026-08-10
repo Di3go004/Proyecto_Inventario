@@ -106,7 +106,8 @@ CREATE TABLE articulos (
     categoria_id      INTEGER          REFERENCES categorias(id) ON DELETE SET NULL,
     proveedor_id      INTEGER          REFERENCES proveedores(id) ON DELETE SET NULL,
     precio            NUMERIC(10,2) NOT NULL DEFAULT 0,
-    imagen_url        VARCHAR(300),
+    imagen            VARCHAR(300),                       -- ruta del archivo subido desde el equipo (prioridad)
+    imagen_url        VARCHAR(300),                       -- alternativa: link externo, si no se subió archivo
 
     -- Stock: se recalcula solo, ver trigger más abajo (RF-08). No se
     -- vuelve a escribir a mano semana a semana como en el Excel actual.
@@ -140,7 +141,7 @@ CREATE TABLE movimientos_venta (
     folio             VARCHAR(30),                       -- correlativo, para mantener numeración como hoy
 
     tipo_documento    VARCHAR(10) NOT NULL,               -- 'ingreso' | 'salida'
-    tipo_transaccion  VARCHAR(20) NOT NULL,               -- 'venta' | 'prestamo_demo' | 'repuestos' | 'materiales_otro'
+    tipo_transaccion  VARCHAR(20) NOT NULL,               -- 'venta' | 'prestamo_demo' | 'repuestos' | 'materiales_otro' | 'ajuste_inicial'
 
     articulo_id       INTEGER NOT NULL REFERENCES articulos(id) ON DELETE RESTRICT,
     cantidad          INTEGER NOT NULL,
@@ -163,7 +164,7 @@ CREATE TABLE movimientos_venta (
     devuelto_por      VARCHAR(150),
 
     CONSTRAINT chk_tipo_documento CHECK (tipo_documento IN ('ingreso', 'salida')),
-    CONSTRAINT chk_tipo_transaccion CHECK (tipo_transaccion IN ('venta', 'prestamo_demo', 'repuestos', 'materiales_otro')),
+    CONSTRAINT chk_tipo_transaccion CHECK (tipo_transaccion IN ('venta', 'prestamo_demo', 'repuestos', 'materiales_otro', 'ajuste_inicial')),  -- 'ajuste_inicial': saldo con el que arranca un artículo nuevo por carga masiva (RF-09)
     CONSTRAINT chk_cantidad_positiva CHECK (cantidad > 0),
     -- Solo un movimiento de tipo préstamo/demo puede tener datos de devolución:
     CONSTRAINT chk_devolucion_solo_prestamo CHECK (
@@ -197,7 +198,8 @@ CREATE TABLE activos (
     proveedor_id      INTEGER REFERENCES proveedores(id) ON DELETE SET NULL,
 
     precio            NUMERIC(10,2) NOT NULL DEFAULT 0,   -- pedido por el usuario: para valorizar la bodega técnica
-    imagen_url        VARCHAR(300),
+    imagen            VARCHAR(300),                       -- ruta del archivo subido desde el equipo (prioridad)
+    imagen_url        VARCHAR(300),                       -- alternativa: link externo, si no se subió archivo
 
     -- Estado pedido por el usuario: 3 valores, "de_baja" es definitivo.
     estado            VARCHAR(20) NOT NULL DEFAULT 'buen_estado',

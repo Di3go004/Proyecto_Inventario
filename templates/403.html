@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sin permiso{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+  <h1 style="font-size:1.2rem; margin:0 0 8px;">No tienes permiso para esto</h1>
+  <p style="color:var(--text-muted);">Tu rol ({{ user.get_rol_display }}) no incluye esta acción. Si crees que debería, pídele a un administrador que revise tu cuenta.</p>
+  <a href="{% url 'resumen' %}" class="btn btn-primary">Volver al resumen</a>
+</div>
+{% endblock %}
+{% block content_anon %}
+<div class="card" style="max-width:480px; margin:64px auto;">
+  <h1 style="font-size:1.2rem; margin:0 0 8px;">No tienes permiso para esto</h1>
+  <a href="{% url 'login' %}" class="btn btn-primary">Iniciar sesión</a>
+</div>
+{% endblock %}

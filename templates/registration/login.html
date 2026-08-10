@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Iniciar sesión{% endblock %}
-{% block content %}
+{% block content_anon %}
+{% load static %}
 <div class="login-card">
-  <div class="brandmark" style="width:52px;height:52px;border-radius:13px;" aria-hidden="true"><span style="font-size:1.15rem;">S</span><span style="font-size:1.15rem;">E</span></div>
+  <img src="{% static 'img/logo.png' %}" alt="Soluciones Exactas, S.A." class="brandmark">
   <div>
-    <h1 style="margin:0 0 4px; font-size:1.2rem;">Sistema de Control de Bodega</h1>
-    <p style="margin:0; color:var(--text-muted); font-size:.85rem;">Soluciones Exactas, S.A.</p>
+    <h1 class="page-title" style="font-size:1.2rem;">Sistema de Control de Bodega</h1>
+    <p class="page-sub" style="margin-top:2px;">Soluciones Exactas, S.A.</p>
   </div>
 
   {% if form.errors %}

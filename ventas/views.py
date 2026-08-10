@@ -1,5 +1,6 @@
 import os
 import uuid
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.contrib import messages
@@ -7,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from core.models import Bodega
+from core.models import Bodega, Proveedor
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
@@ -21,8 +22,13 @@ CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importacione
 @login_required
 def catalogo_articulos(request):
     """RF-02: listado de Bodega 1 y 2. Los 3 roles pueden verlo (RF-04
-    contabilidad en solo lectura); crear/editar/eliminar es solo admin."""
-    articulos = Articulo.objects.select_related('bodega', 'categoria').order_by('nombre_producto')
+    contabilidad en solo lectura); crear/editar/eliminar es solo admin.
+
+    Los filtros son combinables (bodega + proveedor + nivel + precio + texto
+    a la vez, no uno reemplaza al otro): cada uno se aplica sobre lo que
+    dejó el anterior, como pidió el usuario.
+    """
+    articulos = Articulo.objects.select_related('bodega', 'categoria', 'proveedor').order_by('nombre_producto')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -32,12 +38,59 @@ def catalogo_articulos(request):
     if bodega_id:
         articulos = articulos.filter(bodega_id=bodega_id)
 
+    proveedor_id = request.GET.get('proveedor', '').strip()
+    if proveedor_id:
+        articulos = articulos.filter(proveedor_id=proveedor_id)
+
+    precio_min = request.GET.get('precio_min', '').strip()
+    if precio_min:
+        try:
+            articulos = articulos.filter(precio__gte=Decimal(precio_min))
+        except InvalidOperation:
+            precio_min = ''
+
+    precio_max = request.GET.get('precio_max', '').strip()
+    if precio_max:
+        try:
+            articulos = articulos.filter(precio__lte=Decimal(precio_max))
+        except InvalidOperation:
+            precio_max = ''
+
+    activo = request.GET.get('activo', '').strip()
+    if activo == 'si':
+        articulos = articulos.filter(activo=True)
+    elif activo == 'no':
+        articulos = articulos.filter(activo=False)
+
+    # nivel_alerta es una propiedad calculada en Python (RF-11), no una
+    # columna — no se puede filtrar en la base de datos, así que se aplica
+    # al final sobre la lista ya recortada por los demás filtros.
+    nivel = request.GET.get('nivel', '').strip()
+    articulos = list(articulos)
+    if nivel:
+        articulos = [a for a in articulos if a.nivel_alerta == nivel]
+
     return render(request, 'ventas/catalogo.html', {
         'articulos': articulos,
         'bodegas': Bodega.objects.filter(tipo=Bodega.Tipo.VENTA),
+        'proveedores': Proveedor.objects.order_by('nombre'),
         'q': q,
         'bodega_id': bodega_id,
+        'proveedor_id': proveedor_id,
+        'nivel': nivel,
+        'precio_min': precio_min,
+        'precio_max': precio_max,
+        'activo': activo,
     })
+
+
+@login_required
+def articulo_detalle(request, pk):
+    """Ficha completa del artículo — los 3 roles pueden verla (RF-04)."""
+    articulo = get_object_or_404(
+        Articulo.objects.select_related('bodega', 'categoria', 'proveedor'), pk=pk,
+    )
+    return render(request, 'ventas/articulo_detalle.html', {'articulo': articulo})
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)

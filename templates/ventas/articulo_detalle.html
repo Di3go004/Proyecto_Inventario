@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ articulo.nombre_producto }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega 1 y 2 · {{ articulo.codigo_interno }}</p>
+    <h1 class="page-title">{{ articulo.nombre_producto }}{% if not articulo.activo %} <span class="chip chip-neutral">Inactivo</span>{% endif %}</h1>
+    <p class="page-sub">{{ articulo.bodega.nombre }}{% if articulo.categoria %} · {{ articulo.categoria.nombre }}{% endif %}</p>
+  </div>
+  {% if user.es_administrador %}
+    <a href="{% url 'articulo_editar' articulo.pk %}" class="btn btn-primary">Editar</a>
+  {% endif %}
+</div>
+
+<div class="card" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
+  <div class="detail-media">
+    {% if articulo.foto %}<img src="{{ articulo.foto }}" alt="">
+    {% else %}<div class="placeholder"></div>{% endif %}
+  </div>
+
+  <dl class="detail-grid" style="flex:1; min-width:280px;">
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ articulo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>Número de serial</dt>
+      <dd class="code">{{ articulo.numero_serie|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Marca / Modelo</dt>
+      <dd>{{ articulo.marca|default:"—" }} {{ articulo.modelo }}</dd>
+    </div>
+    <div>
+      <dt>Capacidad</dt>
+      <dd>{{ articulo.capacidad|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Proveedor</dt>
+      <dd>{{ articulo.proveedor|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Precio</dt>
+      <dd class="num" style="text-align:left;">Q {{ articulo.precio|floatformat:2 }}</dd>
+    </div>
+
+    <div>
+      <dt>Stock actual</dt>
+      <dd>
+        <span class="num" style="text-align:left; font-size:1.1rem; font-weight:700;">{{ articulo.stock_actual }}</span>
+        {% if articulo.nivel_alerta == 'critico' %}<span class="chip chip-critical">Crítico</span>
+        {% elif articulo.nivel_alerta == 'alerta' %}<span class="chip chip-warn">Alerta</span>
+        {% elif articulo.nivel_alerta == 'optimo' %}<span class="chip chip-good">Óptimo</span>
+        {% else %}<span class="chip chip-neutral">Normal</span>{% endif %}
+      </dd>
+    </div>
+    <div>
+      <dt>Umbrales (crítico / alerta / óptimo)</dt>
+      <dd>{{ articulo.stock_critico }} / {{ articulo.stock_alerta }} / {{ articulo.stock_optimo }}</dd>
+    </div>
+    <div>
+      <dt>Estado en catálogo</dt>
+      <dd>{% if articulo.activo %}<span class="chip chip-good">Activo</span>{% else %}<span class="chip chip-neutral">Inactivo</span>{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Dado de alta</dt>
+      <dd>{{ articulo.fecha_creacion|date:"d/m/Y" }}</dd>
+    </div>
+    <div>
+      <dt>Última actualización</dt>
+      <dd>{{ articulo.fecha_actualizacion|date:"d/m/Y H:i" }}</dd>
+    </div>
+  </dl>
+</div>
+
+<p class="hint" style="margin-bottom:16px;">El historial de entradas/salidas de este artículo va a aparecer aquí cuando esté lista la Fase 3 (Movimientos).</p>
+
+<a href="{% url 'catalogo_articulos' %}" class="btn">← Volver al catálogo</a>
+{% endblock %}

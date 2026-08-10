@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ activo.nombre_producto }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega Técnica · {{ activo.codigo_interno }}</p>
+    <h1 class="page-title">{{ activo.nombre_producto }}</h1>
+    <p class="page-sub">{{ activo.bodega.nombre }}{% if activo.categoria %} · {{ activo.categoria.nombre }}{% endif %}</p>
+  </div>
+  {% if user.es_administrador %}
+    <a href="{% url 'activo_editar' activo.pk %}" class="btn btn-primary">Editar</a>
+  {% endif %}
+</div>
+
+<div class="card" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
+  <div class="detail-media">
+    {% if activo.foto %}<img src="{{ activo.foto }}" alt="">
+    {% else %}<div class="placeholder"></div>{% endif %}
+  </div>
+
+  <dl class="detail-grid" style="flex:1; min-width:280px;">
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ activo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>Marca / Modelo</dt>
+      <dd>{{ activo.marca|default:"—" }} {{ activo.modelo }}</dd>
+    </div>
+    <div>
+      <dt>Proveedor</dt>
+      <dd>{{ activo.proveedor|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Precio</dt>
+      <dd class="num" style="text-align:left;">Q {{ activo.precio|floatformat:2 }}</dd>
+    </div>
+    <div>
+      <dt>Estado</dt>
+      <dd>
+        {% if activo.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+        {% elif activo.estado == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
+        {% else %}<span class="chip chip-critical">De baja</span>{% endif %}
+      </dd>
+    </div>
+    <div>
+      <dt>Disponibilidad</dt>
+      <dd>
+        {% if activo.esta_prestado %}<span class="chip chip-warn">Prestado</span>
+        {% else %}<span class="chip chip-good">Disponible</span>{% endif %}
+      </dd>
+    </div>
+    <div>
+      <dt>Dado de alta</dt>
+      <dd>{{ activo.fecha_creacion|date:"d/m/Y" }}</dd>
+    </div>
+    <div>
+      <dt>Última actualización</dt>
+      <dd>{{ activo.fecha_actualizacion|date:"d/m/Y H:i" }}</dd>
+    </div>
+  </dl>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <h2 style="margin:0 0 14px; font-size:1rem;">Historial de préstamos</h2>
+  {% if prestamos %}
+    <div class="table-wrap" style="box-shadow:none; max-height:none;">
+      <table>
+        <thead>
+          <tr><th>Solicitante</th><th>Salida</th><th>Estado al salir</th><th>Regreso</th><th>Estado al regresar</th></tr>
+        </thead>
+        <tbody>
+          {% for p in prestamos %}
+          <tr>
+            <td>{{ p.solicitante }}</td>
+            <td>{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
+            <td>{% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>{% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}</td>
+            <td>{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
+            <td>
+              {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+              {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
+              {% elif p.estado_al_regresar == 'de_baja' %}<span class="chip chip-critical">De baja</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty" style="padding:0;">Sin préstamos registrados todavía.</p>
+  {% endif %}
+</div>
+
+<a href="{% url 'catalogo_activos' %}" class="btn">← Volver al catálogo</a>
+{% endblock %}

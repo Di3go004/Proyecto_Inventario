@@ -29,6 +29,9 @@
 
 body {
   margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -104,9 +107,28 @@ select {
 input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--brand-primary); }
 
 /* ---------- Layout con navegación (catálogo, movimientos, etc.) ---------- */
-.app-body { display: grid; grid-template-columns: 200px 1fr; max-width: 1240px; margin: 0 auto; align-items: start; }
+/* .app-body es flex:1 dentro de un body en columna (topbar + esto), así
+   siempre llena el alto restante de la pantalla — y como es grid sin
+   align-items propio (stretch por defecto), la sidebar se estira a esa
+   misma altura y se ve como un panel de verdad, no como texto suelto.
+
+   Sin max-width ni margin:auto a propósito: la topbar (el logo) va de
+   borde a borde, así que esto también tiene que ir de borde a borde para
+   que el sidebar quede pegado a la izquierda en vez de "flotar" centrado
+   con franjas vacías a los lados en pantallas anchas — y de paso, esa
+   franja que se recupera es más espacio real para la tabla del catálogo. */
+.app-body { flex: 1; display: grid; grid-template-columns: 200px 1fr; width: 100%; }
+/* El <nav> exterior se estira al alto completo de la fila del grid (así el
+   fondo/borde se ven como un panel real, sin cortarse antes de tiempo).
+   Los links van en un contenedor interno "sticky" aparte, para que sigan
+   visibles al hacer scroll en una tabla larga sin tener que sticky-ar todo
+   el panel (que ya mide el alto completo y no "flotaría" igual). */
 .app-sidebar {
-  display: flex; flex-direction: column; gap: 2px; padding: 24px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.app-sidebar-inner {
+  display: flex; flex-direction: column; gap: 2px; padding: 20px 14px;
   position: sticky; top: 0;
 }
 .app-sidebar a {
@@ -115,40 +137,101 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--brand-prim
 }
 .app-sidebar a:hover { background: var(--surface-alt); color: var(--text); }
 .app-sidebar a.active { background: var(--accent-soft-bg); color: var(--brand-primary); font-weight: 700; }
-main.with-sidebar { max-width: none; margin: 0; padding: 28px 28px 64px; }
+/* min-width:0 es la parte que importa: por defecto una celda de grid no se
+   encoge más chico que el contenido que tenga adentro (aquí, una tabla
+   ancha). Sin esto, en vez de que la tabla saque su propio scroll interno,
+   es TODA la página la que se estira más ancha que la pantalla — lo que se
+   veía como "todo desalineado/mal centrado". */
+main.with-sidebar { max-width: none; margin: 0; padding: 28px 28px 64px; min-width: 0; }
 
 /* ---------- Encabezado de página (título + subtítulo consistentes) ---------- */
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
 .page-head .titles { display: flex; flex-direction: column; gap: 4px; }
 .page-title { font-size: 1.35rem; }
 .page-sub { color: var(--text-muted); font-size: .92rem; margin: 0; max-width: 60ch; }
+.eyebrow { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--brand-secondary); margin: 0 0 2px; }
 
 /* ---------- Mensajes (Django messages) ---------- */
+/* Se cierran solos a los 5s (ver script en base.html) — la transición de
+   salida vive acá; .is-leaving la agrega el JS antes de quitar el <li>. */
 .messages { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.messages li { padding: 10px 14px; border-radius: 8px; font-size: .88rem; }
+.messages li {
+  padding: 10px 14px; border-radius: 8px; font-size: .88rem;
+  opacity: 1; max-height: 60px; overflow: hidden;
+  transition: opacity .35s ease, max-height .35s ease, padding .35s ease, margin .35s ease;
+}
+.messages li.is-leaving { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
 .messages .success { background: var(--state-good-bg); color: var(--state-good-fg); }
 .messages .error { background: var(--state-critical-bg); color: var(--state-critical-fg); }
 .messages .warning { background: var(--state-warn-bg); color: var(--state-warn-fg); }
 
 /* ---------- Tablas ---------- */
-.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-md); }
-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 640px; }
+/* max-height + overflow: la tabla saca su propio scroll interno en vez de
+   alargar toda la página cuando hay muchas filas (catálogos de 200+
+   artículos), con el encabezado siempre visible arriba (sticky en el th). */
+.table-wrap {
+  overflow: auto; max-height: 70vh;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-md);
+}
+/* Scrollbar delgada: al necesitar scroll horizontal Y vertical a la vez, la
+   barra vertical por defecto del navegador (ancha, gris, con puntas) queda
+   pegada justo junto a la última columna y se ve como si fuera "otro
+   panel" separado. Adelgazándola se nota mucho menos esa costura. */
+.table-wrap { scrollbar-width: thin; }
+.table-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
+.table-wrap::-webkit-scrollbar-track { background: transparent; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+.table-wrap::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .86rem; min-width: 640px; }
 th {
+  position: sticky; top: 0; z-index: 1;
   text-align: left; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em;
   color: var(--text-muted); padding: 12px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
 }
 td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-alt); }
+/* Fila completa clicable hacia la ficha de detalle (ver script en
+   base.html) — el cursor de mano en toda la fila avisa que se puede tocar
+   en cualquier parte, no solo en el nombre. */
+tbody tr[data-href] { cursor: pointer; }
 .num { font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
 .code { font-family: var(--font-data); font-size: .82rem; color: var(--text-muted); }
+/* .actions va en un <span> DENTRO de la celda, no en el <td> mismo: si un
+   <td> recibe display:flex deja de comportarse como celda de tabla (su alto
+   ya no lo marca la fila, solo su propio contenido) y queda más bajo que
+   sus vecinas — es justo el bug que se veía como "la línea sube 10px". */
 .actions { display: flex; gap: 8px; white-space: nowrap; }
+
+/* Nombres de producto/código largos no se envuelven en varias líneas (eso
+   era lo que hacía que cada fila tuviera una altura distinta y todo se
+   viera disparejo) — se truncan con "…" y el texto completo aparece al
+   pasar el mouse encima (title del navegador, sin JS). */
+.truncate {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ---------- Formularios de catálogo ---------- */
 .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-md); padding: 22px; }
 .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .toolbar .search-input { max-width: 260px; }
 .toolbar select { width: auto; max-width: 200px; }
+.toolbar .precio-input { width: 110px; }
+
+/* ---------- Ficha de detalle (artículo/activo) ---------- */
+.detail-media {
+  flex: 0 0 220px; width: 220px; height: 220px; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--border);
+}
+.detail-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-media .placeholder { width: 100%; height: 100%; background: linear-gradient(135deg, var(--brand-secondary), var(--brand-tertiary)); }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px 16px; margin: 0; }
+.detail-grid dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 3px; }
+.detail-grid dd { margin: 0; font-size: .95rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field.span-2 { grid-column: 1 / -1; }
@@ -160,7 +243,8 @@ tbody tr:hover td { background: var(--surface-alt); }
 
 @media (max-width: 720px) {
   .app-body { grid-template-columns: 1fr; }
-  .app-sidebar { position: static; flex-direction: row; overflow-x: auto; border-bottom: 1px solid var(--border); padding: 10px 14px; }
+  .app-sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  .app-sidebar-inner { position: static; flex-direction: row; overflow-x: auto; padding: 10px 14px; }
   .form-grid { grid-template-columns: 1fr; }
 }
 
@@ -172,15 +256,23 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
 .kpi-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
 .kpi-value { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
 
-.panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 .panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-md); }
 .panel h2 { margin: 0; padding: 14px; border-bottom: 1px solid var(--border); font-size: .95rem; }
-.panel ul { list-style: none; margin: 0; padding: 0; }
-.panel li {
-  padding: 11px 14px; border-bottom: 1px solid var(--border);
-  display: flex; justify-content: space-between; gap: 10px; font-size: .86rem; flex-wrap: wrap;
-}
+/* Scroll propio en vez de alargar toda la página cuando hay muchas alertas
+   (mismo criterio que la tabla del catálogo). */
+.panel ul { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
+.panel li { border-bottom: 1px solid var(--border); }
 .panel li:last-child { border-bottom: none; }
+/* El padding vive en la fila interna (link o span), no en el <li>, para que
+   si la fila es clicable, todo el rectángulo responda al clic/hover, no
+   solo el texto. */
+.panel li > a, .panel li > .row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 11px 14px; font-size: .86rem; color: inherit; text-decoration: none;
+}
+.panel li > a:hover { background: var(--surface-alt); }
+.panel li .truncate { min-width: 0; } /* deja que el texto se achique en vez de empujar el chip fuera de la fila */
 .panel .empty { padding: 16px 14px; color: var(--text-muted); font-size: .86rem; }
 
 .login-card {

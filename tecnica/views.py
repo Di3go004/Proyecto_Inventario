@@ -1,5 +1,6 @@
 import os
 import uuid
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.contrib import messages
@@ -7,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from core.models import Bodega
+from core.models import Bodega, Proveedor
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
@@ -21,8 +22,12 @@ CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importacione
 @login_required
 def catalogo_activos(request):
     """RF-02/RF-03: catálogo de Bodega Técnica. Los 3 roles pueden verlo;
-    crear/editar/eliminar es solo admin."""
-    activos = Activo.objects.select_related('bodega', 'categoria').prefetch_related('prestamos').order_by('nombre_producto')
+    crear/editar/eliminar es solo admin.
+
+    Filtros combinables (texto + estado + proveedor + precio a la vez),
+    igual que en el catálogo de Ventas.
+    """
+    activos = Activo.objects.select_related('bodega', 'categoria', 'proveedor').prefetch_related('prestamos').order_by('nombre_producto')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -32,12 +37,45 @@ def catalogo_activos(request):
     if estado:
         activos = activos.filter(estado=estado)
 
+    proveedor_id = request.GET.get('proveedor', '').strip()
+    if proveedor_id:
+        activos = activos.filter(proveedor_id=proveedor_id)
+
+    precio_min = request.GET.get('precio_min', '').strip()
+    if precio_min:
+        try:
+            activos = activos.filter(precio__gte=Decimal(precio_min))
+        except InvalidOperation:
+            precio_min = ''
+
+    precio_max = request.GET.get('precio_max', '').strip()
+    if precio_max:
+        try:
+            activos = activos.filter(precio__lte=Decimal(precio_max))
+        except InvalidOperation:
+            precio_max = ''
+
     return render(request, 'tecnica/catalogo.html', {
         'activos': activos,
+        'proveedores': Proveedor.objects.order_by('nombre'),
         'q': q,
         'estado': estado,
         'estados': Activo.Estado.choices,
+        'proveedor_id': proveedor_id,
+        'precio_min': precio_min,
+        'precio_max': precio_max,
     })
+
+
+@login_required
+def activo_detalle(request, pk):
+    """Ficha completa del activo, con su historial de préstamos — los 3
+    roles pueden verla (RF-04)."""
+    activo = get_object_or_404(
+        Activo.objects.select_related('bodega', 'categoria', 'proveedor'), pk=pk,
+    )
+    prestamos = activo.prestamos.order_by('-fecha_salida')[:10]
+    return render(request, 'tecnica/activo_detalle.html', {'activo': activo, 'prestamos': prestamos})
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)

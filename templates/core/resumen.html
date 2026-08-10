@@ -34,8 +34,12 @@
       <ul>
         {% for a in alertas %}
         <li>
-          <span>{{ a.nombre_producto }} <span style="color:var(--text-muted); font-family:var(--font-data);">{{ a.codigo_interno }}</span></span>
-          <span class="chip {% if a.nivel_alerta == 'critico' %}chip-critical{% else %}chip-warn{% endif %}">{{ a.stock_actual }} uds</span>
+          <a href="{% url 'catalogo_articulos' %}?q={{ a.codigo_interno|urlencode }}" title="Ver bodega y stock de {{ a.codigo_interno }}">
+            <span class="truncate" style="flex:1;">
+              <span class="code">{{ a.codigo_interno }}</span> {{ a.nombre_producto }}
+            </span>
+            <span class="chip {% if a.nivel_alerta == 'critico' %}chip-critical{% else %}chip-warn{% endif %}">{{ a.stock_actual }} uds</span>
+          </a>
         </li>
         {% endfor %}
       </ul>
@@ -50,8 +54,10 @@
       <ul>
         {% for p in activos_prestados %}
         <li>
-          <span>{{ p.activo.nombre_producto }}</span>
-          <span style="color:var(--text-muted);">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
+          <span class="row">
+            <span class="truncate" style="flex:1;" title="{{ p.activo.nombre_producto }}">{{ p.activo.nombre_producto }}</span>
+            <span style="color:var(--text-muted); flex:none;">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
+          </span>
         </li>
         {% endfor %}
       </ul>

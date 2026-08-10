@@ -1,5 +1,5 @@
 """
-Carga masiva de artículos desde Excel (RF-09).
+Carga masiva de artículos desde Excel (RF-09) — Bodega 1 y 2.
 
 Diseño en 2 pasos: (1) subir el archivo y elegir la hoja, (2) revisar el
 mapeo de columnas sugerido (autodetectado por nombre de encabezado, siempre
@@ -8,13 +8,14 @@ editable) + previsualizar + confirmar.
 A propósito NO se ofrece mapear "código interno": esa columna se ignora
 aunque exista en el archivo (en el Excel real viene inconsistente) — el
 código se genera solo con la misma regla que ya usa el catálogo
-(Articulo.generar_codigo_interno, ver ventas/models.py).
+(Articulo.generar_codigo_interno, ver ventas/models.py). Esto es lo
+contrario de Bodega Técnica, donde el código sí se importa tal cual — ver
+tecnica/importador.py.
 """
 
 import re
-from decimal import Decimal, InvalidOperation
 
-import openpyxl
+from core import importador_excel as xl
 
 # (clave del campo, etiqueta en pantalla, obligatorio, palabras clave para autodetectar)
 CAMPOS_IMPORTABLES = [
@@ -29,93 +30,14 @@ CAMPOS_IMPORTABLES = [
     ('stock_inicial', 'Stock / existencia inicial', False, ['TOTAL EXISTENCIA', 'EXISTENCIA MENSUAL', 'EXISTENCIA']),
 ]
 
-MAX_FILAS_PREVIEW = 8
-MAX_FILAS_ESCANEAR_ENCABEZADO = 12
+MAX_FILAS_PREVIEW = xl.MAX_FILAS_PREVIEW
 
-
-def abrir_libro(ruta):
-    return openpyxl.load_workbook(ruta, data_only=True, read_only=True)
-
-
-def listar_hojas(ruta):
-    libro = abrir_libro(ruta)
-    try:
-        return libro.sheetnames
-    finally:
-        libro.close()
-
-
-def _fila_es_encabezado(valores):
-    """Cuenta celdas de texto no vacías — la fila de encabezados real suele
-    tener muchas más que cualquier fila de datos o título suelto."""
-    return sum(1 for v in valores if isinstance(v, str) and v.strip())
-
-
-def detectar_encabezados(ruta, hoja):
-    """
-    Escanea las primeras filas para encontrar la fila de encabezados (la que
-    tiene más celdas de texto), y devuelve [(letra_columna, texto), ...]
-    para las columnas que sí tienen encabezado.
-    """
-    libro = abrir_libro(ruta)
-    try:
-        ws = libro[hoja]
-        mejor_fila, mejor_cuenta = 1, -1
-        candidatas = []
-        for i, fila in enumerate(ws.iter_rows(min_row=1, max_row=MAX_FILAS_ESCANEAR_ENCABEZADO, values_only=True), start=1):
-            candidatas.append(fila)
-            cuenta = _fila_es_encabezado(fila)
-            if cuenta > mejor_cuenta:
-                mejor_fila, mejor_cuenta = i, cuenta
-
-        fila_valores = candidatas[mejor_fila - 1] if mejor_fila <= len(candidatas) else []
-        columnas = []
-        for idx, valor in enumerate(fila_valores):
-            if isinstance(valor, str) and valor.strip():
-                letra = openpyxl.utils.get_column_letter(idx + 1)
-                columnas.append((letra, valor.strip()))
-        return mejor_fila, columnas
-    finally:
-        libro.close()
+listar_hojas = xl.listar_hojas
+detectar_encabezados = xl.detectar_encabezados
 
 
 def autodetectar_mapeo(columnas):
-    """columnas: [(letra, texto), ...] -> {clave_campo: letra_columna_sugerida}"""
-    mapeo = {}
-    for clave, _etiqueta, _obligatorio, palabras in CAMPOS_IMPORTABLES:
-        for letra, texto in columnas:
-            texto_up = texto.upper()
-            if any(p in texto_up for p in palabras):
-                mapeo[clave] = letra
-                break
-    return mapeo
-
-
-def _valor_texto(v):
-    if v is None:
-        return ''
-    return str(v).strip()
-
-
-def _valor_decimal(v):
-    if v is None or v == '':
-        return Decimal('0')
-    if isinstance(v, (int, float, Decimal)):
-        return Decimal(str(v))
-    texto = str(v).strip().replace('Q', '').replace(',', '').replace(' ', '')
-    try:
-        return Decimal(texto) if texto else Decimal('0')
-    except InvalidOperation:
-        return Decimal('0')
-
-
-def _valor_entero(v):
-    if v is None or v == '':
-        return 0
-    try:
-        return max(0, int(round(float(str(v).replace(',', '')))))
-    except (ValueError, TypeError):
-        return 0
+    return xl.autodetectar_mapeo(columnas, CAMPOS_IMPORTABLES)
 
 
 def _numero_bodega(v):
@@ -133,31 +55,30 @@ def leer_filas(ruta, hoja, fila_encabezado, mapeo):
     "nombre_producto" se omiten (secciones en blanco entre bloques, comunes
     en estos archivos).
     """
-    libro = abrir_libro(ruta)
+    libro = xl.abrir_libro(ruta)
     try:
         ws = libro[hoja]
-        col_idx = {clave: openpyxl.utils.column_index_from_string(letra) - 1
-                   for clave, letra in mapeo.items() if letra}
+        col_idx = xl.columnas_a_indices(mapeo)
 
         for fila in ws.iter_rows(min_row=fila_encabezado + 1, values_only=True):
             def obtener(clave):
                 idx = col_idx.get(clave)
                 return fila[idx] if idx is not None and idx < len(fila) else None
 
-            nombre = _valor_texto(obtener('nombre_producto'))
+            nombre = xl.valor_texto(obtener('nombre_producto'))
             if not nombre:
                 continue
 
             yield {
                 'nombre_producto': nombre,
                 'bodega_num': _numero_bodega(obtener('bodega_col')),
-                'marca': _valor_texto(obtener('marca')),
-                'modelo': _valor_texto(obtener('modelo')),
-                'capacidad': _valor_texto(obtener('capacidad')),
-                'precio': _valor_decimal(obtener('precio')),
-                'proveedor': _valor_texto(obtener('proveedor')),
-                'numero_serie': _valor_texto(obtener('numero_serie')) or None,
-                'stock_inicial': _valor_entero(obtener('stock_inicial')),
+                'marca': xl.valor_texto(obtener('marca')),
+                'modelo': xl.valor_texto(obtener('modelo')),
+                'capacidad': xl.valor_texto(obtener('capacidad')),
+                'precio': xl.valor_decimal(obtener('precio')),
+                'proveedor': xl.valor_texto(obtener('proveedor')),
+                'numero_serie': xl.valor_texto(obtener('numero_serie')) or None,
+                'stock_inicial': xl.valor_entero(obtener('stock_inicial')),
             }
     finally:
         libro.close()

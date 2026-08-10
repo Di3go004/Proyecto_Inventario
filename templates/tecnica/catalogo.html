@@ -7,7 +7,10 @@
     <p class="page-sub">Herramientas y activos de uso interno de la empresa.</p>
   </div>
   {% if user.es_administrador %}
-    <a href="{% url 'activo_nuevo' %}" class="btn btn-primary">+ Nuevo activo</a>
+    <div style="display:flex; gap:10px;">
+      <a href="{% url 'carga_masiva_subir_tecnica' %}" class="btn">Carga masiva desde Excel</a>
+      <a href="{% url 'activo_nuevo' %}" class="btn btn-primary">+ Nuevo activo</a>
+    </div>
   {% endif %}
 </div>
 

@@ -96,7 +96,7 @@ def carga_masiva_subir(request):
 
         # Si ya había un archivo subido sin confirmar (abandonado, o se subió
         # otro encima), se limpia antes de guardar el nuevo.
-        ruta_anterior = request.session.get('carga_masiva_ruta')
+        ruta_anterior = request.session.get('carga_masiva_ventas_ruta')
         if ruta_anterior and os.path.exists(ruta_anterior):
             os.remove(ruta_anterior)
 
@@ -113,8 +113,8 @@ def carga_masiva_subir(request):
             os.remove(ruta)
             return render(request, 'ventas/carga_masiva_subir.html')
 
-        request.session['carga_masiva_ruta'] = ruta
-        request.session['carga_masiva_nombre'] = archivo.name
+        request.session['carga_masiva_ventas_ruta'] = ruta
+        request.session['carga_masiva_ventas_nombre'] = archivo.name
         return render(request, 'ventas/carga_masiva_subir.html', {
             'hojas': hojas, 'nombre_archivo': archivo.name,
         })
@@ -130,7 +130,7 @@ def carga_masiva_mapear(request):
     mapeo sugerido + previsualización, y cuando el admin le da "Confirmar
     e importar" (botón `confirmar`), ejecuta la carga.
     """
-    ruta = request.session.get('carga_masiva_ruta')
+    ruta = request.session.get('carga_masiva_ventas_ruta')
     if not ruta or not os.path.exists(ruta):
         messages.error(request, 'Primero sube un archivo.')
         return redirect('carga_masiva_subir')
@@ -161,7 +161,7 @@ def carga_masiva_mapear(request):
         else:
             resultado = importador.ejecutar_importacion(ruta, hoja, fila_encabezado, mapeo, request.user)
             os.remove(ruta)
-            del request.session['carga_masiva_ruta']
+            del request.session['carga_masiva_ventas_ruta']
 
             resumen = f"Carga completa: {resultado['creados']} creados, {resultado['actualizados']} actualizados"
             if resultado['omitidos']:
@@ -183,14 +183,14 @@ def carga_masiva_mapear(request):
         'campos': importador.CAMPOS_IMPORTABLES,
         'mapeo_sugerido': mapeo,
         'preview': preview,
-        'nombre_archivo': request.session.get('carga_masiva_nombre'),
+        'nombre_archivo': request.session.get('carga_masiva_ventas_nombre'),
     })
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
 def carga_masiva_cancelar(request):
-    ruta = request.session.pop('carga_masiva_ruta', None)
-    request.session.pop('carga_masiva_nombre', None)
+    ruta = request.session.pop('carga_masiva_ventas_ruta', None)
+    request.session.pop('carga_masiva_ventas_nombre', None)
     if ruta and os.path.exists(ruta):
         os.remove(ruta)
     return redirect('catalogo_articulos')

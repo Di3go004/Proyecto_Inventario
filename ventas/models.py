@@ -2,7 +2,7 @@ import re
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 
 from core.models import Bodega, Categoria, Proveedor
 
@@ -106,6 +106,43 @@ class Articulo(models.Model):
             return self.imagen.url
         return self.imagen_url or None
 
+    def calcular_stock_desde_movimientos(self):
+        """
+        Fuente de verdad del stock (RF-08): se deriva SIEMPRE de los
+        movimientos, nunca de sumas/restas acumuladas. Así, si un movimiento
+        se edita o se borra (cosa posible desde el panel de administración),
+        el stock vuelve a cuadrar solo en vez de quedar desincronizado.
+
+          ingresos - salidas + salidas de préstamo/demo ya devueltas
+        """
+        from django.db.models import Case, IntegerField, Sum, When
+
+        resultado = self.movimientos.aggregate(
+            total=Sum(
+                Case(
+                    When(tipo_documento=MovimientoVenta.TipoDocumento.INGRESO, then=models.F('cantidad')),
+                    # Un préstamo/demo ya devuelto salió y volvió: neto cero.
+                    When(
+                        tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+                        tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
+                        fecha_devolucion__isnull=False,
+                        then=0,
+                    ),
+                    When(tipo_documento=MovimientoVenta.TipoDocumento.SALIDA, then=-models.F('cantidad')),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            )
+        )
+        return resultado['total'] or 0
+
+    def recalcular_stock(self):
+        """Recalcula y guarda stock_actual. Devuelve el nuevo valor."""
+        total = self.calcular_stock_desde_movimientos()
+        Articulo.objects.filter(pk=self.pk).update(stock_actual=total)
+        self.stock_actual = total
+        return total
+
     @property
     def nivel_alerta(self):
         """Para pintar el chip de RF-11 (óptimo/alerta/crítico) en catálogo y reportes."""
@@ -185,25 +222,34 @@ class MovimientoVenta(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        RF-08: recalcula stock_actual solo, en vez de que cada pantalla lo
-        haga a mano. RF-06: cuando un préstamo/demo se cierra (se le pone
-        fecha_devolucion), el equipo regresa físicamente a la bodega.
-        Es la misma lógica descrita como triggers en BASE_DATOS.sql,
-        trasladada aquí porque es donde vive en la implementación real.
+        RF-08: después de guardar, el stock del artículo se recalcula desde
+        CERO a partir de todos sus movimientos (ver
+        Articulo.calcular_stock_desde_movimientos). Antes esto sumaba/restaba
+        un delta solo al crear, y por eso editar o borrar un movimiento
+        dejaba el stock desincronizado sin avisar.
+
+        Si el resultado quedara negativo (una salida mayor a lo que hay),
+        se cancela todo con un error claro en vez de reventar con el error
+        técnico de la restricción de la base de datos.
         """
-        es_nuevo = self._state.adding
-        cerrando_prestamo = False
+        with transaction.atomic():
+            super().save(*args, **kwargs)
 
-        if not es_nuevo:
-            anterior = MovimientoVenta.objects.get(pk=self.pk)
-            if (anterior.fecha_devolucion is None and self.fecha_devolucion is not None
-                    and self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO):
-                cerrando_prestamo = True
+            articulo = Articulo.objects.select_for_update().get(pk=self.articulo_id)
+            total = articulo.calcular_stock_desde_movimientos()
+            if total < 0:
+                raise ValidationError(
+                    f'No hay suficiente stock de "{articulo.nombre_producto}": '
+                    f'quedan {articulo.stock_actual} y se intentan sacar {self.cantidad}.'
+                )
+            articulo.recalcular_stock()
 
-        super().save(*args, **kwargs)
-
-        if es_nuevo:
-            delta = self.cantidad if self.tipo_documento == self.TipoDocumento.INGRESO else -self.cantidad
-            Articulo.objects.filter(pk=self.articulo_id).update(stock_actual=models.F('stock_actual') + delta)
-        elif cerrando_prestamo:
-            Articulo.objects.filter(pk=self.articulo_id).update(stock_actual=models.F('stock_actual') + self.cantidad)
+    def delete(self, *args, **kwargs):
+        """Al borrar un movimiento el stock también debe volver a cuadrar."""
+        articulo_id = self.articulo_id
+        with transaction.atomic():
+            resultado = super().delete(*args, **kwargs)
+            articulo = Articulo.objects.filter(pk=articulo_id).first()
+            if articulo:
+                articulo.recalcular_stock()
+        return resultado

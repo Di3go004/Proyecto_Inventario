@@ -269,6 +269,51 @@ flujo/contexto del proyecto:
    de datos, y — si más adelante lo confirman — soporte para lector de
    código de barras (el mismo campo de captura ya queda listo para eso).
 
+## Operación y mantenimiento
+
+Comandos del día a día (desde la carpeta del proyecto):
+
+```bash
+docker compose up -d                              # levantar el sistema
+docker compose exec web python manage.py test     # correr todas las pruebas
+```
+
+```powershell
+.\scriptsespaldo.ps1                             # respaldar la base de datos
+.\scriptsestaurar.ps1                            # ver respaldos disponibles
+```
+
+- **Respaldos (RNF-08)**: ver [scripts/PROGRAMAR_RESPALDO.md](scripts/PROGRAMAR_RESPALDO.md)
+  para dejarlo automático en el servidor. Se conservan 30 días.
+- **Crear usuarios**: `python manage.py crear_usuario <usuario> <rol>`
+  (roles: administrador / operador / contabilidad). Solo el administrador
+  recibe acceso al panel `/admin/` de Django.
+- **Auditar el stock**: `python manage.py recalcular_stock --solo-revisar`
+  compara el stock guardado contra el historial de movimientos y avisa si
+  algo no cuadra; sin `--solo-revisar` lo corrige.
+
+### Pruebas automatizadas
+
+36 pruebas cubren lo que no se puede romper en silencio: cálculo de stock
+(alta, edición y borrado de movimientos), préstamos y devoluciones, umbrales
+de alerta, generación del código interno, y los permisos de los tres roles.
+Correrlas antes de cada commit evita reintroducir errores ya corregidos.
+
+## Pendiente conocido (deuda técnica)
+
+Registrado a conciencia, no olvidado:
+
+- **Sin paginación** en los catálogos: hoy se cargan completos (216 artículos
+  / 249 activos). Conviene resolverlo antes de que crezcan mucho más.
+- **Servidor de desarrollo**: corre con `runserver` y `DEBUG=True`. Sirve para
+  la red interna, pero antes de dejarlo definitivo hay que pasar a un
+  servidor de producción (gunicorn/waitress) y `DEBUG=False`.
+- **Puerto 5432 expuesto** en `docker-compose.yml`: la base es alcanzable
+  desde otros equipos de la red sin necesidad. Se puede cerrar.
+- **Autocompletado en vivo (RF-13)**: hoy el buscador funciona con botón. El
+  autocompletado mientras se escribe se implementa en la Fase 3, que es
+  donde de verdad ahorra tiempo al operador.
+
 ## Verificación
 
 - Cada fase se prueba corriendo el servidor y accediendo desde otro equipo

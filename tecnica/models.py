@@ -58,7 +58,10 @@ class Activo(models.Model):
 
     @property
     def esta_prestado(self):
-        return self.prestamos.filter(fecha_regreso__isnull=True).exists()
+        """Recorre en Python en vez de hacer .filter(): así aprovecha el
+        prefetch_related('prestamos') de la vista y el catálogo se resuelve
+        en 2 consultas en total, no en una por cada activo (N+1)."""
+        return any(p.fecha_regreso is None for p in self.prestamos.all())
 
 
 class PrestamoActivo(models.Model):

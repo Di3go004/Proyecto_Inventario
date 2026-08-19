@@ -72,7 +72,7 @@ def activo_detalle(request, pk):
     """Ficha completa del activo, con su historial de préstamos — los 3
     roles pueden verla (RF-04)."""
     activo = get_object_or_404(
-        Activo.objects.select_related('bodega', 'categoria', 'proveedor'), pk=pk,
+        Activo.objects.select_related('bodega', 'categoria', 'proveedor').prefetch_related('prestamos'), pk=pk,
     )
     prestamos = activo.prestamos.order_by('-fecha_salida')[:10]
     return render(request, 'tecnica/activo_detalle.html', {'activo': activo, 'prestamos': prestamos})

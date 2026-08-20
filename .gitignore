@@ -12,5 +12,8 @@ db.sqlite3
 staticfiles/
 media/
 
+# Respaldos de la base de datos (pesados, y contienen datos reales)
+respaldos/
+
 # Excel/PDF de trabajo (pesan mucho, no van al repo)
 ~$*.xlsx

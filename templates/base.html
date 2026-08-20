@@ -10,7 +10,7 @@
 <body>
   {% if user.is_authenticated %}
   <header class="topbar">
-    <div class="brandmark" aria-hidden="true"><span>S</span><span>E</span></div>
+    <img src="{% static 'img/logo.png' %}" alt="Soluciones Exactas, S.A." class="brandmark">
     <div>
       <div class="product-name">Control de Bodega</div>
       <div class="product-sub">Soluciones Exactas, S.A.</div>
@@ -25,9 +25,60 @@
       </form>
     </div>
   </header>
-  {% endif %}
+
+  <div class="app-body">
+    <nav class="app-sidebar" aria-label="Navegación principal">
+      <div class="app-sidebar-inner">
+        <a href="{% url 'resumen' %}" class="{% if request.resolver_match.url_name == 'resumen' %}active{% endif %}">Resumen</a>
+        <a href="{% url 'catalogo_articulos' %}" class="{% if 'articulo' in request.resolver_match.url_name %}active{% endif %}">Catálogo Ventas</a>
+        <a href="{% url 'catalogo_activos' %}" class="{% if 'activo' in request.resolver_match.url_name %}active{% endif %}">Bodega Técnica</a>
+      </div>
+    </nav>
+    <main class="with-sidebar">
+      {% if messages %}
+        <ul class="messages">
+          {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% else %}
   <main>
-    {% block content %}{% endblock %}
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+          <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% block content_anon %}{% endblock %}
   </main>
+  {% endif %}
+<script>
+// Los mensajes (creado/actualizado/error, etc.) se cierran solos a los 5s.
+(function () {
+  document.querySelectorAll('.messages li').forEach(function (aviso) {
+    setTimeout(function () {
+      aviso.addEventListener('transitionend', function () { aviso.remove(); }, { once: true });
+      aviso.classList.add('is-leaving');
+    }, 5000);
+  });
+})();
+
+// Filas de tabla con data-href: clic en cualquier parte de la fila lleva a
+// esa página, EXCEPTO si el clic fue sobre un link/botón propio de la fila
+// (Editar, Eliminar) — esos siguen haciendo lo suyo, no la navegación.
+(function () {
+  document.querySelectorAll('tbody tr[data-href]').forEach(function (fila) {
+    fila.addEventListener('click', function (evento) {
+      if (evento.target.closest('a, button, input, select')) return;
+      window.location.href = fila.dataset.href;
+    });
+  });
+})();
+</script>
 </body>
 </html>

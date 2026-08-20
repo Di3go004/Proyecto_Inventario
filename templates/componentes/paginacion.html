@@ -1,0 +1,29 @@
+{% load navegacion %}
+{% if pagina.paginator.count %}
+<nav class="paginacion" aria-label="Paginación">
+  <p class="paginacion-conteo">
+    {{ pagina.start_index }}–{{ pagina.end_index }} de
+    <strong>{{ pagina.paginator.count }}</strong> {{ etiqueta|default:"resultados" }}
+  </p>
+
+  {% if pagina.paginator.num_pages > 1 %}
+  <div class="paginacion-controles">
+    {% if pagina.has_previous %}
+      <a href="?{% url_con pagina=pagina.previous_page_number %}" class="btn btn-sm" rel="prev">‹ Anterior</a>
+    {% else %}
+      <span class="btn btn-sm is-deshabilitado" aria-disabled="true">‹ Anterior</span>
+    {% endif %}
+
+    <span class="paginacion-actual">
+      Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+    </span>
+
+    {% if pagina.has_next %}
+      <a href="?{% url_con pagina=pagina.next_page_number %}" class="btn btn-sm" rel="next">Siguiente ›</a>
+    {% else %}
+      <span class="btn btn-sm is-deshabilitado" aria-disabled="true">Siguiente ›</span>
+    {% endif %}
+  </div>
+  {% endif %}
+</nav>
+{% endif %}

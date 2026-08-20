@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{% if modo == 'nuevo' %}Nuevo artículo{% else %}Editar artículo{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">{% if modo == 'nuevo' %}Nuevo artículo{% else %}Editar artículo{% endif %}</h1>
+    <p class="page-sub">Bodega 1 y 2 (venta).{% if modo == 'editar' %} El stock actual ({{ articulo.stock_actual }}) no se edita aquí — se ajusta desde Movimientos.{% endif %}</p>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="field span-2"><ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  <div class="form-grid">
+    <div class="field">
+      <label for="{{ form.codigo_interno.id_for_label }}">Código interno</label>
+      {{ form.codigo_interno }}
+      <span class="hint">Estándar: SE-MODELO-CAPACIDAD, se completa solo al escribir esos campos. Puedes cambiarlo a mano si este producto necesita algo distinto.</span>
+      {% for e in form.codigo_interno.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.numero_serie.id_for_label }}">Número de serie</label>
+      {{ form.numero_serie }}
+      <span class="hint">Identificador único adicional, si aplica.</span>
+      {% for e in form.numero_serie.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field span-2">
+      <label for="{{ form.nombre_producto.id_for_label }}">Producto</label>
+      {{ form.nombre_producto }}
+      {% for e in form.nombre_producto.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.marca.id_for_label }}">Marca</label>
+      {{ form.marca }}
+    </div>
+    <div class="field">
+      <label for="{{ form.modelo.id_for_label }}">Modelo</label>
+      {{ form.modelo }}
+    </div>
+    <div class="field">
+      <label for="{{ form.capacidad.id_for_label }}">Capacidad</label>
+      {{ form.capacidad }}
+    </div>
+    <div class="field">
+      <label for="{{ form.bodega.id_for_label }}">Bodega</label>
+      {{ form.bodega }}
+      {% for e in form.bodega.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.categoria.id_for_label }}">Categoría</label>
+      {{ form.categoria }}
+    </div>
+    <div class="field">
+      <label for="{{ form.proveedor.id_for_label }}">Proveedor</label>
+      {{ form.proveedor }}
+    </div>
+    <div class="field">
+      <label for="{{ form.precio.id_for_label }}">Precio (Q)</label>
+      {{ form.precio }}
+    </div>
+    <div class="field span-2">
+      <label for="{{ form.imagen.id_for_label }}">Foto del artículo</label>
+      {% if modo == 'editar' and articulo.imagen %}
+        <img src="{{ articulo.imagen.url }}" alt="" style="width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--border); margin-bottom:6px;">
+      {% endif %}
+      {{ form.imagen }}
+      <span class="hint">Subida desde el equipo (JPG/PNG, máx. 5 MB). Si subes una foto, tiene prioridad sobre la URL de abajo.</span>
+      {% for e in form.imagen.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field span-2">
+      <label for="{{ form.imagen_url.id_for_label }}">O URL de imagen (alternativa)</label>
+      {{ form.imagen_url }}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.stock_optimo.id_for_label }}">Stock óptimo</label>
+      {{ form.stock_optimo }}
+    </div>
+    <div class="field">
+      <label for="{{ form.stock_alerta.id_for_label }}">Stock de alerta</label>
+      {{ form.stock_alerta }}
+    </div>
+    <div class="field">
+      <label for="{{ form.stock_critico.id_for_label }}">Stock crítico</label>
+      {{ form.stock_critico }}
+    </div>
+    <div class="field inline" style="align-self:end;">
+      {{ form.activo }}
+      <label for="{{ form.activo.id_for_label }}">Activo (visible en catálogo)</label>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="{% url 'catalogo_articulos' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  var codigo = document.getElementById('{{ form.codigo_interno.id_for_label }}');
+  var modelo = document.getElementById('{{ form.modelo.id_for_label }}');
+  var capacidad = document.getElementById('{{ form.capacidad.id_for_label }}');
+  if (!codigo || !modelo || !capacidad) return;
+
+  // Si ya trae un código (editando, o el admin ya escribió uno a mano),
+  // no lo pisamos solos — el admin siempre tiene la última palabra.
+  var tocadoAMano = codigo.value.trim().length > 0;
+  codigo.addEventListener('input', function () { tocadoAMano = true; });
+
+  // La capacidad respeta mayúsculas/minúsculas tal cual se escribe (el
+  // Sistema Internacional de Unidades distingue "kg" de "KG" o "9V" de "9v"),
+  // solo se limpian espacios/símbolos. El modelo sí se fuerza a mayúsculas.
+  function slug(valor, forzarMayusculas) {
+    var limpio = (valor || '').trim().replace(/[^A-Za-z0-9.]+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+    return forzarMayusculas ? limpio.toUpperCase() : limpio;
+  }
+  function actualizarVistaPrevia() {
+    if (tocadoAMano) return;
+    var partes = ['SE'];
+    var m = slug(modelo.value, true), c = slug(capacidad.value, false);
+    if (m) partes.push(m);
+    if (c) partes.push(c);
+    codigo.value = partes.length > 1 ? partes.join('-') : '';
+  }
+  modelo.addEventListener('input', actualizarVistaPrevia);
+  capacidad.addEventListener('input', actualizarVistaPrevia);
+})();
+</script>
+{% endblock %}

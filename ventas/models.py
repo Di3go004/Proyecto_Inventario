@@ -1,6 +1,8 @@
+import re
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 
 from core.models import Bodega, Categoria, Proveedor
 
@@ -9,9 +11,16 @@ class Articulo(models.Model):
     """
     Catálogo de Bodega 1 y 2 (venta). El stock_actual se recalcula solo
     desde MovimientoVenta.save() (RF-08) — nunca se edita a mano.
+
+    codigo_interno se estandariza como "SE-MODELO-CAPACIDAD" y se genera
+    solo si se deja en blanco (al crear a mano, al importar desde Excel más
+    adelante, o desde el admin) — el administrador siempre puede
+    sobreescribirlo si un producto necesita algo distinto. No aplica igual
+    en Bodega Técnica: ahí el código lo asigna la empresa a mano, no
+    depende de modelo/capacidad.
     """
 
-    codigo_interno = models.CharField(max_length=50, unique=True)
+    codigo_interno = models.CharField(max_length=50, unique=True, blank=True)
     numero_serie = models.CharField(max_length=100, unique=True, null=True, blank=True)
     nombre_producto = models.CharField(max_length=200)
     marca = models.CharField(max_length=100, blank=True)
@@ -29,7 +38,11 @@ class Articulo(models.Model):
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
 
     precio = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    imagen_url = models.CharField(max_length=300, blank=True)
+    # Dos formas de poner una foto: subiéndola desde el equipo (la que se
+    # usa primero si existe) o pegando un link externo como alternativa
+    # rápida cuando no se tiene el archivo a la mano.
+    imagen = models.ImageField(upload_to='articulos/', blank=True, null=True)
+    imagen_url = models.CharField(max_length=300, blank=True, verbose_name='URL de imagen (alternativa)')
 
     stock_actual = models.PositiveIntegerField(default=0)
     # Umbrales pedidos por el usuario para Bodega 1: óptimo 20 / alerta 5 / crítico 2 (RF-11).
@@ -52,6 +65,83 @@ class Articulo(models.Model):
 
     def __str__(self):
         return f"{self.codigo_interno} — {self.nombre_producto}"
+
+    @staticmethod
+    def _slug(valor, forzar_mayusculas=True):
+        """Sin espacios ni símbolos raros, unidos por guiones (el punto
+        decimal sí se conserva, ej. "4.2V").
+
+        El modelo se fuerza a mayúsculas (es un código de fábrica, estilo
+        SKU). La capacidad se deja tal cual se escribió: el Sistema
+        Internacional de Unidades es sensible a mayúsculas/minúsculas —
+        "kg", "g", "t" van en minúscula, pero "V" (voltios), "A" (amperios),
+        "W" (vatios) van en mayúscula. Forzar un solo caso rompería esa
+        notación (un adaptador de "9V" no es lo mismo que "9v").
+        """
+        limpio = re.sub(r'[^A-Za-z0-9.]+', '-', (valor or '').strip()).strip('-.')
+        return limpio.upper() if forzar_mayusculas else limpio
+
+    def generar_codigo_interno(self):
+        """SE-MODELO-capacidad (la capacidad respeta su escritura original, ver _slug)."""
+        partes = ['SE'] + [p for p in (self._slug(self.modelo), self._slug(self.capacidad, forzar_mayusculas=False)) if p]
+        return '-'.join(partes)
+
+    def save(self, *args, **kwargs):
+        if not self.codigo_interno:
+            base = self.generar_codigo_interno()
+            codigo = base
+            sufijo = 2
+            # Si ya existe (otro producto con el mismo modelo+capacidad),
+            # se agrega -2, -3... en vez de fallar por duplicado.
+            while Articulo.objects.filter(codigo_interno=codigo).exclude(pk=self.pk).exists():
+                codigo = f"{base}-{sufijo}"
+                sufijo += 1
+            self.codigo_interno = codigo
+        super().save(*args, **kwargs)
+
+    @property
+    def foto(self):
+        """La imagen a mostrar: la subida tiene prioridad sobre la URL externa."""
+        if self.imagen:
+            return self.imagen.url
+        return self.imagen_url or None
+
+    def calcular_stock_desde_movimientos(self):
+        """
+        Fuente de verdad del stock (RF-08): se deriva SIEMPRE de los
+        movimientos, nunca de sumas/restas acumuladas. Así, si un movimiento
+        se edita o se borra (cosa posible desde el panel de administración),
+        el stock vuelve a cuadrar solo en vez de quedar desincronizado.
+
+          ingresos - salidas + salidas de préstamo/demo ya devueltas
+        """
+        from django.db.models import Case, IntegerField, Sum, When
+
+        resultado = self.movimientos.aggregate(
+            total=Sum(
+                Case(
+                    When(tipo_documento=MovimientoVenta.TipoDocumento.INGRESO, then=models.F('cantidad')),
+                    # Un préstamo/demo ya devuelto salió y volvió: neto cero.
+                    When(
+                        tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+                        tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
+                        fecha_devolucion__isnull=False,
+                        then=0,
+                    ),
+                    When(tipo_documento=MovimientoVenta.TipoDocumento.SALIDA, then=-models.F('cantidad')),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            )
+        )
+        return resultado['total'] or 0
+
+    def recalcular_stock(self):
+        """Recalcula y guarda stock_actual. Devuelve el nuevo valor."""
+        total = self.calcular_stock_desde_movimientos()
+        Articulo.objects.filter(pk=self.pk).update(stock_actual=total)
+        self.stock_actual = total
+        return total
 
     @property
     def nivel_alerta(self):
@@ -82,6 +172,9 @@ class MovimientoVenta(models.Model):
         PRESTAMO_DEMO = 'prestamo_demo', 'Préstamo / Demo'
         REPUESTOS = 'repuestos', 'Repuestos'
         MATERIALES_OTRO = 'materiales_otro', 'Materiales / Otro'
+        # Saldo inicial al crear un artículo nuevo por carga masiva desde
+        # Excel (RF-09) — no es una compra real, es "así arrancó el conteo".
+        AJUSTE_INICIAL = 'ajuste_inicial', 'Ajuste / Saldo inicial'
 
     folio = models.CharField(max_length=30, blank=True)
     tipo_documento = models.CharField(max_length=10, choices=TipoDocumento.choices)
@@ -129,25 +222,34 @@ class MovimientoVenta(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        RF-08: recalcula stock_actual solo, en vez de que cada pantalla lo
-        haga a mano. RF-06: cuando un préstamo/demo se cierra (se le pone
-        fecha_devolucion), el equipo regresa físicamente a la bodega.
-        Es la misma lógica descrita como triggers en BASE_DATOS.sql,
-        trasladada aquí porque es donde vive en la implementación real.
+        RF-08: después de guardar, el stock del artículo se recalcula desde
+        CERO a partir de todos sus movimientos (ver
+        Articulo.calcular_stock_desde_movimientos). Antes esto sumaba/restaba
+        un delta solo al crear, y por eso editar o borrar un movimiento
+        dejaba el stock desincronizado sin avisar.
+
+        Si el resultado quedara negativo (una salida mayor a lo que hay),
+        se cancela todo con un error claro en vez de reventar con el error
+        técnico de la restricción de la base de datos.
         """
-        es_nuevo = self._state.adding
-        cerrando_prestamo = False
+        with transaction.atomic():
+            super().save(*args, **kwargs)
 
-        if not es_nuevo:
-            anterior = MovimientoVenta.objects.get(pk=self.pk)
-            if (anterior.fecha_devolucion is None and self.fecha_devolucion is not None
-                    and self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO):
-                cerrando_prestamo = True
+            articulo = Articulo.objects.select_for_update().get(pk=self.articulo_id)
+            total = articulo.calcular_stock_desde_movimientos()
+            if total < 0:
+                raise ValidationError(
+                    f'No hay suficiente stock de "{articulo.nombre_producto}": '
+                    f'quedan {articulo.stock_actual} y se intentan sacar {self.cantidad}.'
+                )
+            articulo.recalcular_stock()
 
-        super().save(*args, **kwargs)
-
-        if es_nuevo:
-            delta = self.cantidad if self.tipo_documento == self.TipoDocumento.INGRESO else -self.cantidad
-            Articulo.objects.filter(pk=self.articulo_id).update(stock_actual=models.F('stock_actual') + delta)
-        elif cerrando_prestamo:
-            Articulo.objects.filter(pk=self.articulo_id).update(stock_actual=models.F('stock_actual') + self.cantidad)
+    def delete(self, *args, **kwargs):
+        """Al borrar un movimiento el stock también debe volver a cuadrar."""
+        articulo_id = self.articulo_id
+        with transaction.atomic():
+            resultado = super().delete(*args, **kwargs)
+            articulo = Articulo.objects.filter(pk=articulo_id).first()
+            if articulo:
+                articulo.recalcular_stock()
+        return resultado

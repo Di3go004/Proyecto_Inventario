@@ -106,7 +106,8 @@ CREATE TABLE articulos (
     categoria_id      INTEGER          REFERENCES categorias(id) ON DELETE SET NULL,
     proveedor_id      INTEGER          REFERENCES proveedores(id) ON DELETE SET NULL,
     precio            NUMERIC(10,2) NOT NULL DEFAULT 0,
-    imagen_url        VARCHAR(300),
+    imagen            VARCHAR(300),                       -- ruta del archivo subido desde el equipo (prioridad)
+    imagen_url        VARCHAR(300),                       -- alternativa: link externo, si no se subió archivo
 
     -- Stock: se recalcula solo, ver trigger más abajo (RF-08). No se
     -- vuelve a escribir a mano semana a semana como en el Excel actual.
@@ -140,7 +141,7 @@ CREATE TABLE movimientos_venta (
     folio             VARCHAR(30),                       -- correlativo, para mantener numeración como hoy
 
     tipo_documento    VARCHAR(10) NOT NULL,               -- 'ingreso' | 'salida'
-    tipo_transaccion  VARCHAR(20) NOT NULL,               -- 'venta' | 'prestamo_demo' | 'repuestos' | 'materiales_otro'
+    tipo_transaccion  VARCHAR(20) NOT NULL,               -- 'venta' | 'prestamo_demo' | 'repuestos' | 'materiales_otro' | 'ajuste_inicial'
 
     articulo_id       INTEGER NOT NULL REFERENCES articulos(id) ON DELETE RESTRICT,
     cantidad          INTEGER NOT NULL,
@@ -163,7 +164,7 @@ CREATE TABLE movimientos_venta (
     devuelto_por      VARCHAR(150),
 
     CONSTRAINT chk_tipo_documento CHECK (tipo_documento IN ('ingreso', 'salida')),
-    CONSTRAINT chk_tipo_transaccion CHECK (tipo_transaccion IN ('venta', 'prestamo_demo', 'repuestos', 'materiales_otro')),
+    CONSTRAINT chk_tipo_transaccion CHECK (tipo_transaccion IN ('venta', 'prestamo_demo', 'repuestos', 'materiales_otro', 'ajuste_inicial')),  -- 'ajuste_inicial': saldo con el que arranca un artículo nuevo por carga masiva (RF-09)
     CONSTRAINT chk_cantidad_positiva CHECK (cantidad > 0),
     -- Solo un movimiento de tipo préstamo/demo puede tener datos de devolución:
     CONSTRAINT chk_devolucion_solo_prestamo CHECK (
@@ -197,7 +198,8 @@ CREATE TABLE activos (
     proveedor_id      INTEGER REFERENCES proveedores(id) ON DELETE SET NULL,
 
     precio            NUMERIC(10,2) NOT NULL DEFAULT 0,   -- pedido por el usuario: para valorizar la bodega técnica
-    imagen_url        VARCHAR(300),
+    imagen            VARCHAR(300),                       -- ruta del archivo subido desde el equipo (prioridad)
+    imagen_url        VARCHAR(300),                       -- alternativa: link externo, si no se subió archivo
 
     -- Estado pedido por el usuario: 3 valores, "de_baja" es definitivo.
     estado            VARCHAR(20) NOT NULL DEFAULT 'buen_estado',
@@ -267,44 +269,63 @@ CREATE TRIGGER trg_activos_fecha_actualizacion
     FOR EACH ROW EXECUTE FUNCTION fn_set_fecha_actualizacion();
 
 
--- 6.2 RF-08: recalcular stock_actual automáticamente cuando se registra
--- un movimiento nuevo, en vez de que la aplicación tenga que hacerlo "a
--- mano" en cada pantalla. Esto también hace que chk_stock_no_negativo
--- (arriba) frene en seco cualquier salida que deje el stock en negativo.
-CREATE OR REPLACE FUNCTION fn_aplicar_movimiento_venta()
+-- 6.2 RF-08: stock_actual se DERIVA de los movimientos, no se acumula.
+--
+-- Version anterior de este archivo: sumaba/restaba un delta solo al INSERT.
+-- Se cambio porque editar o borrar un movimiento dejaba el stock
+-- desincronizado sin avisar (comprobado en pruebas). Ahora, ante cualquier
+-- cambio (alta, edicion o borrado), el stock se vuelve a calcular completo:
+--
+--     ingresos - salidas + salidas de prestamo/demo ya devueltas
+--
+-- La implementacion real vive en Python (ventas/models.py:
+-- Articulo.calcular_stock_desde_movimientos + MovimientoVenta.save/delete),
+-- porque ahi tambien se puede devolver un mensaje claro al usuario cuando
+-- una salida supera el stock. Este bloque queda como referencia del ERD y
+-- para quien prefiera resolverlo con triggers en la base de datos.
+CREATE OR REPLACE FUNCTION fn_recalcular_stock_articulo(p_articulo_id INTEGER)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE articulos SET stock_actual = COALESCE((
+        SELECT SUM(
+            CASE
+                WHEN m.tipo_documento = 'ingreso' THEN m.cantidad
+                -- Un prestamo/demo ya devuelto salio y volvio: neto cero.
+                WHEN m.tipo_documento = 'salida'
+                     AND m.tipo_transaccion = 'prestamo_demo'
+                     AND m.fecha_devolucion IS NOT NULL THEN 0
+                WHEN m.tipo_documento = 'salida' THEN -m.cantidad
+                ELSE 0
+            END
+        )
+        FROM movimientos_venta m
+        WHERE m.articulo_id = p_articulo_id
+    ), 0)
+    WHERE id = p_articulo_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION fn_sincronizar_stock_venta()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.tipo_documento = 'ingreso' THEN
-        UPDATE articulos SET stock_actual = stock_actual + NEW.cantidad WHERE id = NEW.articulo_id;
-    ELSIF NEW.tipo_documento = 'salida' THEN
-        UPDATE articulos SET stock_actual = stock_actual - NEW.cantidad WHERE id = NEW.articulo_id;
+    IF (TG_OP = 'DELETE') THEN
+        PERFORM fn_recalcular_stock_articulo(OLD.articulo_id);
+        RETURN OLD;
+    END IF;
+    PERFORM fn_recalcular_stock_articulo(NEW.articulo_id);
+    -- Si el movimiento cambio de articulo, hay que recalcular tambien el anterior.
+    IF (TG_OP = 'UPDATE' AND OLD.articulo_id <> NEW.articulo_id) THEN
+        PERFORM fn_recalcular_stock_articulo(OLD.articulo_id);
     END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_mov_venta_insert
-    AFTER INSERT ON movimientos_venta
-    FOR EACH ROW EXECUTE FUNCTION fn_aplicar_movimiento_venta();
+-- Un solo trigger cubre alta, edicion y borrado (antes solo cubria el alta).
+CREATE TRIGGER trg_mov_venta_sincroniza_stock
+    AFTER INSERT OR UPDATE OR DELETE ON movimientos_venta
+    FOR EACH ROW EXECUTE FUNCTION fn_sincronizar_stock_venta();
 
--- 6.3 RF-06: cuando una salida de préstamo/demo se "cierra" (se le
--- registra fecha_devolucion), el equipo físicamente vuelve a la bodega:
--- se le devuelve la cantidad al stock, igual que un ingreso.
-CREATE OR REPLACE FUNCTION fn_cerrar_prestamo_venta()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF OLD.fecha_devolucion IS NULL
-       AND NEW.fecha_devolucion IS NOT NULL
-       AND NEW.tipo_transaccion = 'prestamo_demo' THEN
-        UPDATE articulos SET stock_actual = stock_actual + NEW.cantidad WHERE id = NEW.articulo_id;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_mov_venta_devolucion
-    AFTER UPDATE ON movimientos_venta
-    FOR EACH ROW EXECUTE FUNCTION fn_cerrar_prestamo_venta();
 
 -- 6.4 No permitir crear un préstamo de un activo que ya está "de_baja".
 CREATE OR REPLACE FUNCTION fn_validar_activo_disponible()

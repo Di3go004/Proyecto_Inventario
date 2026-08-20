@@ -33,7 +33,9 @@ class Activo(models.Model):
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
 
     precio = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    imagen_url = models.CharField(max_length=300, blank=True)
+    # Igual que en Articulo: se puede subir el archivo o pegar un link externo.
+    imagen = models.ImageField(upload_to='activos/', blank=True, null=True)
+    imagen_url = models.CharField(max_length=300, blank=True, verbose_name='URL de imagen (alternativa)')
     estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.BUEN_ESTADO)
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -48,8 +50,18 @@ class Activo(models.Model):
         return f"{self.codigo_interno} — {self.nombre_producto}"
 
     @property
+    def foto(self):
+        """La imagen a mostrar: la subida tiene prioridad sobre la URL externa."""
+        if self.imagen:
+            return self.imagen.url
+        return self.imagen_url or None
+
+    @property
     def esta_prestado(self):
-        return self.prestamos.filter(fecha_regreso__isnull=True).exists()
+        """Recorre en Python en vez de hacer .filter(): así aprovecha el
+        prefetch_related('prestamos') de la vista y el catálogo se resuelve
+        en 2 consultas en total, no en una por cada activo (N+1)."""
+        return any(p.fecha_regreso is None for p in self.prestamos.all())
 
 
 class PrestamoActivo(models.Model):

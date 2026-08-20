@@ -92,6 +92,20 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# Fotos subidas desde el catálogo (artículos/activos). En el contenedor
+# quedan dentro de /app/media, que por el bind mount del docker-compose
+# también es la carpeta media/ del proyecto en el host — persisten solas,
+# sin volumen aparte.
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Límite general de subida: lo manda la carga masiva de Excel (RF-09), esos
+# archivos reales pesan hasta ~55 MB (fotos incrustadas por fila). El límite
+# de 5 MB por foto de producto (RF del catálogo) se valida aparte, en
+# ArticuloForm/ActivoForm — este de acá es solo el techo general del request.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 80 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 80 * 1024 * 1024
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_URL = 'login'

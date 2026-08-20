@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Eliminar activo{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;">
+  <h1 style="font-size:1.2rem; margin:0 0 8px;">¿Eliminar este activo?</h1>
+  <p style="color:var(--text-muted);">
+    <strong>{{ activo.codigo_interno }} — {{ activo.nombre_producto }}</strong><br>
+    Si ya tiene préstamos registrados, no se podrá eliminar (se protege el historial) —
+    en ese caso, cambia su estado a "De baja" desde Editar en su lugar.
+  </p>
+  <form method="post" class="form-actions">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Sí, eliminar</button>
+    <a href="{% url 'catalogo_activos' %}" class="btn">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

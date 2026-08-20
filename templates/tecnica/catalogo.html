@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load navegacion %}
 {% block title %}Bodega Técnica{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -7,64 +8,95 @@
     <p class="page-sub">Herramientas y activos de uso interno de la empresa.</p>
   </div>
   {% if user.es_administrador %}
-    <div style="display:flex; gap:10px;">
+    <div class="page-acciones">
       <a href="{% url 'carga_masiva_subir_tecnica' %}" class="btn">Carga masiva desde Excel</a>
       <a href="{% url 'activo_nuevo' %}" class="btn btn-primary">+ Nuevo activo</a>
     </div>
   {% endif %}
 </div>
 
-<form method="get" class="toolbar">
-  <input class="search-input" type="text" name="q" value="{{ q }}" placeholder="Buscar por código o nombre…">
-  <select name="estado" onchange="this.form.submit()">
-    <option value="">Todos los estados</option>
-    {% for valor, etiqueta in estados %}
-      <option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
-    {% endfor %}
-  </select>
-  <select name="proveedor" onchange="this.form.submit()">
-    <option value="">Todos los proveedores</option>
-    {% for p in proveedores %}
-      <option value="{{ p.id }}" {% if proveedor_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.nombre }}</option>
-    {% endfor %}
-  </select>
-  <input class="precio-input" type="number" step="0.01" min="0" name="precio_min" value="{{ precio_min }}" placeholder="Precio mín.">
-  <input class="precio-input" type="number" step="0.01" min="0" name="precio_max" value="{{ precio_max }}" placeholder="Precio máx.">
-  <button type="submit" class="btn">Buscar</button>
-  {% if q or estado or proveedor_id or precio_min or precio_max %}<a href="{% url 'catalogo_activos' %}" class="btn">Limpiar</a>{% endif %}
+<form method="get" class="buscador">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}"
+           placeholder="Buscar por código o nombre…" aria-label="Buscar">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+
+  <details class="filtros" {% if estado or proveedor_id or precio_min or precio_max %}open{% endif %}>
+    <summary>
+      Filtros
+      {% if filtros_activos %}<span class="chip chip-neutral">{{ filtros_activos }}</span>{% endif %}
+    </summary>
+    <div class="filtros-campos">
+      <label class="filtro">
+        <span>Estado</span>
+        <select name="estado">
+          <option value="">Todos</option>
+          {% for valor, etiqueta in estados %}
+            <option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Proveedor</span>
+        <select name="proveedor">
+          <option value="">Todos</option>
+          {% for p in proveedores %}
+            <option value="{{ p.id }}" {% if proveedor_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.nombre }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Precio desde</span>
+        <input type="number" step="0.01" min="0" name="precio_min" value="{{ precio_min }}" placeholder="Q 0.00">
+      </label>
+      <label class="filtro">
+        <span>Precio hasta</span>
+        <input type="number" step="0.01" min="0" name="precio_max" value="{{ precio_max }}" placeholder="Q 0.00">
+      </label>
+    </div>
+    <div class="filtros-acciones">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      {% if q or estado or proveedor_id or precio_min or precio_max %}
+        <a href="{% url 'catalogo_activos' %}" class="btn">Limpiar todo</a>
+      {% endif %}
+    </div>
+  </details>
 </form>
 
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="activos" %}
+
 <div class="table-wrap">
-<table>
+<table class="tabla-responsiva">
   <thead>
     <tr>
-      <th></th><th>Código</th><th>Producto</th><th>Marca / Modelo</th><th>Precio</th>
+      <th></th><th>Código</th><th>Producto</th><th class="columna-secundaria">Marca / Modelo</th><th>Precio</th>
       <th>Estado</th><th>Disponibilidad</th>
-      {% if user.es_administrador %}<th></th>{% endif %}
+      {% if user.es_administrador %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
   <tbody>
     {% for a in activos %}
     <tr data-href="{% url 'activo_detalle' a.pk %}">
-      <td>
-        {% if a.foto %}<img src="{{ a.foto }}" alt="" style="width:36px; height:36px; object-fit:cover; border-radius:6px;">
-        {% else %}<span style="display:block; width:36px; height:36px; border-radius:6px; background:linear-gradient(135deg, var(--brand-secondary), var(--brand-tertiary));"></span>{% endif %}
+      <td class="celda-foto">
+        {% if a.foto %}<img src="{{ a.foto }}" alt="">
+        {% else %}<span class="miniatura-vacia"></span>{% endif %}
       </td>
-      <td class="code truncate" style="max-width:160px;" title="{{ a.codigo_interno }}">{{ a.codigo_interno }}</td>
-      <td class="truncate"{% if a.estado == 'de_baja' %} style="text-decoration:line-through; color:var(--text-muted);"{% endif %} title="{{ a.nombre_producto }}">{{ a.nombre_producto }}</td>
-      <td class="truncate" style="max-width:160px;" title="{{ a.marca }} {{ a.modelo }}">{{ a.marca }} {{ a.modelo }}</td>
-      <td class="num">Q {{ a.precio|floatformat:2 }}</td>
-      <td>
+      <td data-etiqueta="Código" class="code truncate" style="max-width:170px;" title="{{ a.codigo_interno }}">{{ a.codigo_interno }}</td>
+      <td data-etiqueta="Producto" class="truncate celda-principal{% if a.estado == 'de_baja' %} texto-dado-de-baja{% endif %}" title="{{ a.nombre_producto }}">{{ a.nombre_producto }}</td>
+      <td data-etiqueta="Marca / Modelo" class="truncate columna-secundaria" style="max-width:160px;" title="{{ a.marca }} {{ a.modelo }}">{{ a.marca }} {{ a.modelo }}</td>
+      <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Estado">
         {% if a.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
         {% elif a.estado == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
         {% else %}<span class="chip chip-critical">De baja</span>{% endif %}
       </td>
-      <td>
+      <td data-etiqueta="Disponibilidad">
         {% if a.esta_prestado %}<span class="chip chip-warn">Prestado</span>
         {% else %}<span class="chip chip-good">Disponible</span>{% endif %}
       </td>
       {% if user.es_administrador %}
-      <td>
+      <td class="celda-acciones">
         <span class="actions">
           <a href="{% url 'activo_editar' a.pk %}" class="btn btn-sm">Editar</a>
           <a href="{% url 'activo_eliminar' a.pk %}" class="btn btn-sm btn-danger">Eliminar</a>
@@ -73,9 +105,18 @@
       {% endif %}
     </tr>
     {% empty %}
-    <tr><td colspan="8" style="padding:20px; text-align:center; color:var(--text-muted);">Sin activos todavía. {% if user.es_administrador %}Créalo con "+ Nuevo activo" o usa la carga masiva desde Excel.{% endif %}</td></tr>
+    <tr class="fila-vacia"><td colspan="8">
+      {% if q or estado or proveedor_id or precio_min or precio_max %}
+        No hay activos que coincidan con los filtros.
+        <a href="{% url 'catalogo_activos' %}">Limpiar filtros</a>
+      {% else %}
+        Sin activos todavía.{% if user.es_administrador %} Créalo con "+ Nuevo activo" o usa la carga masiva desde Excel.{% endif %}
+      {% endif %}
+    </td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="activos" %}
 {% endblock %}

@@ -9,6 +9,7 @@ from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core.models import Bodega, Proveedor
+from core.paginacion import paginar
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
@@ -66,12 +67,20 @@ def catalogo_articulos(request):
     # columna — no se puede filtrar en la base de datos, así que se aplica
     # al final sobre la lista ya recortada por los demás filtros.
     nivel = request.GET.get('nivel', '').strip()
-    articulos = list(articulos)
     if nivel:
         articulos = [a for a in articulos if a.nivel_alerta == nivel]
 
+    pagina = paginar(request, articulos)
+
+    # Cuántos filtros hay puestos (sin contar la búsqueda por texto, que
+    # siempre está a la vista): se muestra junto al botón "Filtros" para
+    # que se note que hay filtros aplicados aunque el panel esté cerrado.
+    filtros_activos = len([f for f in (bodega_id, proveedor_id, nivel, precio_min, precio_max, activo) if f])
+
     return render(request, 'ventas/catalogo.html', {
-        'articulos': articulos,
+        'filtros_activos': filtros_activos,
+        'articulos': pagina,
+        'pagina': pagina,
         'bodegas': Bodega.objects.filter(tipo=Bodega.Tipo.VENTA),
         'proveedores': Proveedor.objects.order_by('nombre'),
         'q': q,

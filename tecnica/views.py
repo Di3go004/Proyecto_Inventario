@@ -9,6 +9,7 @@ from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core.models import Bodega, Proveedor
+from core.paginacion import paginar
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
@@ -55,8 +56,14 @@ def catalogo_activos(request):
         except InvalidOperation:
             precio_max = ''
 
+    pagina = paginar(request, activos)
+
+    filtros_activos = len([f for f in (estado, proveedor_id, precio_min, precio_max) if f])
+
     return render(request, 'tecnica/catalogo.html', {
-        'activos': activos,
+        'filtros_activos': filtros_activos,
+        'activos': pagina,
+        'pagina': pagina,
         'proveedores': Proveedor.objects.order_by('nombre'),
         'q': q,
         'estado': estado,

@@ -196,7 +196,7 @@ tbody tr:hover td { background: var(--surface-alt); }
    base.html) — el cursor de mano en toda la fila avisa que se puede tocar
    en cualquier parte, no solo en el nombre. */
 tbody tr[data-href] { cursor: pointer; }
-.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .code { font-family: var(--font-data); font-size: .82rem; color: var(--text-muted); }
 /* .actions va en un <span> DENTRO de la celda, no en el <td> mismo: si un
    <td> recibe display:flex deja de comportarse como celda de tabla (su alto
@@ -290,6 +290,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
   main { padding: 16px 16px 48px; }
   .panel-row { grid-template-columns: 1fr; }
   .topbar { padding: 10px 12px; }
+  .buscador-principal { flex-direction: column; }
+  .filtros-campos { grid-template-columns: 1fr; }
+  .page-acciones { width: 100%; }
+  .page-acciones .btn { flex: 1; }
 }
 
 /* Celular: la barra superior se apila para que usuario/rol/salir no se
@@ -298,4 +302,155 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
   .topbar .product-sub { display: none; }
   .kpi-value { font-size: 1.25rem; }
   main { padding: 14px 12px 40px; }
+}
+
+/* =====================================================================
+   Buscador y filtros de los catálogos
+   ===================================================================== */
+/* La búsqueda por texto queda siempre visible; los demás filtros viven
+   dentro de un <details> para que no ocupen media pantalla (sobre todo en
+   celular, donde antes empujaban la tabla fuera de la vista). */
+.buscador { margin-bottom: 18px; }
+.buscador-principal { display: flex; gap: 10px; margin-bottom: 10px; }
+.buscador-principal .search-input { max-width: 420px; }
+
+.filtros {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+.filtros > summary {
+  cursor: pointer; padding: 10px 14px; font-size: .88rem; font-weight: 600;
+  color: var(--text-muted); display: flex; align-items: center; gap: 8px;
+  list-style: none;
+}
+.filtros > summary::-webkit-details-marker { display: none; }
+.filtros > summary::before {
+  content: "▸"; display: inline-block; transition: transform .15s ease;
+  color: var(--brand-secondary);
+}
+.filtros[open] > summary::before { transform: rotate(90deg); }
+.filtros[open] > summary { border-bottom: 1px solid var(--border); color: var(--text); }
+.filtros-campos {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px; padding: 16px 14px;
+}
+.filtro { display: flex; flex-direction: column; gap: 5px; }
+.filtro > span { font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.filtros-acciones { display: flex; gap: 10px; padding: 0 14px 16px; flex-wrap: wrap; }
+
+/* =====================================================================
+   Paginación
+   ===================================================================== */
+.paginacion {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap; margin: 14px 0;
+}
+.paginacion-conteo { margin: 0; font-size: .86rem; color: var(--text-muted); }
+.paginacion-controles { display: flex; align-items: center; gap: 10px; }
+.paginacion-actual { font-size: .84rem; color: var(--text-muted); white-space: nowrap; }
+.btn.is-deshabilitado { opacity: .45; cursor: default; pointer-events: none; }
+
+/* =====================================================================
+   Detalles varios de tabla
+   ===================================================================== */
+.celda-foto img { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; display: block; }
+.miniatura-vacia {
+  display: block; width: 36px; height: 36px; border-radius: 6px;
+  background: linear-gradient(135deg, var(--brand-secondary), var(--brand-tertiary));
+}
+.texto-dado-de-baja { text-decoration: line-through; color: var(--text-muted); }
+.fila-vacia td { padding: 28px 16px; text-align: center; color: var(--text-muted); }
+.page-acciones { display: flex; gap: 10px; flex-wrap: wrap; }
+.visualmente-oculto {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* =====================================================================
+   Celular y tablet: la tabla se convierte en tarjetas
+   ===================================================================== */
+/* Con 8-10 columnas, una tabla no cabe ni en celular ni en tablet (ahí
+   quedan ~560px útiles descontando la barra lateral). Cada fila pasa a ser
+   una tarjeta y cada celda muestra su propio rótulo (data-etiqueta), sin
+   duplicar el HTML. De paso se tocan mejor con el dedo. */
+@media (max-width: 1024px) {
+  .buscador-principal .search-input { max-width: none; }
+
+  .table-wrap { max-height: none; border: none; box-shadow: none; background: transparent; overflow: visible; }
+  .tabla-responsiva { min-width: 0; display: block; }
+  .tabla-responsiva thead { display: none; }
+  .tabla-responsiva tbody { display: flex; flex-direction: column; gap: 12px; }
+
+  /* flex + order permite reordenar la tarjeta sin tocar el orden de las
+     columnas del escritorio: en el celular manda el nombre del producto,
+     que es lo que identifica la fila de un vistazo. */
+  .tabla-responsiva tr {
+    display: flex; flex-direction: column; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-md); padding: 14px; position: relative;
+  }
+  .tabla-responsiva .celda-foto { order: -2; }
+  .tabla-responsiva .celda-principal { order: -1; }
+  .tabla-responsiva .celda-acciones { order: 99; }
+  .tabla-responsiva td {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 7px 0; border: none; border-bottom: 1px solid var(--border);
+    text-align: right; max-width: none !important; white-space: normal;
+  }
+  .tabla-responsiva td:last-child { border-bottom: none; padding-bottom: 0; }
+  .tabla-responsiva td::before {
+    content: attr(data-etiqueta);
+    font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--text-muted); text-align: left; flex: none;
+  }
+  /* La foto y el nombre del producto encabezan la tarjeta. */
+  .tabla-responsiva .celda-foto { justify-content: flex-start; padding-top: 0; }
+  .tabla-responsiva .celda-foto img,
+  .tabla-responsiva .miniatura-vacia { width: 52px; height: 52px; }
+  .tabla-responsiva .celda-principal {
+    font-weight: 700; font-size: 1rem; text-align: left;
+    flex-direction: column; align-items: flex-start; gap: 2px;
+  }
+  .tabla-responsiva .celda-acciones { justify-content: stretch; padding-top: 12px; }
+  .tabla-responsiva .celda-acciones::before { content: none; }
+  .tabla-responsiva .actions { width: 100%; }
+  .tabla-responsiva .actions .btn { flex: 1; }
+  .tabla-responsiva .fila-vacia td { display: block; text-align: center; }
+  .tabla-responsiva .fila-vacia td::before { content: none; }
+
+  .paginacion { flex-direction: column; align-items: stretch; text-align: center; }
+  .paginacion-controles { justify-content: space-between; }
+}
+
+/* Celular angosto: los indicadores del resumen en dos columnas, para ver
+   los cuatro sin tanto scroll. */
+@media (max-width: 560px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .kpi-value { font-size: 1.15rem; }
+  .kpi-label { font-size: .66rem; }
+}
+
+/* Tablet / laptop angosta: se ocultan las columnas menos consultadas
+   (número de serial, marca/modelo) para que la tabla entre completa sin
+   scroll horizontal. Siguen visibles en la ficha de detalle y en la
+   tarjeta del celular, así que no se pierde información. */
+@media (min-width: 1025px) and (max-width: 1450px) {
+  .columna-secundaria { display: none; }
+  table { min-width: 0; }
+}
+
+/* En modo tabla, los valores cortos (Bodega 2, chips de estado) no deben
+   partirse en dos líneas: hacen la fila más alta sin ganar nada. */
+@media (min-width: 1025px) {
+  .tabla-responsiva td[data-etiqueta="Bodega"],
+  .tabla-responsiva td[data-etiqueta="Nivel"],
+  .tabla-responsiva td[data-etiqueta="Estado"],
+  .tabla-responsiva td[data-etiqueta="Disponibilidad"] { white-space: nowrap; }
+}
+
+/* En celular la foto de la ficha (220px) se comía media pantalla antes de
+   llegar a los datos; se reduce para que el contenido quede a la vista. */
+@media (max-width: 560px) {
+  .detail-media { flex: 0 0 120px; width: 120px; height: 120px; }
+  .detail-grid { grid-template-columns: 1fr 1fr; gap: 14px 12px; }
 }

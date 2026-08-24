@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Préstamos de herramienta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Préstamos de herramienta</h1>
+    <p class="page-sub">
+      Quién tiene cada equipo de Bodega Técnica y en qué estado salió.
+      Reemplaza el formato FO-SE-066.
+    </p>
+  </div>
+  {% if user.puede_editar %}
+    <a href="{% url 'prestamo_nuevo' %}" class="btn btn-primary">+ Registrar salida</a>
+  {% endif %}
+</div>
+
+<form method="get" class="buscador">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}"
+           placeholder="Buscar por herramienta, código o persona…" aria-label="Buscar">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+
+  <details class="filtros" {% if filtros_activos %}open{% endif %}>
+    <summary>
+      Filtros
+      {% if filtros_activos %}<span class="chip chip-neutral">{{ filtros_activos }}</span>{% endif %}
+    </summary>
+    <div class="filtros-campos">
+      <label class="filtro">
+        <span>Situación</span>
+        <select name="estado">
+          <option value="afuera" {% if estado == 'afuera' %}selected{% endif %}>Afuera ahora mismo</option>
+          <option value="devueltos" {% if estado == 'devueltos' %}selected{% endif %}>Ya devueltos</option>
+          <option value="todos" {% if estado == 'todos' %}selected{% endif %}>Todos</option>
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Salida desde</span>
+        <input type="date" name="desde" value="{{ desde }}">
+      </label>
+      <label class="filtro">
+        <span>Salida hasta</span>
+        <input type="date" name="hasta" value="{{ hasta }}">
+      </label>
+    </div>
+    <div class="filtros-acciones">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      {% if q or filtros_activos %}
+        <a href="{% url 'prestamos_tecnica' %}" class="btn">Limpiar todo</a>
+      {% endif %}
+    </div>
+  </details>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="préstamos" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Herramienta</th><th class="columna-secundaria">Código</th>
+      <th>Solicitante</th><th>Salida</th><th>Estado al salir</th>
+      <th>Regreso</th><th>Estado al regresar</th>
+      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in prestamos %}
+    <tr data-href="{% url 'activo_detalle' p.activo.pk %}">
+      <td data-etiqueta="Herramienta" class="truncate celda-principal" title="{{ p.activo.nombre_producto }}">
+        {{ p.activo.nombre_producto }}
+      </td>
+      <td data-etiqueta="Código" class="code columna-secundaria">{{ p.activo.codigo_interno }}</td>
+      <td data-etiqueta="Solicitante" class="truncate">{{ p.solicitante }}</td>
+      <td data-etiqueta="Salida" class="num" style="text-align:left;">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
+      <td data-etiqueta="Estado al salir">
+        {% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
+      </td>
+      <td data-etiqueta="Regreso" class="num" style="text-align:left;">
+        {% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}
+        {% else %}<span class="chip chip-warn">Afuera</span>{% endif %}
+      </td>
+      <td data-etiqueta="Estado al regresar">
+        {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+        {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
+        {% elif p.estado_al_regresar == 'de_baja' %}<span class="chip chip-critical">De baja</span>
+        {% else %}—{% endif %}
+      </td>
+      {% if user.puede_editar %}
+      <td class="celda-acciones">
+        <span class="actions">
+          {% if not p.fecha_regreso %}
+            <a href="{% url 'prestamo_regreso' p.pk %}" class="btn btn-sm btn-primary">Registrar regreso</a>
+          {% endif %}
+        </span>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="8">
+      {% if estado == 'afuera' and not q %}
+        No hay ninguna herramienta afuera en este momento.
+        <a href="?estado=todos">Ver todo el historial</a>
+      {% else %}
+        No hay préstamos que coincidan con los filtros.
+        <a href="{% url 'prestamos_tecnica' %}">Limpiar filtros</a>
+      {% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="préstamos" %}
+{% endblock %}

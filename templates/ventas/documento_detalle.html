@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Documento {{ folio }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">
+      {% if cabecera.tipo_documento == 'ingreso' %}Ingreso a bodega · FO-SE-013{% else %}Salida de bodega · FO-SE-012{% endif %}
+    </p>
+    <h1 class="page-title">Folio {{ folio }}</h1>
+    <p class="page-sub">
+      {{ cabecera.get_tipo_transaccion_display }} ·
+      registrado por {{ cabecera.usuario.get_full_name|default:cabecera.usuario.username }}
+    </p>
+  </div>
+  <a href="{% url 'movimientos_ventas' %}" class="btn">← Volver al historial</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Fecha</dt>
+      <dd>{{ cabecera.fecha|date:"d/m/Y H:i" }}</dd>
+    </div>
+    <div>
+      <dt>Tipo de movimiento</dt>
+      <dd>
+        {% if cabecera.tipo_documento == 'ingreso' %}
+          <span class="chip chip-good">Ingreso</span>
+        {% else %}
+          <span class="chip chip-critical">Salida</span>
+        {% endif %}
+        {{ cabecera.get_tipo_transaccion_display }}
+      </dd>
+    </div>
+    <div>
+      <dt>Solicitado por</dt>
+      <dd>{{ cabecera.solicitado_por|default:"—" }}</dd>
+    </div>
+    {% if cabecera.tipo_documento == 'salida' %}
+      <div>
+        <dt>Entregado por</dt>
+        <dd>{{ cabecera.entregado_por|default:"—" }}</dd>
+      </div>
+      <div>
+        <dt>Cliente</dt>
+        <dd>{{ cabecera.cliente_nombre|default:"—" }}</dd>
+      </div>
+      <div>
+        <dt>Envío / recibo</dt>
+        <dd>{{ cabecera.envio_recibo|default:"—" }}</dd>
+      </div>
+    {% else %}
+      <div>
+        <dt>Proveedor</dt>
+        <dd>{{ cabecera.proveedor|default:"—" }}</dd>
+      </div>
+    {% endif %}
+    <div>
+      <dt>No. de factura</dt>
+      <dd class="code">{{ cabecera.no_factura|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>{% if cabecera.tipo_documento == 'ingreso' %}Boleta de ingreso{% else %}Boleta de salida{% endif %}</dt>
+      <dd class="code">{{ cabecera.no_boleta|default:"—" }}</dd>
+    </div>
+    {% if cabecera.observacion %}
+      <div style="grid-column:1/-1;">
+        <dt>Observación</dt>
+        <dd>{{ cabecera.observacion|linebreaksbr }}</dd>
+      </div>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th style="width:44px;">#</th><th>Producto</th>
+      <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
+      <th>Precio unitario</th><th>Subtotal</th><th>Estado</th>
+      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for linea in lineas %}
+    <tr data-href="{% url 'articulo_detalle' linea.articulo.pk %}">
+      <td class="num" style="text-align:left;">{{ forloop.counter }}</td>
+      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ linea.articulo.nombre_producto }}">
+        {{ linea.articulo.nombre_producto }}
+        <span class="code">{{ linea.articulo.codigo_interno }}</span>
+      </td>
+      <td data-etiqueta="Bodega" class="columna-secundaria">{{ linea.articulo.bodega.nombre }}</td>
+      <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
+      <td data-etiqueta="Precio unitario" class="num">Q {{ linea.articulo.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Subtotal" class="num">Q {{ linea.subtotal|floatformat:2 }}</td>
+      <td data-etiqueta="Estado">
+        {% if linea.esta_afuera %}
+          <span class="chip chip-warn">Afuera</span>
+        {% elif linea.fecha_devolucion %}
+          <span class="chip chip-neutral">Devuelto {{ linea.fecha_devolucion|date:"d/m/Y" }}</span>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      {% if user.puede_editar %}
+      <td class="celda-acciones">
+        <span class="actions">
+          {% if linea.esta_afuera %}
+            <a href="{% url 'devolucion_demo' linea.pk %}" class="btn btn-sm btn-primary">Registrar regreso</a>
+          {% endif %}
+        </span>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% comment %}
+  Fuera de la tabla y no en un <tfoot>: en celular la tabla se convierte en
+  tarjetas y un pie de tabla ahí queda descolgado.
+{% endcomment %}
+<div class="totales-documento">
+  <span>Total del documento</span>
+  <span class="num">{{ total_unidades }} unidad(es)</span>
+  <span class="num totales-monto">Q {{ total_quetzales|floatformat:2 }}</span>
+</div>
+
+<p class="hint" style="margin-top:16px;">
+  La impresión de esta boleta en PDF, con el mismo formato del papel y los
+  espacios de firma, entra en la Fase 4 (RF-10).
+</p>
+{% endblock %}

@@ -243,8 +243,20 @@ tbody tr[data-href] { cursor: pointer; }
 
 @media (max-width: 720px) {
   .app-body { grid-template-columns: 1fr; }
-  .app-sidebar { border-right: none; border-bottom: 1px solid var(--border); }
-  .app-sidebar-inner { position: static; flex-direction: row; overflow-x: auto; padding: 10px 14px; }
+  /* min-width:0 es lo que hace que el scroll horizontal de los links
+     funcione de verdad: una celda de grid no se encoge por debajo de su
+     contenido, así que sin esto la barra empujaba TODA la página a lo
+     ancho en vez de sacar su propia barra de scroll. Se notó al pasar de
+     3 a 5 destinos, pero el problema ya estaba desde antes. */
+  .app-sidebar { border-right: none; border-bottom: 1px solid var(--border); min-width: 0; }
+  .app-sidebar-inner {
+    position: static; flex-direction: row; overflow-x: auto;
+    padding: 10px 14px; min-width: 0; gap: 4px;
+  }
+  .app-sidebar a { white-space: nowrap; }
+  /* Los rótulos de grupo solo tienen sentido en la columna vertical; en
+     una fila se leerían como un destino más. */
+  .app-sidebar-grupo { display: none; }
   .form-grid { grid-template-columns: 1fr; }
 }
 
@@ -453,4 +465,101 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
 @media (max-width: 560px) {
   .detail-media { flex: 0 0 120px; width: 120px; height: 120px; }
   .detail-grid { grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+}
+
+/* =====================================================================
+   Fase 3 — Movimientos
+   ===================================================================== */
+
+/* Grupos de la barra lateral: con 5 destinos, separarlos por bloque evita
+   leerlos como una lista plana. */
+.app-sidebar-grupo {
+  margin: 14px 0 4px; padding: 0 12px;
+  font-size: .66rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-muted);
+}
+
+.card-titulo { font-size: .95rem; margin: 0 0 16px; }
+form.card > .errorlist,
+.card > .errorlist {
+  list-style: none; margin: 0 0 14px; padding: 10px 12px;
+  border-radius: var(--radius); font-size: .84rem;
+  background: var(--state-critical-bg); color: var(--state-critical-fg);
+}
+
+/* --- Buscador con sugerencias (RF-13) --- */
+.autocompletar { position: relative; }
+.autocompletar.tiene-seleccion .autocompletar-texto { border-color: var(--state-good-fg); }
+.autocompletar-lista {
+  list-style: none; margin: 4px 0 0; padding: 4px;
+  position: absolute; z-index: 30; left: 0; right: 0; max-height: 280px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-md);
+}
+.autocompletar-opcion {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+}
+.autocompletar-opcion:hover,
+.autocompletar-opcion.resaltada { background: var(--accent-soft-bg); }
+.autocompletar-textos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.autocompletar-nombre {
+  font-size: .88rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.autocompletar-meta {
+  font-family: var(--font-data); font-size: .74rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.autocompletar-vacio { padding: 10px; color: var(--text-muted); font-size: .84rem; }
+
+/* --- Detalle de líneas de un documento --- */
+.tabla-lineas { min-width: 0; }
+.tabla-lineas td { vertical-align: top; }
+.tabla-lineas .linea-numero { color: var(--text-muted); padding-top: 18px; }
+.tabla-lineas input { margin: 0; }
+.linea-info, .linea-error, .linea-aviso {
+  display: block; margin-top: 4px; font-size: .74rem;
+}
+.linea-info { color: var(--text-muted); }
+.linea-error, .linea-aviso { color: var(--state-critical-fg); font-weight: 600; }
+.linea-con-error .autocompletar-texto,
+.linea-sin-stock .linea-cantidad { border-color: var(--state-critical-fg); }
+
+/* --- Historial y documentos --- */
+.etiqueta-transaccion { color: var(--text-muted); font-size: .78rem; }
+.totales-documento {
+  display: flex; align-items: center; justify-content: flex-end; gap: 18px;
+  margin-top: 12px; padding: 14px 18px;
+  background: var(--surface-alt); border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: .88rem;
+}
+.totales-documento > span:first-child { margin-right: auto; font-weight: 600; }
+.totales-monto { font-size: 1.05rem; font-weight: 700; }
+.aviso-prestado {
+  margin: 0 0 16px; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--state-warn-bg); color: var(--state-warn-fg); font-size: .88rem;
+}
+
+/* Las tablas simples (las que no se convierten en tarjetas) van dentro de
+   un .table-wrap que en pantalla chica deja de recortar; sin esto, el
+   min-width de 640px del estilo base empujaría la página a lo ancho. */
+@media (max-width: 1024px) {
+  .table-wrap > table:not(.tabla-responsiva) { min-width: 0; font-size: .8rem; }
+  .totales-documento { flex-wrap: wrap; gap: 8px 14px; }
+}
+
+/* Celular: el detalle del documento se apila, que con 4 columnas y un
+   buscador adentro no hay ancho que alcance. */
+@media (max-width: 700px) {
+  .tabla-lineas, .tabla-lineas tbody, .tabla-lineas tr, .tabla-lineas td { display: block; width: 100%; }
+  .tabla-lineas thead { display: none; }
+  .tabla-lineas tr {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 10px;
+  }
+  .tabla-lineas td { border: none; padding: 5px 0; }
+  .tabla-lineas .linea-numero { padding: 0 0 4px; font-weight: 700; }
+  .tabla-lineas .linea-numero::before { content: "Línea "; }
+  .tabla-lineas .quitar-linea { width: 100%; margin-top: 6px; }
 }

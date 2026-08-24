@@ -1,6 +1,9 @@
 from django import forms
+from django.utils import timezone
 
-from .models import Articulo
+from core.models import Proveedor
+
+from .models import Articulo, MovimientoVenta
 
 
 class ArticuloForm(forms.ModelForm):
@@ -39,3 +42,178 @@ class ArticuloForm(forms.ModelForm):
         if imagen and imagen.size > 5 * 1024 * 1024:
             raise forms.ValidationError('La imagen no puede pesar más de 5 MB.')
         return imagen
+
+
+class EntradaFechaHora(forms.DateTimeInput):
+    """
+    <input type="datetime-local">: usa el calendario que ya trae el
+    navegador, sin librerías externas. Importa porque el sistema corre en la
+    red local de la empresa y muchas veces sin salida a internet (RNF-01).
+    """
+
+    input_type = 'datetime-local'
+
+    def __init__(self, attrs=None):
+        super().__init__(attrs=attrs, format='%Y-%m-%dT%H:%M')
+
+
+class DocumentoMovimientoForm(forms.Form):
+    """
+    Cabecera de un documento de bodega (RF-05).
+
+    Una boleta de papel —FO-SE-013 de ingreso o FO-SE-012 de salida— lleva
+    varias líneas de producto bajo un mismo encabezado. Aquí se captura ese
+    encabezado una sola vez y se copia a cada MovimientoVenta que comparte
+    el folio; las líneas se leen aparte con leer_lineas().
+    """
+
+    # "Ajuste / Saldo inicial" no se ofrece: lo pone la carga masiva al
+    # importar (RF-09), no es algo que se registre a mano en una boleta.
+    TIPOS_VISIBLES = [
+        (valor, etiqueta) for valor, etiqueta in MovimientoVenta.TipoTransaccion.choices
+        if valor != MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL
+    ]
+
+    # Campos que solo existen en uno de los dos documentos.
+    SOLO_INGRESO = ('proveedor',)
+    SOLO_SALIDA = ('entregado_por', 'cliente_nombre', 'envio_recibo')
+
+    folio = forms.CharField(
+        max_length=30, required=False, label='Folio',
+        widget=forms.TextInput(attrs={'placeholder': 'Vacío = correlativo automático'}),
+    )
+    fecha = forms.DateTimeField(label='Fecha del movimiento', widget=EntradaFechaHora())
+    tipo_transaccion = forms.ChoiceField(choices=TIPOS_VISIBLES, label='Tipo de movimiento')
+    solicitado_por = forms.CharField(max_length=150, label='Solicitado por')
+    entregado_por = forms.CharField(max_length=150, required=False, label='Entregado por')
+    cliente_nombre = forms.CharField(max_length=150, required=False, label='Cliente')
+    proveedor = forms.ModelChoiceField(
+        queryset=Proveedor.objects.order_by('nombre'), required=False,
+        label='Proveedor', empty_label='— Sin proveedor —',
+    )
+    no_factura = forms.CharField(max_length=50, required=False, label='No. de factura')
+    no_boleta = forms.CharField(max_length=50, required=False, label='No. de boleta')
+    envio_recibo = forms.CharField(max_length=100, required=False, label='Envío / recibo')
+    observacion = forms.CharField(
+        required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
+    )
+
+    def __init__(self, *args, tipo_documento, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tipo_documento = tipo_documento
+        es_ingreso = tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
+
+        for nombre in (self.SOLO_SALIDA if es_ingreso else self.SOLO_INGRESO):
+            del self.fields[nombre]
+
+        if es_ingreso:
+            self.fields['no_boleta'].label = 'Boleta de ingreso a bodega'
+        else:
+            self.fields['no_boleta'].label = 'Boleta de salida'
+
+        if not self.is_bound:
+            # Por defecto "ahora", que es el caso normal; el operador solo la
+            # cambia cuando está digitando una boleta de días anteriores.
+            self.fields['fecha'].initial = timezone.now()
+
+    def datos_para_movimiento(self):
+        """Los campos de cabecera tal como se guardan en cada línea."""
+        datos = dict(self.cleaned_data)
+        datos.pop('folio', None)
+        datos.pop('tipo_transaccion', None)
+        return datos
+
+
+class DevolucionDemoForm(forms.Form):
+    """
+    RF-06: cierra una salida de préstamo/demo. Al guardarse, el artículo
+    vuelve a contar en el stock porque el equipo regresó físicamente.
+    """
+
+    fecha_devolucion = forms.DateTimeField(label='Fecha de devolución', widget=EntradaFechaHora())
+    devuelto_por = forms.CharField(max_length=150, label='Devuelto por')
+    observacion = forms.CharField(
+        required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
+    )
+
+    def __init__(self, *args, movimiento=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.movimiento = movimiento
+        if not self.is_bound:
+            self.fields['fecha_devolucion'].initial = timezone.now()
+
+    def clean_fecha_devolucion(self):
+        fecha = self.cleaned_data['fecha_devolucion']
+        if self.movimiento and fecha < self.movimiento.fecha:
+            raise forms.ValidationError(
+                'La devolución no puede ser anterior a la salida '
+                f'({timezone.localtime(self.movimiento.fecha):%d/%m/%Y %H:%M}).'
+            )
+        return fecha
+
+
+LIMITE_LINEAS = 40
+
+
+def leer_lineas(post):
+    """
+    Interpreta las líneas de producto de un documento (los campos
+    linea_articulo[] / linea_cantidad[] / linea_texto[] del formulario).
+
+    Devuelve una lista de diccionarios con lo que el usuario escribió más
+    el Articulo resuelto o el error de esa línea, para poder volver a pintar
+    la tabla tal cual quedó en vez de hacerle empezar de nuevo.
+    """
+    identificadores = post.getlist('linea_articulo')
+    cantidades = post.getlist('linea_cantidad')
+    textos = post.getlist('linea_texto')
+
+    lineas = []
+    for indice, identificador in enumerate(identificadores[:LIMITE_LINEAS]):
+        identificador = (identificador or '').strip()
+        cantidad_texto = (cantidades[indice] if indice < len(cantidades) else '').strip()
+        texto = (textos[indice] if indice < len(textos) else '').strip()
+
+        # Fila completamente vacía: se ignora en silencio (siempre queda una
+        # de más al final para poder seguir agregando).
+        if not identificador and not cantidad_texto and not texto:
+            continue
+
+        linea = {
+            'texto': texto, 'articulo_id': identificador,
+            'cantidad_texto': cantidad_texto, 'articulo': None,
+            'cantidad': None, 'error': '',
+        }
+
+        articulo = None
+        if identificador.isdigit():
+            articulo = Articulo.objects.filter(pk=int(identificador)).first()
+        if articulo is None and texto:
+            # Se escribió el código completo y se pasó al siguiente campo sin
+            # tocar la lista de sugerencias: igual se acepta, que es como se
+            # va a capturar más rápido en bodega (RF-13).
+            articulo = Articulo.objects.filter(codigo_interno__iexact=texto).first()
+
+        if articulo is None:
+            linea['error'] = 'No se encontró el artículo. Elígelo de las sugerencias.'
+        elif not articulo.activo:
+            linea['error'] = f'"{articulo.nombre_producto}" está marcado como inactivo.'
+        else:
+            linea['articulo'] = articulo
+            linea['articulo_id'] = str(articulo.pk)
+            linea['texto'] = texto or articulo.codigo_interno
+
+        if not linea['error']:
+            try:
+                cantidad = int(cantidad_texto)
+            except ValueError:
+                linea['error'] = 'La cantidad debe ser un número entero.'
+            else:
+                if cantidad <= 0:
+                    linea['error'] = 'La cantidad tiene que ser mayor que cero.'
+                else:
+                    linea['cantidad'] = cantidad
+
+        lineas.append(linea)
+
+    return lineas

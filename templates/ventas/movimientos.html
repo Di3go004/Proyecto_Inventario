@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Entradas y salidas{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Entradas y salidas — Bodega 1 y 2</h1>
+    <p class="page-sub">Historial completo de movimientos. Reemplaza las boletas FO-SE-013 y FO-SE-012.</p>
+  </div>
+  {% if user.puede_editar %}
+    <div class="page-acciones">
+      <a href="{% url 'movimiento_ingreso' %}" class="btn">+ Ingreso</a>
+      <a href="{% url 'movimiento_salida' %}" class="btn btn-primary">+ Salida</a>
+    </div>
+  {% endif %}
+</div>
+
+<form method="get" class="buscador">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}"
+           placeholder="Buscar por folio, producto, cliente o factura…" aria-label="Buscar">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+
+  <details class="filtros" {% if filtros_activos %}open{% endif %}>
+    <summary>
+      Filtros
+      {% if filtros_activos %}<span class="chip chip-neutral">{{ filtros_activos }}</span>{% endif %}
+    </summary>
+    <div class="filtros-campos">
+      <label class="filtro">
+        <span>Dirección</span>
+        <select name="tipo">
+          <option value="">Entradas y salidas</option>
+          <option value="ingreso" {% if tipo == 'ingreso' %}selected{% endif %}>Solo ingresos</option>
+          <option value="salida" {% if tipo == 'salida' %}selected{% endif %}>Solo salidas</option>
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Tipo de movimiento</span>
+        <select name="transaccion">
+          <option value="">Todos</option>
+          {% for valor, etiqueta in transacciones %}
+            <option value="{{ valor }}" {% if transaccion == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Bodega</span>
+        <select name="bodega">
+          <option value="">Todas</option>
+          {% for b in bodegas %}
+            <option value="{{ b.id }}" {% if bodega_id == b.id|stringformat:"s" %}selected{% endif %}>{{ b.nombre }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Préstamos</span>
+        <select name="afuera">
+          <option value="">Todos</option>
+          <option value="si" {% if afuera == 'si' %}selected{% endif %}>Solo los que están afuera</option>
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Desde</span>
+        <input type="date" name="desde" value="{{ desde }}">
+      </label>
+      <label class="filtro">
+        <span>Hasta</span>
+        <input type="date" name="hasta" value="{{ hasta }}">
+      </label>
+    </div>
+    <div class="filtros-acciones">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      {% if q or filtros_activos %}
+        <a href="{% url 'movimientos_ventas' %}" class="btn">Limpiar todo</a>
+      {% endif %}
+    </div>
+  </details>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="movimientos" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Fecha</th><th>Folio</th><th>Movimiento</th><th>Producto</th>
+      <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
+      <th class="columna-secundaria">Solicitado por</th><th>Estado</th>
+      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in movimientos %}
+    {% comment %}
+      Los saldos iniciales que entraron por carga masiva no tienen folio: no
+      vienen de una boleta, así que no hay documento que abrir.
+    {% endcomment %}
+    <tr {% if m.folio %}data-href="{% url 'documento_detalle' m.folio %}"{% endif %}>
+      <td data-etiqueta="Fecha" class="num" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+      <td data-etiqueta="Folio" class="code">{{ m.folio|default:"—" }}</td>
+      <td data-etiqueta="Movimiento">
+        {% if m.tipo_documento == 'ingreso' %}
+          <span class="chip chip-good">Ingreso</span>
+        {% else %}
+          <span class="chip chip-critical">Salida</span>
+        {% endif %}
+        <span class="etiqueta-transaccion">{{ m.get_tipo_transaccion_display }}</span>
+      </td>
+      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ m.articulo.nombre_producto }}">
+        {{ m.articulo.nombre_producto }}
+        <span class="code">{{ m.articulo.codigo_interno }}</span>
+      </td>
+      <td data-etiqueta="Bodega" class="columna-secundaria">{{ m.articulo.bodega.nombre }}</td>
+      <td data-etiqueta="Cantidad" class="num">{% if m.tipo_documento == 'ingreso' %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
+      <td data-etiqueta="Solicitado por" class="truncate columna-secundaria">{{ m.solicitado_por|default:"—" }}</td>
+      <td data-etiqueta="Estado">
+        {% if m.esta_afuera %}
+          <span class="chip chip-warn">Afuera</span>
+        {% elif m.fecha_devolucion %}
+          <span class="chip chip-neutral">Devuelto</span>
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      {% if user.puede_editar %}
+      <td class="celda-acciones">
+        <span class="actions">
+          {% if m.esta_afuera %}
+            <a href="{% url 'devolucion_demo' m.pk %}" class="btn btn-sm btn-primary">Registrar regreso</a>
+          {% endif %}
+        </span>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="9">
+      {% if q or filtros_activos %}
+        No hay movimientos que coincidan con los filtros.
+        <a href="{% url 'movimientos_ventas' %}">Limpiar filtros</a>
+      {% else %}
+        Todavía no hay movimientos registrados.{% if user.puede_editar %} Empieza con un ingreso o una salida.{% endif %}
+      {% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="movimientos" %}
+{% endblock %}

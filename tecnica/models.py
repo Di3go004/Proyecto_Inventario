@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 
 from core.models import Bodega, Categoria, Proveedor
 
@@ -74,7 +75,9 @@ class PrestamoActivo(models.Model):
     cantidad = models.PositiveIntegerField(default=1)
 
     solicitante = models.CharField(max_length=150)
-    fecha_salida = models.DateTimeField(auto_now_add=True)
+    # Editable igual que en MovimientoVenta: FO-SE-066 se llena a mano y se
+    # digita después, así que la fecha real de salida la pone el operador.
+    fecha_salida = models.DateTimeField(default=timezone.now)
     entregado_por = models.CharField(max_length=150, blank=True)
     estado_al_salir = models.CharField(
         max_length=20,
@@ -106,6 +109,23 @@ class PrestamoActivo(models.Model):
         estado = 'afuera' if self.fecha_regreso is None else 'devuelto'
         return f"{self.activo.codigo_interno} · {self.solicitante} ({estado})"
 
+    @property
+    def esta_afuera(self):
+        return self.fecha_regreso is None
+
     def clean(self):
         if self.activo_id and not self.pk and self.activo.estado == Activo.Estado.DE_BAJA:
             raise ValidationError('El activo está dado de baja y no se puede prestar.')
+
+    def save(self, *args, **kwargs):
+        """
+        RF-07: al cerrar el préstamo, el estado con el que regresó la
+        herramienta pasa a ser el estado actual del activo. Es justo lo que
+        hoy no queda registrado en el Excel — si un taladro sale bueno y
+        vuelve dañado, el catálogo tiene que enterarse solo, sin depender de
+        que alguien se acuerde de editarlo aparte.
+        """
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if self.fecha_regreso and self.estado_al_regresar:
+                Activo.objects.filter(pk=self.activo_id).update(estado=self.estado_al_regresar)

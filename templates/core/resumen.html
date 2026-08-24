@@ -67,5 +67,12 @@
   </div>
 </div>
 
-<p style="margin-top:24px;"><a href="/admin/">Ir al panel de administración →</a></p>
+{% comment %}
+  Se comprueba is_staff y no el rol: es exactamente lo que Django exige para
+  dejar entrar a /admin/. Mostrárselo a un operador lo mandaba a una pantalla
+  de login que nunca iba a poder pasar.
+{% endcomment %}
+{% if user.is_staff %}
+  <p style="margin-top:24px;"><a href="{% url 'admin:index' %}">Ir al panel de administración →</a></p>
+{% endif %}
 {% endblock %}

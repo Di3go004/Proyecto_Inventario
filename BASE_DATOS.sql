@@ -138,7 +138,11 @@ CREATE INDEX idx_articulos_bodega ON articulos(bodega_id);
 
 CREATE TABLE movimientos_venta (
     id                SERIAL PRIMARY KEY,
-    folio             VARCHAR(30),                       -- correlativo, para mantener numeración como hoy
+    -- Correlativo por tipo de documento (ING-00001 / SAL-00001), imitando la
+    -- numeración preimpresa del papel. NO es único a propósito: una boleta
+    -- lleva varios productos, así que todas las líneas de un mismo documento
+    -- comparten folio y es eso lo que las agrupa.
+    folio             VARCHAR(30),
 
     tipo_documento    VARCHAR(10) NOT NULL,               -- 'ingreso' | 'salida'
     tipo_transaccion  VARCHAR(20) NOT NULL,               -- 'venta' | 'prestamo_demo' | 'repuestos' | 'materiales_otro' | 'ajuste_inicial'
@@ -173,6 +177,10 @@ CREATE TABLE movimientos_venta (
 );
 
 CREATE INDEX idx_mov_venta_articulo_fecha ON movimientos_venta(articulo_id, fecha);
+
+-- Para recuperar de un jalón todas las líneas de una misma boleta, que es
+-- como se consulta y como se va a imprimir el PDF (RF-10).
+CREATE INDEX idx_mov_venta_folio ON movimientos_venta(folio);
 
 -- Índice parcial: encuentra rápido los préstamos/demo que siguen abiertos
 -- (RF-06/RF-14 — "qué hay actualmente afuera en demo o préstamo").

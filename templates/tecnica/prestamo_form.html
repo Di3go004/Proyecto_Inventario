@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Registrar salida de herramienta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega Técnica · FO-SE-066</p>
+    <h1 class="page-title">Registrar salida de herramienta</h1>
+    <p class="page-sub">
+      Queda anotado quién se la lleva y en qué estado sale. El regreso se
+      registra después sobre este mismo préstamo.
+    </p>
+  </div>
+  <a href="{% url 'prestamos_tecnica' %}" class="btn">Ver préstamos</a>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <div class="form-grid">
+    <div class="field span-2">
+      <label for="buscador-activo">Herramienta</label>
+      <div class="autocompletar{% if form.activo.value %} tiene-seleccion{% endif %}"
+           data-url="{% url 'api_buscar_activos' %}" data-siguiente="#{{ form.solicitante.auto_id }}">
+        <input type="text" id="buscador-activo" class="autocompletar-texto" name="activo_texto"
+               value="{{ activo_inicial|default:'' }}" autocomplete="off"
+               placeholder="Código o nombre de la herramienta…">
+        {{ form.activo }}
+      </div>
+      <span class="hint">Escribe parte del código o del nombre y elige de la lista.</span>
+      {% for e in form.activo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.solicitante.id_for_label }}">{{ form.solicitante.label }}</label>
+      {{ form.solicitante }}
+      {% for e in form.solicitante.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.entregado_por.id_for_label }}">Entregado por</label>
+      {{ form.entregado_por }}
+      {% for e in form.entregado_por.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.fecha_salida.id_for_label }}">{{ form.fecha_salida.label }}</label>
+      {{ form.fecha_salida }}
+      {% for e in form.fecha_salida.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.estado_al_salir.id_for_label }}">{{ form.estado_al_salir.label }}</label>
+      {{ form.estado_al_salir }}
+      {% for e in form.estado_al_salir.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.cantidad.id_for_label }}">Cantidad</label>
+      {{ form.cantidad }}
+      <span class="hint">Normalmente 1: cada activo se identifica por unidad.</span>
+      {% for e in form.cantidad.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field span-2">
+      <label for="{{ form.observacion.id_for_label }}">Observación</label>
+      {{ form.observacion }}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Registrar salida</button>
+    <a href="{% url 'prestamos_tecnica' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/autocompletar.js' %}"></script>
+{% endblock %}

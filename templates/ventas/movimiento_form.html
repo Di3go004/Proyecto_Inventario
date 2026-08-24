@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if es_ingreso %}Registrar ingreso{% else %}Registrar salida{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega 1 y 2 · {% if es_ingreso %}FO-SE-013{% else %}FO-SE-012{% endif %}</p>
+    <h1 class="page-title">{% if es_ingreso %}Registrar ingreso a bodega{% else %}Registrar salida de bodega{% endif %}</h1>
+    <p class="page-sub">
+      {% if es_ingreso %}
+        Productos que entran a Bodega 1 o 2. Un mismo folio puede llevar varias líneas, igual que la boleta de papel.
+      {% else %}
+        Productos que salen de Bodega 1 o 2. Si es préstamo o demo, el equipo se descuenta ahora y vuelve al stock al registrar su devolución.
+      {% endif %}
+    </p>
+  </div>
+  <a href="{% url 'movimientos_ventas' %}" class="btn">Ver historial</a>
+</div>
+
+<form method="post" id="form-documento" data-tipo="{{ tipo_documento }}">
+  {% csrf_token %}
+
+  <div class="card" style="margin-bottom:16px;">
+    <h2 class="card-titulo">Encabezado del documento</h2>
+    {% if form.non_field_errors %}
+      <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+    <div class="form-grid">
+      {% for campo in form %}
+        <div class="field {% if campo.name == 'observacion' %}span-2{% endif %}">
+          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% if campo.name == 'folio' %}<span class="hint">Si lo dejas vacío se asigna el siguiente correlativo automático.</span>{% endif %}
+          {% for e in campo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-titulo">Detalle de productos</h2>
+    <p class="hint" style="margin:-6px 0 12px;">
+      Escribe parte del código o del nombre y elige de la lista. Enter en la
+      cantidad agrega otra línea.
+    </p>
+
+    <div class="table-wrap" style="box-shadow:none; margin-bottom:12px;">
+      <table class="tabla-lineas">
+        <thead>
+          <tr>
+            <th style="width:44px;">#</th>
+            <th>Producto</th>
+            <th style="width:150px;">Cantidad</th>
+            <th style="width:90px;"><span class="visualmente-oculto">Quitar</span></th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo-lineas">
+          {% for linea in lineas %}
+          <tr class="linea{% if linea.error %} linea-con-error{% endif %}"
+              {% if linea.articulo %}data-stock="{{ linea.articulo.stock_actual }}"{% endif %}>
+            <td class="linea-numero num">{{ forloop.counter }}</td>
+            <td>
+              <div class="autocompletar{% if linea.articulo %} tiene-seleccion{% endif %}"
+                   data-url="{% url 'api_buscar_articulos' %}" data-siguiente=".linea-cantidad">
+                <input type="text" class="autocompletar-texto" name="linea_texto"
+                       value="{{ linea.texto }}" autocomplete="off"
+                       placeholder="Código o nombre del producto…" aria-label="Buscar producto">
+                <input type="hidden" class="autocompletar-valor" name="linea_articulo" value="{{ linea.articulo_id }}">
+              </div>
+              <span class="linea-info">{% if linea.articulo %}{{ linea.articulo.bodega.nombre }} · existencia {{ linea.articulo.stock_actual }}{% endif %}</span>
+              {% if linea.error %}<span class="linea-error">{{ linea.error }}</span>{% endif %}
+            </td>
+            <td>
+              <input type="number" min="1" step="1" class="linea-cantidad" name="linea_cantidad"
+                     value="{{ linea.cantidad_texto }}" aria-label="Cantidad">
+              <span class="linea-aviso"></span>
+            </td>
+            <td><button type="button" class="btn btn-sm btn-danger quitar-linea">Quitar</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <button type="button" id="agregar-linea" class="btn btn-sm">+ Agregar línea</button>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">
+      {% if es_ingreso %}Registrar ingreso{% else %}Registrar salida{% endif %}
+    </button>
+    <a href="{% url 'movimientos_ventas' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+
+<template id="plantilla-linea">
+  <tr class="linea">
+    <td class="linea-numero num">1</td>
+    <td>
+      <div class="autocompletar" data-url="{% url 'api_buscar_articulos' %}" data-siguiente=".linea-cantidad">
+        <input type="text" class="autocompletar-texto" name="linea_texto" value="" autocomplete="off"
+               placeholder="Código o nombre del producto…" aria-label="Buscar producto">
+        <input type="hidden" class="autocompletar-valor" name="linea_articulo" value="">
+      </div>
+      <span class="linea-info"></span>
+    </td>
+    <td>
+      <input type="number" min="1" step="1" class="linea-cantidad" name="linea_cantidad" value="" aria-label="Cantidad">
+      <span class="linea-aviso"></span>
+    </td>
+    <td><button type="button" class="btn btn-sm btn-danger quitar-linea">Quitar</button></td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/autocompletar.js' %}"></script>
+<script src="{% static 'js/documento-lineas.js' %}"></script>
+{% endblock %}

@@ -30,8 +30,14 @@
     <nav class="app-sidebar" aria-label="Navegación principal">
       <div class="app-sidebar-inner">
         <a href="{% url 'resumen' %}" class="{% if request.resolver_match.url_name == 'resumen' %}active{% endif %}">Resumen</a>
-        <a href="{% url 'catalogo_articulos' %}" class="{% if 'articulo' in request.resolver_match.url_name %}active{% endif %}">Catálogo Ventas</a>
+
+        <p class="app-sidebar-grupo">Catálogos</p>
+        <a href="{% url 'catalogo_articulos' %}" class="{% if 'articulo' in request.resolver_match.url_name %}active{% endif %}">Bodega 1 y 2</a>
         <a href="{% url 'catalogo_activos' %}" class="{% if 'activo' in request.resolver_match.url_name %}active{% endif %}">Bodega Técnica</a>
+
+        <p class="app-sidebar-grupo">Movimientos</p>
+        <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|devolucion_demo' %}active{% endif %}">Entradas y salidas</a>
+        <a href="{% url 'prestamos_tecnica' %}" class="{% if request.resolver_match.url_name in 'prestamos_tecnica|prestamo_nuevo|prestamo_regreso' %}active{% endif %}">Préstamos de herramienta</a>
       </div>
     </nav>
     <main class="with-sidebar">
@@ -80,5 +86,6 @@
   });
 })();
 </script>
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>

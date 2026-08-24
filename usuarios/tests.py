@@ -171,3 +171,26 @@ class AdministradorTests(BasePermisos):
 
         self.assertTrue(Articulo.objects.filter(pk=self.articulo.pk).exists())
         self.assertContains(respuesta, 'No se puede eliminar')
+
+
+class EnlaceAlPanelDeAdminTests(BasePermisos):
+    """
+    El panel /admin/ de Django exige is_staff, que no es lo mismo que el rol
+    de la aplicación. Si el enlace se muestra a quien no puede entrar, lo
+    único que consigue es mandarlo a un login que nunca va a poder pasar.
+    """
+
+    ENLACE = 'panel de administración'
+
+    def test_no_se_le_ofrece_a_quien_no_puede_entrar(self):
+        for usuario in (self.operador, self.contabilidad):
+            with self.subTest(rol=usuario.rol):
+                self.assertFalse(usuario.is_staff)
+                self.client.force_login(usuario)
+                self.assertNotContains(self.client.get(reverse('resumen')), self.ENLACE)
+
+    def test_se_le_ofrece_a_quien_si_puede(self):
+        self.admin.is_staff = True
+        self.admin.save(update_fields=['is_staff'])
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse('resumen')), self.ENLACE)

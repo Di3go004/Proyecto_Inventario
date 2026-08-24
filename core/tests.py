@@ -6,7 +6,10 @@ el error clásico de las tablas paginadas y aquí sería muy molesto, porque
 los catálogos tienen 200+ registros.
 """
 
-from django.test import TestCase
+from pathlib import Path
+
+from django.conf import settings
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from core.models import Bodega
@@ -115,3 +118,26 @@ class PaginacionTests(TestCase):
         respuesta = self.client.get(reverse('catalogo_activos'), {'estado': 'de_baja'})
         self.assertEqual(respuesta.context['pagina'].paginator.count, 1)
         self.assertEqual(respuesta.context['filtros_activos'], 1)
+
+
+class ComentariosDePlantillaTests(SimpleTestCase):
+    """
+    Django solo entiende {# ... #} cuando abre y cierra en la MISMA línea.
+    Si se parte en dos, el comentario deja de serlo y se imprime como texto
+    visible en medio de la página. Ya pasó dos veces (una en los catálogos y
+    otra en el historial de movimientos), así que ahora se revisa solo.
+    """
+
+    def test_ningun_comentario_corto_queda_abierto(self):
+        raiz = Path(settings.BASE_DIR) / 'templates'
+        abiertos = []
+        for plantilla in sorted(raiz.rglob('*.html')):
+            for numero, linea in enumerate(plantilla.read_text(encoding='utf-8').splitlines(), 1):
+                if '{#' in linea and '#}' not in linea:
+                    abiertos.append(f'{plantilla.relative_to(raiz)}:{numero}')
+
+        self.assertEqual(
+            abiertos, [],
+            'Comentario {# #} sin cerrar en la misma línea: se vería en pantalla. '
+            'Para varias líneas hay que usar el bloque comment de Django.',
+        )

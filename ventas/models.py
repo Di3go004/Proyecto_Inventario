@@ -3,6 +3,7 @@ import re
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.utils import timezone
 
 from core.models import Bodega, Categoria, Proveedor
 
@@ -176,14 +177,20 @@ class MovimientoVenta(models.Model):
         # Excel (RF-09) — no es una compra real, es "así arrancó el conteo".
         AJUSTE_INICIAL = 'ajuste_inicial', 'Ajuste / Saldo inicial'
 
-    folio = models.CharField(max_length=30, blank=True)
+    # Un mismo folio agrupa todas las líneas de un documento: una boleta
+    # FO-SE-013/012 lleva varios productos en la misma hoja. Por eso no es
+    # único — se indexa para recuperar el documento completo de un jalón.
+    folio = models.CharField(max_length=30, blank=True, db_index=True)
     tipo_documento = models.CharField(max_length=10, choices=TipoDocumento.choices)
     tipo_transaccion = models.CharField(max_length=20, choices=TipoTransaccion.choices)
 
     articulo = models.ForeignKey(Articulo, on_delete=models.PROTECT, related_name='movimientos')
     cantidad = models.PositiveIntegerField()
 
-    fecha = models.DateTimeField(auto_now_add=True)
+    # Editable a propósito (no auto_now_add): las boletas de papel traen su
+    # propia fecha y muchas veces se digitan al día siguiente, así que el
+    # operador tiene que poder registrar cuándo ocurrió de verdad.
+    fecha = models.DateTimeField(default=timezone.now)
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='movimientos_venta',
     )
@@ -215,6 +222,54 @@ class MovimientoVenta(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_documento_display()} · {self.articulo.codigo_interno} · {self.cantidad}"
+
+    @classmethod
+    def siguiente_folio(cls, tipo_documento):
+        """
+        Correlativo por tipo de documento, imitando la numeración que hoy
+        viene preimpresa en los formatos de papel: ING-00001 para FO-SE-013
+        (ingreso) y SAL-00001 para FO-SE-012 (salida).
+
+        Se ordena por el folio como texto — funciona porque el número va
+        rellenado con ceros a un ancho fijo. Si alguien escribió un folio a
+        mano con otro formato, se ignora en vez de reventar.
+        """
+        prefijo = 'ING' if tipo_documento == cls.TipoDocumento.INGRESO else 'SAL'
+        ultimo = (
+            cls.objects.filter(folio__startswith=f'{prefijo}-')
+            .order_by('-folio')
+            .values_list('folio', flat=True)
+            .first()
+        )
+        numero = 1
+        if ultimo:
+            try:
+                numero = int(ultimo.rsplit('-', 1)[-1]) + 1
+            except ValueError:
+                numero = cls.objects.filter(folio__startswith=f'{prefijo}-').count() + 1
+        return f'{prefijo}-{numero:05d}'
+
+    @property
+    def esta_afuera(self):
+        """Préstamo/demo que ya salió y todavía no regresa (RF-06)."""
+        return (
+            self.tipo_documento == self.TipoDocumento.SALIDA
+            and self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO
+            and self.fecha_devolucion is None
+        )
+
+    @property
+    def signo(self):
+        """+1 si suma al stock, -1 si resta, 0 si es un préstamo ya devuelto.
+
+        Es la misma regla que aplica calcular_stock_desde_movimientos, pero
+        en Python, para pintar el kardex sin volver a consultar la base.
+        """
+        if self.tipo_documento == self.TipoDocumento.INGRESO:
+            return 1
+        if self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO and self.fecha_devolucion:
+            return 0
+        return -1
 
     def clean(self):
         if self.tipo_transaccion != self.TipoTransaccion.PRESTAMO_DEMO and (self.fecha_devolucion or self.devuelto_por):

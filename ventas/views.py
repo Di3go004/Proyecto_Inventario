@@ -5,8 +5,12 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import ProtectedError, Q
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.db.models import F, ProtectedError, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_date
 
 from core.models import Bodega, Proveedor
 from core.paginacion import paginar
@@ -14,8 +18,8 @@ from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
 from . import importador
-from .forms import ArticuloForm
-from .models import Articulo
+from .forms import ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, leer_lineas
+from .models import Articulo, MovimientoVenta
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
 
@@ -99,7 +103,12 @@ def articulo_detalle(request, pk):
     articulo = get_object_or_404(
         Articulo.objects.select_related('bodega', 'categoria', 'proveedor'), pk=pk,
     )
-    return render(request, 'ventas/articulo_detalle.html', {'articulo': articulo})
+    # Los últimos movimientos, para no tener que ir al kardex completo solo
+    # para ver qué pasó hace poco con este producto.
+    movimientos = articulo.movimientos.select_related('usuario').order_by('-fecha', '-id')[:8]
+    return render(request, 'ventas/articulo_detalle.html', {
+        'articulo': articulo, 'movimientos': movimientos,
+    })
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
@@ -256,3 +265,296 @@ def carga_masiva_cancelar(request):
     if ruta and os.path.exists(ruta):
         os.remove(ruta)
     return redirect('catalogo_articulos')
+
+
+# ---------------------------------------------------------------------------
+# Fase 3 — Movimientos de Bodega 1 y 2 (RF-05, RF-06, RF-08, RF-13)
+# ---------------------------------------------------------------------------
+
+@login_required
+def api_buscar_articulos(request):
+    """
+    RF-13: sugerencias mientras se escribe, para capturar sin lector de
+    código de barras. Busca por código interno, nombre o número de serial y
+    devuelve lo mínimo para que el operador reconozca el producto sin
+    abrirlo (bodega y stock incluidos).
+    """
+    consulta = request.GET.get('q', '').strip()
+    if len(consulta) < 2:
+        return JsonResponse({'resultados': []})
+
+    encontrados = (
+        Articulo.objects.filter(activo=True)
+        .filter(
+            Q(codigo_interno__icontains=consulta)
+            | Q(nombre_producto__icontains=consulta)
+            | Q(numero_serie__icontains=consulta)
+        )
+        .select_related('bodega')
+        .order_by('nombre_producto')[:10]
+    )
+
+    return JsonResponse({'resultados': [
+        {
+            'id': articulo.pk,
+            'codigo': articulo.codigo_interno,
+            'nombre': articulo.nombre_producto,
+            'detalle': ' '.join(p for p in (articulo.marca, articulo.modelo, articulo.capacidad) if p),
+            'bodega': articulo.bodega.nombre,
+            'stock': articulo.stock_actual,
+            'nivel': articulo.nivel_alerta,
+        }
+        for articulo in encontrados
+    ]})
+
+
+def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento, usuario):
+    """
+    Crea las líneas del documento. Va siempre dentro de una transacción del
+    llamador: si una línea falla (por ejemplo, no hay stock suficiente), no
+    queda guardada ninguna. Es lo que se espera de una boleta — o entra
+    completa o no entra, nunca a medias.
+    """
+    for linea in lineas:
+        MovimientoVenta.objects.create(
+            folio=folio,
+            tipo_documento=tipo_documento,
+            tipo_transaccion=tipo_transaccion,
+            articulo=linea['articulo'],
+            cantidad=linea['cantidad'],
+            usuario=usuario,
+            **cabecera,
+        )
+
+
+def _registrar_documento(request, tipo_documento):
+    """Pantalla compartida de ingreso (FO-SE-013) y salida (FO-SE-012)."""
+    es_ingreso = tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
+    lineas = []
+
+    if request.method == 'POST':
+        form = DocumentoMovimientoForm(request.POST, tipo_documento=tipo_documento)
+        lineas = leer_lineas(request.POST)
+        formulario_valido = form.is_valid()
+
+        lineas_con_error = [linea for linea in lineas if linea['error']]
+
+        if not lineas:
+            messages.error(request, 'Agrega al menos un producto al documento.')
+        elif lineas_con_error:
+            messages.error(
+                request,
+                f"Revisa {len(lineas_con_error)} línea(s) del detalle: el documento no se guardó.",
+            )
+        elif formulario_valido:
+            cabecera = form.datos_para_movimiento()
+            # El folio se calcula dentro de la transacción para que dos
+            # personas registrando a la vez no se lo peleen.
+            folio = (form.cleaned_data.get('folio') or '').strip()
+            try:
+                with transaction.atomic():
+                    if not folio:
+                        folio = MovimientoVenta.siguiente_folio(tipo_documento)
+                    _guardar_documento(
+                        cabecera, form.cleaned_data['tipo_transaccion'], folio,
+                        lineas, tipo_documento, request.user,
+                    )
+            except ValidationError as error:
+                # Viene de MovimientoVenta.save() cuando la salida deja el
+                # stock en negativo: no se guardó nada.
+                messages.error(request, error.messages[0])
+            else:
+                messages.success(
+                    request,
+                    f"{'Ingreso' if es_ingreso else 'Salida'} registrado con folio {folio} "
+                    f"({len(lineas)} {'línea' if len(lineas) == 1 else 'líneas'}).",
+                )
+                return redirect('documento_detalle', folio=folio)
+    else:
+        form = DocumentoMovimientoForm(tipo_documento=tipo_documento)
+
+    return render(request, 'ventas/movimiento_form.html', {
+        'form': form,
+        'lineas': lineas,
+        'es_ingreso': es_ingreso,
+        'tipo_documento': tipo_documento,
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+def movimiento_ingreso(request):
+    """RF-05: reemplaza el formato de papel FO-SE-013."""
+    return _registrar_documento(request, MovimientoVenta.TipoDocumento.INGRESO)
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+def movimiento_salida(request):
+    """RF-05: reemplaza el formato de papel FO-SE-012."""
+    return _registrar_documento(request, MovimientoVenta.TipoDocumento.SALIDA)
+
+
+@login_required
+def movimientos_ventas(request):
+    """
+    Historial de entradas y salidas (RF-05). Lo ven los 3 roles: es la
+    vista que hoy no existe en el Excel, donde se puede rastrear qué pasó
+    con cada producto sin abrir hoja por hoja.
+    """
+    movimientos = (
+        MovimientoVenta.objects
+        .select_related('articulo', 'articulo__bodega', 'usuario', 'proveedor')
+        .order_by('-fecha', '-id')
+    )
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        movimientos = movimientos.filter(
+            Q(folio__icontains=q)
+            | Q(articulo__codigo_interno__icontains=q)
+            | Q(articulo__nombre_producto__icontains=q)
+            | Q(cliente_nombre__icontains=q)
+            | Q(solicitado_por__icontains=q)
+            | Q(no_factura__icontains=q)
+        )
+
+    tipo = request.GET.get('tipo', '').strip()
+    if tipo in MovimientoVenta.TipoDocumento.values:
+        movimientos = movimientos.filter(tipo_documento=tipo)
+    else:
+        tipo = ''
+
+    transaccion = request.GET.get('transaccion', '').strip()
+    if transaccion in MovimientoVenta.TipoTransaccion.values:
+        movimientos = movimientos.filter(tipo_transaccion=transaccion)
+    else:
+        transaccion = ''
+
+    bodega_id = request.GET.get('bodega', '').strip()
+    if bodega_id:
+        movimientos = movimientos.filter(articulo__bodega_id=bodega_id)
+
+    desde = request.GET.get('desde', '').strip()
+    if desde and parse_date(desde):
+        movimientos = movimientos.filter(fecha__date__gte=parse_date(desde))
+    else:
+        desde = ''
+
+    hasta = request.GET.get('hasta', '').strip()
+    if hasta and parse_date(hasta):
+        movimientos = movimientos.filter(fecha__date__lte=parse_date(hasta))
+    else:
+        hasta = ''
+
+    # "Solo préstamos afuera": salidas de préstamo/demo sin devolución (RF-06).
+    afuera = request.GET.get('afuera', '').strip()
+    if afuera == 'si':
+        movimientos = movimientos.filter(
+            tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
+            fecha_devolucion__isnull=True,
+        )
+
+    pagina = paginar(request, movimientos)
+    filtros_activos = len([f for f in (tipo, transaccion, bodega_id, desde, hasta, afuera) if f])
+
+    return render(request, 'ventas/movimientos.html', {
+        'movimientos': pagina,
+        'pagina': pagina,
+        'filtros_activos': filtros_activos,
+        'bodegas': Bodega.objects.filter(tipo=Bodega.Tipo.VENTA),
+        'transacciones': MovimientoVenta.TipoTransaccion.choices,
+        'q': q, 'tipo': tipo, 'transaccion': transaccion,
+        'bodega_id': bodega_id, 'desde': desde, 'hasta': hasta, 'afuera': afuera,
+    })
+
+
+@login_required
+def documento_detalle(request, folio):
+    """
+    Todas las líneas de un mismo folio, como se ve la boleta en papel.
+    En la Fase 4 esta misma vista es la que se imprime en PDF (RF-10).
+    """
+    lineas = list(
+        MovimientoVenta.objects
+        .filter(folio=folio)
+        .select_related('articulo', 'articulo__bodega', 'usuario', 'proveedor')
+        .annotate(subtotal=F('cantidad') * F('articulo__precio'))
+        .order_by('id')
+    )
+    if not lineas:
+        messages.error(request, f'No existe ningún documento con folio {folio}.')
+        return redirect('movimientos_ventas')
+
+    cabecera = lineas[0]
+    total_unidades = sum(linea.cantidad for linea in lineas)
+    total_quetzales = sum(linea.subtotal for linea in lineas)
+
+    return render(request, 'ventas/documento_detalle.html', {
+        'folio': folio,
+        'cabecera': cabecera,
+        'lineas': lineas,
+        'total_unidades': total_unidades,
+        'total_quetzales': total_quetzales,
+    })
+
+
+@login_required
+def kardex_articulo(request, pk):
+    """
+    RF-08/RF-14: historial de un artículo con el saldo después de cada
+    movimiento. El saldo se acumula en Python sobre la lista completa
+    ordenada de la más vieja a la más nueva, y recién después se invierte
+    para mostrarla, porque el saldo de una fila depende de todas las
+    anteriores.
+    """
+    articulo = get_object_or_404(Articulo.objects.select_related('bodega'), pk=pk)
+
+    movimientos = list(
+        articulo.movimientos.select_related('usuario').order_by('fecha', 'id')
+    )
+    saldo = 0
+    for movimiento in movimientos:
+        saldo += movimiento.signo * movimiento.cantidad
+        movimiento.saldo = saldo
+
+    movimientos.reverse()
+    pagina = paginar(request, movimientos)
+
+    return render(request, 'ventas/kardex.html', {
+        'articulo': articulo,
+        'movimientos': pagina,
+        'pagina': pagina,
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+def devolucion_demo(request, pk):
+    """RF-06: cierra un préstamo/demo y devuelve el equipo al stock."""
+    movimiento = get_object_or_404(
+        MovimientoVenta.objects.select_related('articulo'), pk=pk,
+    )
+    if not movimiento.esta_afuera:
+        messages.error(request, 'Ese movimiento no es un préstamo/demo pendiente de regreso.')
+        return redirect('movimientos_ventas')
+
+    if request.method == 'POST':
+        form = DevolucionDemoForm(request.POST, movimiento=movimiento)
+        if form.is_valid():
+            movimiento.fecha_devolucion = form.cleaned_data['fecha_devolucion']
+            movimiento.devuelto_por = form.cleaned_data['devuelto_por']
+            observacion = form.cleaned_data['observacion']
+            if observacion:
+                movimiento.observacion = f"{movimiento.observacion}\n{observacion}".strip()
+            movimiento.save()
+            messages.success(
+                request,
+                f'Devolución registrada: "{movimiento.articulo.nombre_producto}" '
+                f'vuelve al stock ({movimiento.cantidad} unidad(es)).',
+            )
+            return redirect('movimientos_ventas')
+    else:
+        form = DevolucionDemoForm(movimiento=movimiento)
+
+    return render(request, 'ventas/devolucion_form.html', {
+        'form': form, 'movimiento': movimiento,
+    })

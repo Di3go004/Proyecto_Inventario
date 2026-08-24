@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Registrar regreso de préstamo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega 1 y 2 · Préstamo / Demo</p>
+    <h1 class="page-title">Registrar el regreso del equipo</h1>
+    <p class="page-sub">
+      Al guardar, las {{ movimiento.cantidad }} unidad(es) vuelven a contar en
+      la existencia de Bodega 1 y 2.
+    </p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Producto</dt>
+      <dd><a href="{% url 'articulo_detalle' movimiento.articulo.pk %}">{{ movimiento.articulo.nombre_producto }}</a></dd>
+    </div>
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ movimiento.articulo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>Cantidad prestada</dt>
+      <dd class="num" style="text-align:left;">{{ movimiento.cantidad }}</dd>
+    </div>
+    <div>
+      <dt>Salió el</dt>
+      <dd>{{ movimiento.fecha|date:"d/m/Y H:i" }}</dd>
+    </div>
+    <div>
+      <dt>Folio</dt>
+      <dd class="code">{{ movimiento.folio|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Cliente</dt>
+      <dd>{{ movimiento.cliente_nombre|default:"—" }}</dd>
+    </div>
+  </dl>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+  <div class="form-grid">
+    {% for campo in form %}
+      <div class="field {% if campo.name == 'observacion' %}span-2{% endif %}">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% for e in campo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Registrar regreso</button>
+    <a href="{% url 'movimientos_ventas' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

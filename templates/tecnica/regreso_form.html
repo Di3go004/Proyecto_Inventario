@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Registrar regreso de herramienta{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega Técnica · FO-SE-066</p>
+    <h1 class="page-title">Registrar regreso de herramienta</h1>
+    <p class="page-sub">
+      El estado con el que regresa pasa a ser el estado actual del activo en
+      el catálogo.
+    </p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Herramienta</dt>
+      <dd><a href="{% url 'activo_detalle' prestamo.activo.pk %}">{{ prestamo.activo.nombre_producto }}</a></dd>
+    </div>
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ prestamo.activo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>La tiene</dt>
+      <dd>{{ prestamo.solicitante }}</dd>
+    </div>
+    <div>
+      <dt>Salió el</dt>
+      <dd>{{ prestamo.fecha_salida|date:"d/m/Y H:i" }}</dd>
+    </div>
+    <div>
+      <dt>Entregada por</dt>
+      <dd>{{ prestamo.entregado_por|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Estado al salir</dt>
+      <dd>
+        {% if prestamo.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
+      </dd>
+    </div>
+  </dl>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+  <div class="form-grid">
+    {% for campo in form %}
+      <div class="field {% if campo.name == 'observacion' %}span-2{% endif %}">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% if campo.name == 'estado_al_regresar' %}
+          <span class="hint">Si regresa dañada más allá de reparación, elige "De baja": deja de ofrecerse para préstamo (RF-12).</span>
+        {% endif %}
+        {% for e in campo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Registrar regreso</button>
+    <a href="{% url 'prestamos_tecnica' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

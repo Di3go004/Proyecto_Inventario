@@ -231,6 +231,35 @@ tecleo y errores:
    escanear ahí funcione igual que escribir (útil también para conteos
    físicos/auditorías).
 
+### Cómo quedó implementado (Fase 3)
+
+**Un documento = un folio con varias líneas.** Una boleta de papel lleva
+varios productos bajo un mismo encabezado, así que el sistema hace lo mismo:
+el encabezado se captura una vez y se copia a cada `MovimientoVenta` que
+comparte el folio. El folio es correlativo y separado por tipo, imitando la
+numeración preimpresa: `ING-00001` para FO-SE-013 e `SAL-00001` para
+FO-SE-012. El administrador puede escribir uno propio si necesita calzar con
+una boleta física ya numerada.
+
+**El documento entra completo o no entra.** Si una línea falla —por ejemplo,
+no hay stock suficiente— no se guarda ninguna. Una boleta a medias dejaría el
+stock mintiendo, que es justo el problema que este sistema viene a resolver.
+
+**La fecha la pone el operador.** No es la hora de captura: las boletas se
+llenan a mano y muchas veces se digitan al día siguiente, así que el campo es
+editable y solo trae "ahora" como valor propuesto.
+
+**Al regresar una herramienta, el catálogo se actualiza solo.** Si sale buena
+y vuelve dañada, el estado del activo cambia sin depender de que alguien se
+acuerde de editarlo aparte. Es lo que hoy se pierde en el Excel.
+
+De la lista de arriba quedó **pendiente** (no bloquea el uso, se puede sumar
+después): recordar el último proveedor/cliente usado en la sesión, la lista
+de "artículos frecuentes", y proponer cantidad = 1 por defecto. Y un cambio
+deliberado sobre el punto 4: al guardar **no** se limpia el formulario, se
+abre el documento recién creado — el operador necesita verlo para imprimirlo
+y firmarlo, que es el flujo real de la empresa.
+
 ## Carga masiva desde Excel
 
 Pantalla de administrador para subir el `.xlsx` de cada módulo, mapear las
@@ -303,26 +332,45 @@ Correrlas antes de cada commit evita reintroducir errores ya corregidos.
 
 Registrado a conciencia, no olvidado:
 
-- **Sin paginación** en los catálogos: hoy se cargan completos (216 artículos
-  / 249 activos). Conviene resolverlo antes de que crezcan mucho más.
 - **Servidor de desarrollo**: corre con `runserver` y `DEBUG=True`. Sirve para
   la red interna, pero antes de dejarlo definitivo hay que pasar a un
   servidor de producción (gunicorn/waitress) y `DEBUG=False`.
 - **Puerto 5432 expuesto** en `docker-compose.yml`: la base es alcanzable
   desde otros equipos de la red sin necesidad. Se puede cerrar.
-- **Autocompletado en vivo (RF-13)**: hoy el buscador funciona con botón. El
-  autocompletado mientras se escribe se implementa en la Fase 3, que es
-  donde de verdad ahorra tiempo al operador.
+- **Contraseñas débiles** en los usuarios de prueba (`operador_test`,
+  `contabilidad`). Hay que cambiarlas antes de usar el sistema de verdad.
+- **Correlativo de folio bajo concurrencia**: se calcula dentro de la
+  transacción, pero no hay una secuencia en la base. Con 4–10 personas es
+  muy improbable que choquen; si alguna vez pasa, la solución es una
+  secuencia de PostgreSQL por tipo de documento.
+- **Devolución parcial de un préstamo/demo**: si salieron 3 equipos y
+  regresan 2, hoy no se puede cerrar a medias — la fila se cierra completa.
+  No apareció como caso real todavía; si aparece, hay que separar la
+  devolución en su propia tabla.
+- **Formato de números**: los precios se muestran como `Q 1.500,00` (coma
+  decimal) porque el idioma está en `es` genérico. Guatemala usa el punto
+  decimal. Se arregla con un formato regional propio; afecta a todas las
+  pantallas por igual, no solo a las nuevas.
+
+Ya resueltos (quedan aquí para dejar rastro): paginación de catálogos y
+autocompletado en vivo (RF-13), ambos en funcionamiento.
 
 ## Verificación
 
 - Cada fase se prueba corriendo el servidor y accediendo desde otro equipo
   de la red por IP.
 - La carga masiva se probará importando los Excel reales del repo.
-- El flujo de captura manual se probará registrando movimientos de prueba
-  end-to-end (buscar artículo, confirmar, guardar, ver reflejado el stock)
-  antes de cerrar la fase 3, incluyendo probar el permiso de solo lectura
-  del rol Contabilidad.
+- El flujo de captura manual se probó end-to-end en un navegador real
+  (Playwright, Chromium): escribir en el buscador, elegir con el teclado,
+  agregar líneas, guardar, y ver el stock reflejado. Se comprobó también el
+  rechazo de una salida sin stock (el documento no queda a medias), el
+  ciclo completo de préstamo/demo con su devolución, y el ciclo de
+  préstamo/regreso de herramienta con el cambio de estado del activo.
+- El rol Contabilidad se comprueba en cada fase: ve los historiales (200) y
+  recibe 403 en las pantallas de registro, sin botones para registrar.
+- Los datos de prueba que generan estas verificaciones se borran al
+  terminar y se revisa con `manage.py recalcular_stock --solo-revisar` que
+  el stock quede cuadrado.
 
 ## Pendiente a confirmar con el usuario antes de cerrar el plan
 

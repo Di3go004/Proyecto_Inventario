@@ -6,7 +6,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_date
 
 from core.models import Bodega, Proveedor
 from core.paginacion import paginar
@@ -14,8 +16,8 @@ from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
 from . import importador
-from .forms import ActivoForm
-from .models import Activo
+from .forms import ActivoForm, PrestamoForm, RegresoForm
+from .models import Activo, PrestamoActivo
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
 
@@ -82,7 +84,10 @@ def activo_detalle(request, pk):
         Activo.objects.select_related('bodega', 'categoria', 'proveedor').prefetch_related('prestamos'), pk=pk,
     )
     prestamos = activo.prestamos.order_by('-fecha_salida')[:10]
-    return render(request, 'tecnica/activo_detalle.html', {'activo': activo, 'prestamos': prestamos})
+    prestamo_abierto = activo.prestamos.filter(fecha_regreso__isnull=True).first()
+    return render(request, 'tecnica/activo_detalle.html', {
+        'activo': activo, 'prestamos': prestamos, 'prestamo_abierto': prestamo_abierto,
+    })
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
@@ -229,3 +234,151 @@ def carga_masiva_cancelar(request):
     if ruta and os.path.exists(ruta):
         os.remove(ruta)
     return redirect('catalogo_activos')
+
+
+# ---------------------------------------------------------------------------
+# Fase 3 — Préstamos de Bodega Técnica (RF-07, RF-12, RF-13)
+# ---------------------------------------------------------------------------
+
+@login_required
+def api_buscar_activos(request):
+    """
+    RF-13: sugerencias del buscador de activos. Marca los que ya están
+    afuera para que el operador lo vea antes de intentar prestarlos, y deja
+    fuera los dados de baja (RF-12).
+    """
+    consulta = request.GET.get('q', '').strip()
+    if len(consulta) < 2:
+        return JsonResponse({'resultados': []})
+
+    encontrados = (
+        Activo.objects.exclude(estado=Activo.Estado.DE_BAJA)
+        .filter(Q(codigo_interno__icontains=consulta) | Q(nombre_producto__icontains=consulta))
+        .prefetch_related('prestamos')
+        .order_by('nombre_producto')[:10]
+    )
+
+    return JsonResponse({'resultados': [
+        {
+            'id': activo.pk,
+            'codigo': activo.codigo_interno,
+            'nombre': activo.nombre_producto,
+            'detalle': ' '.join(p for p in (activo.marca, activo.modelo) if p),
+            'bodega': activo.get_estado_display(),
+            'stock': 0 if activo.esta_prestado else 1,
+            'nivel': 'critico' if activo.esta_prestado else 'optimo',
+            'prestado': activo.esta_prestado,
+        }
+        for activo in encontrados
+    ]})
+
+
+@login_required
+def prestamos_tecnica(request):
+    """
+    Historial de préstamos de herramienta (RF-07). Por defecto muestra los
+    que están afuera, que es la pregunta que hoy el Excel no puede
+    responder: ¿quién tiene qué en este momento?
+    """
+    prestamos = (
+        PrestamoActivo.objects
+        .select_related('activo', 'activo__bodega', 'usuario')
+        .order_by('-fecha_salida', '-id')
+    )
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        prestamos = prestamos.filter(
+            Q(activo__codigo_interno__icontains=q)
+            | Q(activo__nombre_producto__icontains=q)
+            | Q(solicitante__icontains=q)
+            | Q(entregado_por__icontains=q)
+            | Q(recibido_por__icontains=q)
+        )
+
+    # Sin parámetro se asume "afuera": es la vista útil del día a día.
+    estado = request.GET.get('estado', 'afuera').strip()
+    if estado == 'afuera':
+        prestamos = prestamos.filter(fecha_regreso__isnull=True)
+    elif estado == 'devueltos':
+        prestamos = prestamos.filter(fecha_regreso__isnull=False)
+    else:
+        estado = 'todos'
+
+    desde = request.GET.get('desde', '').strip()
+    if desde and parse_date(desde):
+        prestamos = prestamos.filter(fecha_salida__date__gte=parse_date(desde))
+    else:
+        desde = ''
+
+    hasta = request.GET.get('hasta', '').strip()
+    if hasta and parse_date(hasta):
+        prestamos = prestamos.filter(fecha_salida__date__lte=parse_date(hasta))
+    else:
+        hasta = ''
+
+    pagina = paginar(request, prestamos)
+    filtros_activos = len([f for f in (desde, hasta) if f]) + (1 if estado != 'afuera' else 0)
+
+    return render(request, 'tecnica/prestamos.html', {
+        'prestamos': pagina,
+        'pagina': pagina,
+        'filtros_activos': filtros_activos,
+        'q': q, 'estado': estado, 'desde': desde, 'hasta': hasta,
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+def prestamo_nuevo(request):
+    """RF-07: registra la salida de una herramienta (FO-SE-066, lado izquierdo)."""
+    activo_inicial = None
+    if request.method == 'POST':
+        form = PrestamoForm(request.POST)
+        if form.is_valid():
+            prestamo = form.save(commit=False)
+            prestamo.usuario = request.user
+            prestamo.save()
+            messages.success(
+                request,
+                f'Préstamo registrado: "{prestamo.activo.nombre_producto}" salió con {prestamo.solicitante}.',
+            )
+            return redirect('prestamos_tecnica')
+        activo_inicial = form.data.get('activo_texto', '')
+    else:
+        inicial = {}
+        # Se puede llegar desde la ficha del activo con el producto ya elegido.
+        pk_activo = request.GET.get('activo')
+        if pk_activo and pk_activo.isdigit():
+            activo = Activo.objects.filter(pk=int(pk_activo)).first()
+            if activo:
+                inicial['activo'] = activo.pk
+                inicial['estado_al_salir'] = activo.estado
+                activo_inicial = f'{activo.codigo_interno} — {activo.nombre_producto}'
+        form = PrestamoForm(initial=inicial)
+
+    return render(request, 'tecnica/prestamo_form.html', {
+        'form': form, 'activo_inicial': activo_inicial,
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+def prestamo_regreso(request, pk):
+    """RF-07: cierra el préstamo (FO-SE-066, lado derecho)."""
+    prestamo = get_object_or_404(PrestamoActivo.objects.select_related('activo'), pk=pk)
+    if prestamo.fecha_regreso:
+        messages.error(request, 'Ese préstamo ya fue cerrado.')
+        return redirect('prestamos_tecnica')
+
+    if request.method == 'POST':
+        form = RegresoForm(request.POST, instance=prestamo)
+        if form.is_valid():
+            form.save()
+            aviso = f'Regreso registrado: "{prestamo.activo.nombre_producto}" volvió a bodega'
+            if prestamo.estado_al_regresar != prestamo.estado_al_salir:
+                aviso += f' y cambió a "{prestamo.get_estado_al_regresar_display()}"'
+            messages.success(request, aviso + '.')
+            return redirect('prestamos_tecnica')
+    else:
+        form = RegresoForm(instance=prestamo)
+
+    return render(request, 'tecnica/regreso_form.html', {'form': form, 'prestamo': prestamo})

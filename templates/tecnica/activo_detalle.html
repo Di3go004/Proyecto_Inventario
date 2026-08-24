@@ -7,10 +7,26 @@
     <h1 class="page-title">{{ activo.nombre_producto }}</h1>
     <p class="page-sub">{{ activo.bodega.nombre }}{% if activo.categoria %} · {{ activo.categoria.nombre }}{% endif %}</p>
   </div>
-  {% if user.es_administrador %}
-    <a href="{% url 'activo_editar' activo.pk %}" class="btn btn-primary">Editar</a>
-  {% endif %}
+  <div class="page-acciones">
+    {% if user.puede_editar and activo.estado != 'de_baja' %}
+      {% if prestamo_abierto %}
+        <a href="{% url 'prestamo_regreso' prestamo_abierto.pk %}" class="btn">Registrar regreso</a>
+      {% else %}
+        <a href="{% url 'prestamo_nuevo' %}?activo={{ activo.pk }}" class="btn">Registrar salida</a>
+      {% endif %}
+    {% endif %}
+    {% if user.es_administrador %}
+      <a href="{% url 'activo_editar' activo.pk %}" class="btn btn-primary">Editar</a>
+    {% endif %}
+  </div>
 </div>
+
+{% if prestamo_abierto %}
+  <p class="aviso-prestado">
+    Esta herramienta está afuera con <strong>{{ prestamo_abierto.solicitante }}</strong>
+    desde el {{ prestamo_abierto.fecha_salida|date:"d/m/Y H:i" }}.
+  </p>
+{% endif %}
 
 <div class="card" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
   <div class="detail-media">
@@ -65,18 +81,18 @@
   <h2 style="margin:0 0 14px; font-size:1rem;">Historial de préstamos</h2>
   {% if prestamos %}
     <div class="table-wrap" style="box-shadow:none; max-height:none;">
-      <table>
+      <table class="tabla-responsiva">
         <thead>
           <tr><th>Solicitante</th><th>Salida</th><th>Estado al salir</th><th>Regreso</th><th>Estado al regresar</th></tr>
         </thead>
         <tbody>
           {% for p in prestamos %}
           <tr>
-            <td>{{ p.solicitante }}</td>
-            <td>{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
-            <td>{% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>{% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}</td>
-            <td>{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
-            <td>
+            <td data-etiqueta="Solicitante" class="celda-principal">{{ p.solicitante }}</td>
+            <td data-etiqueta="Salida">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
+            <td data-etiqueta="Estado al salir">{% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>{% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}</td>
+            <td data-etiqueta="Regreso">{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
+            <td data-etiqueta="Estado al regresar">
               {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
               {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
               {% elif p.estado_al_regresar == 'de_baja' %}<span class="chip chip-critical">De baja</span>

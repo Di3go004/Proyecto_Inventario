@@ -6,8 +6,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.dateparse import parse_date
 
 from core.models import Bodega, Proveedor
@@ -15,7 +16,7 @@ from core.paginacion import paginar
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
-from . import importador
+from . import boletas, importador
 from .forms import ActivoForm, PrestamoForm, RegresoForm
 from .models import Activo, PrestamoActivo
 
@@ -273,12 +274,14 @@ def api_buscar_activos(request):
     ]})
 
 
-@login_required
-def prestamos_tecnica(request):
+def _prestamos_filtrados(request):
     """
-    Historial de préstamos de herramienta (RF-07). Por defecto muestra los
-    que están afuera, que es la pregunta que hoy el Excel no puede
-    responder: ¿quién tiene qué en este momento?
+    Aplica los filtros de la pantalla de préstamos. Vive aparte porque la
+    impresión en PDF (RF-10) tiene que dar exactamente el mismo resultado que
+    se está viendo en la lista; si el filtrado estuviera copiado en dos
+    lugares, tarde o temprano dejarían de coincidir.
+
+    Devuelve (queryset, valores_de_los_filtros).
     """
     prestamos = (
         PrestamoActivo.objects
@@ -317,15 +320,53 @@ def prestamos_tecnica(request):
     else:
         hasta = ''
 
+    return prestamos, {'q': q, 'estado': estado, 'desde': desde, 'hasta': hasta}
+
+
+@login_required
+def prestamos_tecnica(request):
+    """
+    Historial de préstamos de herramienta (RF-07). Por defecto muestra los
+    que están afuera, que es la pregunta que hoy el Excel no puede
+    responder: ¿quién tiene qué en este momento?
+    """
+    prestamos, filtros = _prestamos_filtrados(request)
     pagina = paginar(request, prestamos)
-    filtros_activos = len([f for f in (desde, hasta) if f]) + (1 if estado != 'afuera' else 0)
+    filtros_activos = (
+        len([f for f in (filtros['desde'], filtros['hasta']) if f])
+        + (1 if filtros['estado'] != 'afuera' else 0)
+    )
 
     return render(request, 'tecnica/prestamos.html', {
         'prestamos': pagina,
         'pagina': pagina,
         'filtros_activos': filtros_activos,
-        'q': q, 'estado': estado, 'desde': desde, 'hasta': hasta,
+        **filtros,
     })
+
+
+# Imprimir 20 páginas por accidente no le sirve a nadie; si el filtro trae
+# más que esto, se pide acotarlo en vez de generar el PDF igual.
+MAX_PRESTAMOS_PDF = 300
+
+
+@login_required
+def prestamos_pdf(request):
+    """RF-10: la hoja FO-SE-066 con los préstamos que se están viendo."""
+    prestamos, _filtros = _prestamos_filtrados(request)
+
+    cuantos = prestamos.count()
+    if cuantos > MAX_PRESTAMOS_PDF:
+        messages.error(
+            request,
+            f'Son {cuantos} préstamos y la hoja admite hasta {MAX_PRESTAMOS_PDF}. '
+            'Acota el rango de fechas o la búsqueda antes de imprimir.',
+        )
+        return redirect(f"{reverse('prestamos_tecnica')}?{request.GET.urlencode()}")
+
+    respuesta = HttpResponse(boletas.hoja_prestamos(prestamos), content_type='application/pdf')
+    respuesta['Content-Disposition'] = 'inline; filename="prestamos-herramienta.pdf"'
+    return respuesta
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)

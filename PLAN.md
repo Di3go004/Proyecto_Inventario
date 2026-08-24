@@ -267,6 +267,41 @@ columnas reales ya identificadas arriba, previsualizar y confirmar. Se usará
 `openpyxl` para leer los archivos. Los `CODIGO INTERNO` ya existentes se
 actualizan, los nuevos se crean con un movimiento de "saldo de apertura".
 
+## Boletas impresas (Fase 4)
+
+Se generan con **ReportLab** y no con una librería de HTML→PDF: los tres
+formatos son tablas regladas de ancho fijo, que es lo que mejor resuelve, y
+ReportLab es Python puro — no agrega paquetes del sistema a la imagen de
+Docker ni al equipo de la oficina, que muchas veces trabaja sin internet.
+
+- **FO-SE-013 / FO-SE-012** → un PDF por folio, en carta apaisada. Lleva el
+  encabezado con el logo, el folio, la casilla marcada según el tipo de
+  movimiento, el detalle con filas en blanco hasta completar la hoja y, en la
+  salida, los tres espacios de firma (autoriza / recibe / devuelve).
+- **FO-SE-066** → no es un PDF por préstamo: en el papel es una hoja de
+  registro donde se anotan varios, así que se imprime **el listado que se
+  está viendo en pantalla, con sus filtros aplicados**. La pantalla y el PDF
+  comparten la misma función de filtrado justamente para que nunca se
+  separen.
+
+Decisiones que conviene tener presentes:
+
+- **Tamaño carta.** Los talonarios son un poco más alargados; se prioriza que
+  se imprima 1:1 en cualquier impresora sin escalar. La estructura, el folio
+  y los espacios de firma se conservan.
+- **7 líneas por hoja** en las boletas de venta. Con más, una hoja llena de
+  descripciones largas empujaba el bloque de firmas a una segunda página casi
+  vacía. Un documento con más líneas se reparte en varias hojas, cada una con
+  su encabezado y su "Página X de Y".
+- **Las descripciones muy largas se recortan** (95 caracteres) por la misma
+  razón. El nombre completo siempre queda en el sistema.
+- **El estado de regreso de una herramienta se anota** bajo su nombre en la
+  hoja técnica, solo si volvió distinta de como salió. El papel no tiene esa
+  columna, pero perder ese dato justo al imprimir el registro dejaría fuera
+  lo que hoy más cuesta rastrear.
+- **Imprimir lo pueden hacer los 3 roles**, contabilidad incluida: imprimir es
+  consultar, no modificar (RF-04).
+
 ## Requerimientos
 
 El detalle de lo que el sistema debe hacer y cómo debe comportarse quedó en
@@ -278,23 +313,23 @@ flujo/contexto del proyecto:
 
 ## Plan de construcción por fases
 
-1. **Base del proyecto**: Django + PostgreSQL, modelos núcleo de ambos
+1. ✅ **Base del proyecto**: Django + PostgreSQL, modelos núcleo de ambos
    módulos, autenticación con los tres roles (admin/operador/contabilidad),
    despliegue accesible por LAN.
-2. **Catálogo**: CRUD de artículos (Ventas) y activos (Técnica) para el
+2. ✅ **Catálogo**: CRUD de artículos (Ventas) y activos (Técnica) para el
    admin + carga masiva desde los dos Excel reales.
-3. **Movimientos por captura manual**: pantalla con buscador/autocompletar
+3. ✅ **Movimientos por captura manual**: pantalla con buscador/autocompletar
    — entradas/salidas (venta/préstamo-demo/repuestos/materiales-otro) en
    Ventas, préstamo/regreso en Activos.
-4. **Boletas en PDF**: generar el PDF de cada movimiento con el mismo
+4. ✅ **Boletas en PDF**: generar el PDF de cada movimiento con el mismo
    formato de FO-SE-013/FO-SE-012/FO-SE-066 (folio, líneas, espacios de
    firma) para imprimir y firmar a mano, conservando también el registro
    digital.
-5. **Reportes**: stock actual y valorización por bodega, alertas de stock
+5. ⬜ **Reportes**: stock actual y valorización por bodega, alertas de stock
    por los 3 umbrales (óptimo/alerta/crítico) en Bodega 1, activos/equipos
    actualmente prestados y por quién, kardex por artículo/activo, exportar
    a Excel/PDF. Vista de solo lectura para el rol Contabilidad.
-6. **Extras**: fotos, modo "conteo físico", respaldo automático de la base
+6. ⬜ **Extras**: fotos, modo "conteo físico", respaldo automático de la base
    de datos, y — si más adelante lo confirman — soporte para lector de
    código de barras (el mismo campo de captura ya queda listo para eso).
 
@@ -347,10 +382,14 @@ Registrado a conciencia, no olvidado:
   regresan 2, hoy no se puede cerrar a medias — la fila se cierra completa.
   No apareció como caso real todavía; si aparece, hay que separar la
   devolución en su propia tabla.
-- **Formato de números**: los precios se muestran como `Q 1.500,00` (coma
-  decimal) porque el idioma está en `es` genérico. Guatemala usa el punto
-  decimal. Se arregla con un formato regional propio; afecta a todas las
-  pantallas por igual, no solo a las nuevas.
+- **Formato de números**: en las pantallas los precios se muestran como
+  `Q 1.500,00` (coma decimal) porque el idioma está en `es` genérico, cuando
+  Guatemala usa el punto decimal. En los PDF sí sale correcto (`Q 1,500.00`)
+  porque ahí el formato se arma a mano. Se corrige con un formato regional
+  propio; afecta a todas las pantallas por igual, no solo a las nuevas.
+- **La hoja de préstamos se limita a 300 registros** por impresión. Si el
+  filtro trae más, se pide acotarlo en vez de generar un PDF de decenas de
+  páginas por accidente.
 
 Ya resueltos (quedan aquí para dejar rastro): paginación de catálogos y
 autocompletado en vivo (RF-13), ambos en funcionamiento.
@@ -368,6 +407,12 @@ autocompletado en vivo (RF-13), ambos en funcionamiento.
   préstamo/regreso de herramienta con el cambio de estado del activo.
 - El rol Contabilidad se comprueba en cada fase: ve los historiales (200) y
   recibe 403 en las pantallas de registro, sin botones para registrar.
+- Las boletas en PDF se revisaron **abriendo los archivos generados**, no
+  solo comprobando que existieran: se compararon el encabezado, la casilla
+  marcada, el detalle y los espacios de firma contra las fotos de los
+  formatos de papel que están en `pdf/`. Ahí aparecieron dos defectos que
+  ninguna prueba automática habría visto — un nombre largo se salía de su
+  fila, y el bloque de firmas se iba solo a una segunda hoja.
 - Los datos de prueba que generan estas verificaciones se borran al
   terminar y se revisa con `manage.py recalcular_stock --solo-revisar` que
   el stock quede cuadrado.

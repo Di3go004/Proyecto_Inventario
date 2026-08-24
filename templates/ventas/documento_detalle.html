@@ -12,7 +12,12 @@
       registrado por {{ cabecera.usuario.get_full_name|default:cabecera.usuario.username }}
     </p>
   </div>
-  <a href="{% url 'movimientos_ventas' %}" class="btn">← Volver al historial</a>
+  <div class="page-acciones">
+    <a href="{% url 'movimientos_ventas' %}" class="btn">← Volver al historial</a>
+    <a href="{% url 'documento_pdf' folio %}" class="btn btn-primary" target="_blank" rel="noopener">
+      Imprimir boleta (PDF)
+    </a>
+  </div>
 </div>
 
 <div class="card" style="margin-bottom:16px;">
@@ -129,7 +134,8 @@
 </div>
 
 <p class="hint" style="margin-top:16px;">
-  La impresión de esta boleta en PDF, con el mismo formato del papel y los
-  espacios de firma, entra en la Fase 4 (RF-10).
+  El PDF sale con el mismo formato del talonario
+  ({% if cabecera.tipo_documento == 'ingreso' %}FO-SE-013{% else %}FO-SE-012{% endif %}),
+  listo para imprimir y firmar a mano.
 </p>
 {% endblock %}

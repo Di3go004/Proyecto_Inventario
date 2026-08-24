@@ -18,6 +18,7 @@ urlpatterns = [
     path('movimientos/ventas/ingreso/', views.movimiento_ingreso, name='movimiento_ingreso'),
     path('movimientos/ventas/salida/', views.movimiento_salida, name='movimiento_salida'),
     path('movimientos/ventas/documento/<str:folio>/', views.documento_detalle, name='documento_detalle'),
+    path('movimientos/ventas/documento/<str:folio>/pdf/', views.documento_pdf, name='documento_pdf'),
     path('movimientos/ventas/<int:pk>/devolucion/', views.devolucion_demo, name='devolucion_demo'),
 
     # RF-13 — sugerencias del buscador (lo consume static/js/autocompletar.js)

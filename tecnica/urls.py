@@ -14,6 +14,7 @@ urlpatterns = [
 
     # Fase 3 — préstamos de herramienta (RF-07)
     path('movimientos/tecnica/', views.prestamos_tecnica, name='prestamos_tecnica'),
+    path('movimientos/tecnica/pdf/', views.prestamos_pdf, name='prestamos_pdf'),
     path('movimientos/tecnica/nuevo/', views.prestamo_nuevo, name='prestamo_nuevo'),
     path('movimientos/tecnica/<int:pk>/regreso/', views.prestamo_regreso, name='prestamo_regreso'),
 

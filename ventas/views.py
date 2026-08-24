@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, ProtectedError, Q
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
@@ -17,7 +17,7 @@ from core.paginacion import paginar
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
-from . import importador
+from . import boletas, importador
 from .forms import ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, leer_lineas
 from .models import Articulo, MovimientoVenta
 
@@ -496,6 +496,26 @@ def documento_detalle(request, folio):
         'total_unidades': total_unidades,
         'total_quetzales': total_quetzales,
     })
+
+
+@login_required
+def documento_pdf(request, folio):
+    """
+    RF-10: la boleta lista para imprimir y firmar a mano, con el mismo
+    formato del talonario (FO-SE-013 / FO-SE-012).
+
+    La ven los 3 roles: imprimir es consultar, no modificar (RF-04).
+    """
+    try:
+        contenido = boletas.boleta_documento(folio)
+    except MovimientoVenta.DoesNotExist:
+        raise Http404(f'No existe ningún documento con folio {folio}.')
+
+    respuesta = HttpResponse(contenido, content_type='application/pdf')
+    # "inline" abre el visor del navegador, que es desde donde se manda a
+    # imprimir; el nombre solo se usa si deciden guardar el archivo.
+    respuesta['Content-Disposition'] = f'inline; filename="{folio}.pdf"'
+    return respuesta
 
 
 @login_required

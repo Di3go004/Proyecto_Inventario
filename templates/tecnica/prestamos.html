@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load navegacion %}
 {% block title %}Préstamos de herramienta{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -9,9 +10,18 @@
       Reemplaza el formato FO-SE-066.
     </p>
   </div>
-  {% if user.puede_editar %}
-    <a href="{% url 'prestamo_nuevo' %}" class="btn btn-primary">+ Registrar salida</a>
-  {% endif %}
+  <div class="page-acciones">
+    {% comment %}
+      El PDF sale con los mismos filtros que se están viendo; se quita solo
+      "pagina" para que imprima el listado completo y no una página suelta.
+    {% endcomment %}
+    <a href="{% url 'prestamos_pdf' %}?{% url_con pagina='' %}" class="btn" target="_blank" rel="noopener">
+      Imprimir hoja (PDF)
+    </a>
+    {% if user.puede_editar %}
+      <a href="{% url 'prestamo_nuevo' %}" class="btn btn-primary">+ Registrar salida</a>
+    {% endif %}
+  </div>
 </div>
 
 <form method="get" class="buscador">

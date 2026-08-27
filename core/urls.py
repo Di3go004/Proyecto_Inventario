@@ -10,6 +10,7 @@ urlpatterns = [
     path('reportes/existencias/', views.reporte_existencias, name='reporte_existencias'),
     path('reportes/alertas/', views.reporte_alertas, name='reporte_alertas'),
     path('reportes/movimientos/', views.reporte_movimientos, name='reporte_movimientos'),
+    path('reportes/tecnica/', views.reporte_tecnica, name='reporte_tecnica'),
     path('reportes/prestamos/', views.reporte_prestamos, name='reporte_prestamos'),
 
     # Categorías del catálogo (RF-02/RF-03), solo administrador

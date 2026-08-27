@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load navegacion %}
+{% block title %}Inventario de Bodega Técnica{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Reportes</p>
+    <h1 class="page-title">Inventario de Bodega Técnica</h1>
+    <p class="page-sub">
+      Qué herramienta e insumos hay, cuántos están afuera y cuánto vale todo.
+    </p>
+  </div>
+  <div class="page-acciones">
+    <a href="{% url 'indice_reportes' %}" class="btn">← Reportes</a>
+    <a href="?{% url_con formato='excel' pagina='' %}" class="btn btn-primary">Descargar Excel</a>
+  </div>
+</div>
+
+<div class="kpi-row" style="margin-bottom:20px;">
+  <div class="kpi-tile">
+    <div class="kpi-label">Valorización</div>
+    <div class="kpi-value">Q {{ totales.valor|floatformat:2 }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Productos</div>
+    <div class="kpi-value">{{ totales.productos }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Unidades</div>
+    <div class="kpi-value">{{ totales.unidades }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Prestadas ahora</div>
+    <div class="kpi-value">{{ totales.afuera }}</div>
+  </div>
+</div>
+
+<form method="get" class="buscador">
+  <div class="filtros-campos" style="padding:0 0 14px;">
+    <label class="filtro">
+      <span>Estado</span>
+      <select name="estado">
+        <option value="">Todos</option>
+        {% for valor, etiqueta in estados %}
+          <option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filtro">
+      <span>Dados de baja</span>
+      <select name="agotados">
+        <option value="">No mostrarlos</option>
+        <option value="si" {% if incluir_agotados %}selected{% endif %}>Incluirlos</option>
+      </select>
+    </label>
+    <label class="filtro" style="justify-content:flex-end;">
+      <span>&nbsp;</span>
+      <button type="submit" class="btn btn-primary">Aplicar</button>
+    </label>
+  </div>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="productos" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Código</th><th>Producto</th>
+      <th class="columna-secundaria">Categoría</th>
+      <th>Estado</th><th>Existencia</th>
+      <th>Afuera</th><th>En bodega</th>
+      <th>Precio</th><th>Valor</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in pagina %}
+    <tr data-href="{% url 'activo_detalle' a.pk %}">
+      <td data-etiqueta="Código" class="code truncate" style="max-width:150px;" title="{{ a.codigo_interno }}">{{ a.codigo_interno }}</td>
+      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ a.nombre_producto }}">
+        {{ a.nombre_producto }}
+        {% if a.es_consumible %}<span class="chip chip-neutral">Consumible</span>{% endif %}
+      </td>
+      <td data-etiqueta="Categoría" class="truncate columna-secundaria">{{ a.categoria.nombre|default:"—" }}</td>
+      <td data-etiqueta="Estado">
+        {% if a.agotado %}<span class="chip chip-critical">Agotado</span>
+        {% elif a.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
+      </td>
+      <td data-etiqueta="Existencia" class="num">{{ a.existencia }}</td>
+      <td data-etiqueta="Afuera" class="num">{{ a.cantidad_afuera|default:"—" }}</td>
+      <td data-etiqueta="En bodega" class="num">{{ a.disponibles }}</td>
+      <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Valor" class="num">Q {{ a.valor_en_bodega|floatformat:2 }}</td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="9">
+      No hay nada que mostrar con esos filtros.
+      <a href="{% url 'reporte_tecnica' %}">Ver todo</a>
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="productos" %}
+
+<div class="totales-documento">
+  <span>Total de la bodega</span>
+  <span class="num">{{ totales.unidades }} unidad(es)</span>
+  <span class="num totales-monto">Q {{ totales.valor|floatformat:2 }}</span>
+</div>
+
+<p class="hint" style="margin-top:16px;">
+  A esta bodega solo entran cosas: la existencia baja únicamente al dar de
+  baja algo. Los préstamos no la mueven — la herramienta sale y vuelve, sigue
+  siendo de la bodega.
+</p>
+{% endblock %}

@@ -1,6 +1,8 @@
 from django import forms
+from django.utils.html import format_html, format_html_join
+from django.utils.safestring import mark_safe
 
-from .models import Categoria
+from .models import Categoria, Proveedor
 
 
 def solo_el_nombre(campo_categoria):
@@ -64,3 +66,85 @@ class CategoriaForm(forms.ModelForm):
                 f'Ya existe una categoría "{nombre}" en esa bodega.'
             )
         return datos
+
+
+class EntradaConSugerencias(forms.TextInput):
+    """
+    Caja de texto que arrastra su propio <datalist> con las sugerencias.
+
+    Se pinta sola en vez de pedirle a cada plantilla que agregue la lista:
+    el campo se usa en dos formularios y se olvidaría en el tercero. El
+    <datalist> es HTML puro, así que funciona sin librerías ni internet
+    (RNF-01) y en celular el teclado sugiere igual.
+    """
+
+    def __init__(self, sugerencias, attrs=None):
+        super().__init__(attrs)
+        self.sugerencias = sugerencias
+
+    def render(self, name, value, attrs=None, renderer=None):
+        lista = f'sugerencias-{name}'
+        attrs = {**(attrs or {}), 'list': lista, 'autocomplete': 'off'}
+        caja = super().render(name, value, attrs, renderer)
+        opciones = format_html_join(
+            '', '<option value="{}"></option>', ((s,) for s in self.sugerencias()),
+        )
+        return mark_safe(caja + format_html('<datalist id="{}">{}</datalist>', lista, opciones))
+
+
+class CampoProveedor(forms.CharField):
+    """
+    Proveedor escribible, con la lista de los que ya existen como sugerencia.
+
+    Antes era un desplegable cerrado: al comprarle a alguien nuevo había que
+    salirse del formulario a darlo de alta primero, y no había pantalla para
+    hacerlo. Ahora se escribe el nombre y si no existe se crea solo.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('required', False)
+        kwargs.setdefault('max_length', 150)
+        kwargs.setdefault('label', 'Proveedor')
+        kwargs.setdefault(
+            'help_text',
+            'Elige uno de la lista o escribe el nombre si es nuevo.',
+        )
+        kwargs.setdefault('widget', EntradaConSugerencias(self._nombres))
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def _nombres():
+        return Proveedor.objects.order_by('nombre').values_list('nombre', flat=True)
+
+    def prepare_value(self, value):
+        """
+        Al editar, el ModelForm entrega el id del proveedor; en pantalla tiene
+        que verse el nombre.
+        """
+        if isinstance(value, Proveedor):
+            return value.nombre
+        if value in (None, ''):
+            return value
+        try:
+            pk = int(value)
+        except (TypeError, ValueError):
+            return value
+        proveedor = Proveedor.objects.filter(pk=pk).first()
+        return proveedor.nombre if proveedor else value
+
+    def clean(self, value):
+        """
+        Devuelve el Proveedor, creándolo si hace falta.
+
+        La búsqueda es sin distinguir mayúsculas para no terminar con
+        "Brecknell" y "BRECKNELL" como dos proveedores distintos, que es
+        justo lo que trae el Excel.
+        """
+        nombre = ' '.join((super().clean(value) or '').split())
+        if not nombre:
+            return None
+
+        existente = Proveedor.objects.filter(nombre__iexact=nombre).first()
+        if existente:
+            return existente
+        return Proveedor.objects.create(nombre=nombre)

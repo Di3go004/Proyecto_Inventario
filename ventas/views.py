@@ -14,11 +14,14 @@ from django.utils.dateparse import parse_date
 
 from core.models import Bodega, Proveedor
 from core.paginacion import paginar
+from tecnica.models import Activo, MovimientoActivo
 from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
-from . import boletas, importador
-from .forms import ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, leer_lineas
+from . import boletas, documentos, importador
+from .forms import (
+    ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, identificador_de, leer_lineas,
+)
 from .models import Articulo, MovimientoVenta
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
@@ -321,9 +324,9 @@ def api_buscar_articulos(request):
         .order_by('nombre_producto')[:10]
     )
 
-    return JsonResponse({'resultados': [
+    resultados = [
         {
-            'id': articulo.pk,
+            'id': identificador_de(articulo, es_tecnica=False),
             'codigo': articulo.codigo_interno,
             'nombre': articulo.nombre_producto,
             'detalle': ' '.join(p for p in (articulo.marca, articulo.modelo, articulo.capacidad) if p),
@@ -336,7 +339,39 @@ def api_buscar_articulos(request):
             'nivel': articulo.nivel_alerta,
         }
         for articulo in encontrados
-    ]})
+    ]
+
+    # El FO-SE-013 es el mismo formato para las tres bodegas, así que el
+    # ingreso ofrece también los activos. La salida no: a Bodega Técnica solo
+    # entran cosas — lo que la baja es dar de baja, que se registra aparte.
+    if request.GET.get('incluir') == 'tecnica':
+        activos = (
+            Activo.objects.filter(
+                Q(codigo_interno__icontains=consulta) | Q(nombre_producto__icontains=consulta)
+            )
+            .select_related('bodega', 'proveedor')
+            .order_by('nombre_producto')[:10]
+        )
+        resultados += [
+            {
+                'id': identificador_de(activo, es_tecnica=True),
+                'codigo': activo.codigo_interno,
+                'nombre': activo.nombre_producto,
+                'detalle': ' '.join(p for p in (activo.marca, activo.modelo) if p),
+                'bodega': activo.bodega.nombre,
+                'proveedor': activo.proveedor.nombre if activo.proveedor else '',
+                'stock': activo.existencia,
+                'nivel': 'neutral',
+            }
+            for activo in activos
+        ]
+
+    return JsonResponse({'resultados': resultados})
+
+
+# Campos de la cabecera del FO-SE-013 que Bodega Técnica también guarda. El
+# resto (tipo de transacción, cliente, envío) es de la boleta de venta.
+CABECERA_TECNICA = ('fecha', 'solicitado_por', 'no_factura', 'no_boleta', 'observacion')
 
 
 def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento, usuario):
@@ -345,34 +380,44 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
     llamador: si una línea falla (por ejemplo, no hay stock suficiente), no
     queda guardada ninguna. Es lo que se espera de una boleta — o entra
     completa o no entra, nunca a medias.
+
+    Un mismo folio puede llevar líneas de las dos bodegas: el FO-SE-013 es un
+    solo talonario, así que una boleta real puede traer productos de venta y
+    herramienta juntos. Cada línea se guarda en la tabla que le toca.
     """
     for linea in lineas:
-        MovimientoVenta.objects.create(
-            folio=folio,
-            tipo_documento=tipo_documento,
-            tipo_transaccion=tipo_transaccion,
-            articulo=linea['articulo'],
-            cantidad=linea['cantidad'],
-            usuario=usuario,
-            **cabecera,
-        )
+        if linea['es_tecnica']:
+            MovimientoActivo.objects.create(
+                folio=folio,
+                tipo=MovimientoActivo.Tipo.INGRESO,
+                activo=linea['articulo'],
+                cantidad=linea['cantidad'],
+                usuario=usuario,
+                **{campo: cabecera[campo] for campo in CABECERA_TECNICA if campo in cabecera},
+            )
+        else:
+            MovimientoVenta.objects.create(
+                folio=folio,
+                tipo_documento=tipo_documento,
+                tipo_transaccion=tipo_transaccion,
+                articulo=linea['articulo'],
+                cantidad=linea['cantidad'],
+                usuario=usuario,
+                **cabecera,
+            )
 
 
 def _registrar_documento(request, tipo_documento):
     """Pantalla compartida de ingreso (FO-SE-013) y salida (FO-SE-012)."""
     es_ingreso = tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
     lineas = []
-    # El folio es automático; solo el administrador puede escribir otro para
-    # calzar con una boleta de papel ya numerada.
-    puede_cambiar_folio = request.user.es_administrador
+    # El folio lo escribe quien registra: viene impreso en el talonario. Se
+    # propone el siguiente de la serie para no teclearlo cuando van en orden.
     folio_siguiente = MovimientoVenta.siguiente_folio(tipo_documento)
 
     if request.method == 'POST':
-        form = DocumentoMovimientoForm(
-            request.POST, tipo_documento=tipo_documento,
-            puede_cambiar_folio=puede_cambiar_folio,
-        )
-        lineas = leer_lineas(request.POST)
+        form = DocumentoMovimientoForm(request.POST, tipo_documento=tipo_documento)
+        lineas = leer_lineas(request.POST, incluir_tecnica=es_ingreso)
         formulario_valido = form.is_valid()
 
         lineas_con_error = [linea for linea in lineas if linea['error']]
@@ -410,7 +455,7 @@ def _registrar_documento(request, tipo_documento):
                 return redirect('documento_detalle', folio=folio)
     else:
         form = DocumentoMovimientoForm(
-            tipo_documento=tipo_documento, puede_cambiar_folio=puede_cambiar_folio,
+            tipo_documento=tipo_documento, folio_sugerido=folio_siguiente,
         )
 
     return render(request, 'ventas/movimiento_form.html', {
@@ -418,8 +463,8 @@ def _registrar_documento(request, tipo_documento):
         'lineas': lineas,
         'es_ingreso': es_ingreso,
         'folio_siguiente': folio_siguiente,
-        'puede_cambiar_folio': puede_cambiar_folio,
         'tipo_documento': tipo_documento,
+        'incluir_tecnica': es_ingreso,
     })
 
 
@@ -441,69 +486,45 @@ def movimientos_ventas(request):
     Historial de entradas y salidas (RF-05). Lo ven los 3 roles: es la
     vista que hoy no existe en el Excel, donde se puede rastrear qué pasó
     con cada producto sin abrir hoja por hoja.
-    """
-    movimientos = (
-        MovimientoVenta.objects
-        .select_related('articulo', 'articulo__bodega', 'usuario', 'proveedor')
-        .order_by('-fecha', '-id')
-    )
 
+    Incluye las tres bodegas. El FO-SE-013 es un solo talonario, así que
+    partir el historial por bodega obligaría a buscar el mismo folio en dos
+    pantallas distintas.
+    """
     q = request.GET.get('q', '').strip()
-    if q:
-        movimientos = movimientos.filter(
-            Q(folio__icontains=q)
-            | Q(articulo__codigo_interno__icontains=q)
-            | Q(articulo__nombre_producto__icontains=q)
-            | Q(cliente_nombre__icontains=q)
-            | Q(solicitado_por__icontains=q)
-            | Q(no_factura__icontains=q)
-        )
 
     tipo = request.GET.get('tipo', '').strip()
-    if tipo in MovimientoVenta.TipoDocumento.values:
-        movimientos = movimientos.filter(tipo_documento=tipo)
-    else:
+    if tipo not in list(MovimientoVenta.TipoDocumento.values) + ['baja']:
         tipo = ''
 
     transaccion = request.GET.get('transaccion', '').strip()
-    if transaccion in MovimientoVenta.TipoTransaccion.values:
-        movimientos = movimientos.filter(tipo_transaccion=transaccion)
-    else:
+    if transaccion not in MovimientoVenta.TipoTransaccion.values:
         transaccion = ''
 
     bodega_id = request.GET.get('bodega', '').strip()
-    if bodega_id:
-        movimientos = movimientos.filter(articulo__bodega_id=bodega_id)
 
     desde = request.GET.get('desde', '').strip()
-    if desde and parse_date(desde):
-        movimientos = movimientos.filter(fecha__date__gte=parse_date(desde))
-    else:
-        desde = ''
-
+    desde = desde if desde and parse_date(desde) else ''
     hasta = request.GET.get('hasta', '').strip()
-    if hasta and parse_date(hasta):
-        movimientos = movimientos.filter(fecha__date__lte=parse_date(hasta))
-    else:
-        hasta = ''
+    hasta = hasta if hasta and parse_date(hasta) else ''
 
-    # "Solo préstamos afuera": salidas de préstamo/demo sin devolución (RF-06).
     afuera = request.GET.get('afuera', '').strip()
-    if afuera == 'si':
-        movimientos = movimientos.filter(
-            tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
-            tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
-            fecha_devolucion__isnull=True,
-        )
 
-    pagina = paginar(request, movimientos)
+    filas = documentos.filas_de_historial(
+        q=q, tipo=tipo, transaccion=transaccion, bodega_id=bodega_id,
+        desde=parse_date(desde) if desde else None,
+        hasta=parse_date(hasta) if hasta else None,
+        afuera=afuera,
+    )
+
+    pagina = paginar(request, filas)
     filtros_activos = len([f for f in (tipo, transaccion, bodega_id, desde, hasta, afuera) if f])
 
     return render(request, 'ventas/movimientos.html', {
         'movimientos': pagina,
         'pagina': pagina,
         'filtros_activos': filtros_activos,
-        'bodegas': Bodega.objects.filter(tipo=Bodega.Tipo.VENTA),
+        'bodegas': Bodega.objects.all(),
         'transacciones': MovimientoVenta.TipoTransaccion.choices,
         'q': q, 'tipo': tipo, 'transaccion': transaccion,
         'bodega_id': bodega_id, 'desde': desde, 'hasta': hasta, 'afuera': afuera,
@@ -516,27 +537,23 @@ def documento_detalle(request, folio):
     Todas las líneas de un mismo folio, como se ve la boleta en papel.
     En la Fase 4 esta misma vista es la que se imprime en PDF (RF-10).
     """
-    lineas = list(
-        MovimientoVenta.objects
-        .filter(folio=folio)
-        .select_related('articulo', 'articulo__bodega', 'usuario', 'proveedor')
-        .annotate(subtotal=F('cantidad') * F('articulo__precio'))
-        .order_by('id')
-    )
+    lineas = documentos.lineas_del_documento(folio)
     if not lineas:
         messages.error(request, f'No existe ningún documento con folio {folio}.')
         return redirect('movimientos_ventas')
 
-    cabecera = lineas[0]
-    total_unidades = sum(linea.cantidad for linea in lineas)
-    total_quetzales = sum(linea.subtotal for linea in lineas)
+    total_unidades, total_quetzales = documentos.totales(lineas)
 
     return render(request, 'ventas/documento_detalle.html', {
         'folio': folio,
-        'cabecera': cabecera,
+        'es_ingreso': documentos.es_ingreso(lineas),
+        # La cabecera sale del primer movimiento: los datos del encabezado
+        # (fecha, solicitado por, factura) se repiten en todas las líneas.
+        'cabecera': lineas[0].movimiento,
         'lineas': lineas,
         'total_unidades': total_unidades,
         'total_quetzales': total_quetzales,
+        'lleva_tecnica': any(linea.es_tecnica for linea in lineas),
     })
 
 

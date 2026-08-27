@@ -55,6 +55,17 @@
       {{ form.precio }}
       <span class="hint">Para valorizar el total de la bodega técnica.</span>
     </div>
+    <div class="field">
+      <label for="{{ form.existencia.id_for_label }}">{{ form.existencia.label }}</label>
+      {{ form.existencia }}
+      <span class="hint">{{ form.existencia.help_text }}</span>
+      {% for e in form.existencia.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field inline span-2">
+      {{ form.es_consumible }}
+      <label for="{{ form.es_consumible.id_for_label }}">{{ form.es_consumible.label }}</label>
+      <span class="hint">{{ form.es_consumible.help_text }}</span>
+    </div>
     <div class="field span-2">
       <label for="{{ form.imagen.id_for_label }}">Foto del activo</label>
       {% if modo == 'editar' and activo.imagen %}

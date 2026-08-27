@@ -19,12 +19,11 @@
       pierde en el Excel.
     </p>
     <p>
-      Para retirarla de circulación, cámbiala a <strong>"De baja"</strong> desde
-      Editar: deja de ofrecerse para préstamo (RF-12) pero su historial se
-      conserva.
+      Para retirarla de circulación, <strong>dale de baja</strong>: se descuenta
+      de la existencia (RF-12) y su historial se conserva.
     </p>
     <div class="form-actions">
-      <a href="{% url 'activo_editar' activo.pk %}" class="btn btn-primary">Ir a Editar</a>
+      <a href="{% url 'activo_baja' activo.pk %}" class="btn btn-primary">Dar de baja</a>
       <a href="{% url 'catalogo_activos' %}" class="btn">Volver al catálogo</a>
     </div>
   {% else %}

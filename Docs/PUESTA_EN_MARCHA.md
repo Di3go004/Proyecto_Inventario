@@ -98,7 +98,19 @@ dicen `N/A`) se omiten y se listan ahí.
 
 > El código interno se genera solo con el estándar `SE-MODELO-capacidad`; el
 > que venga en el Excel se ignora porque está inconsistente. El
-> administrador puede cambiarlo a mano después, artículo por artículo.
+> administrador puede cambiarlo a mano después, artículo por artículo. En
+> Bodega Técnica es al revés: ahí el código sí se importa tal cual, porque lo
+> asigna la empresa.
+
+**Revisá que la columna de existencia sea la correcta.** El sistema propone
+`TOTAL EXISTENCIA MENSUAL`, que es la buena. Los dos Excel traen otras
+columnas parecidas —`EXISTENCIA INICIO SEMANA`, `EXISTENCIA POR SEMANA`,
+`VIENE MES ANTERIOR`— que son saldos parciales y en enero vienen vacíos. Si
+en la vista previa las cantidades salen todas en cero, es porque quedó
+elegida una de esas: cambiala en el mapeo.
+
+Volver a importar el mismo archivo no duplica nada: se guarda la diferencia
+contra lo que ya había, no el total.
 
 ---
 
@@ -132,7 +144,33 @@ todos de una: se puede ir corrigiendo sobre la marcha.
 
 ---
 
-## Paso 6 — Revisar las categorías
+## Paso 6 — Revisar Bodega Técnica
+
+Esta bodega funciona distinto a la 1 y 2, y conviene tenerlo claro antes de
+arrancar:
+
+- **Solo entran cosas.** El ingreso se registra en **Movimientos → Entradas y
+  salidas → Registrar ingreso**, con el mismo FO-SE-013 de las otras bodegas:
+  el buscador ofrece los tres catálogos y una misma boleta puede llevar
+  productos de venta y herramienta juntos. El folio es una sola serie, como el
+  talonario de papel.
+- **Lo único que baja la existencia es dar de baja**: descartar lo que ya no
+  sirve. Se hace desde la herramienta → *Dar de baja*. No se imprime boleta,
+  pero queda registrado cuántas, por qué y quién.
+- **Los préstamos no mueven la existencia.** La herramienta sale y vuelve:
+  sigue siendo de la bodega, solo que no está en el estante.
+
+Andá a **Reportes → Inventario de Bodega Técnica** y revisá que las cantidades
+calcen con el Excel. Desde ahí también se baja en Excel.
+
+Si hay cosas que se gastan —bombillos, flejes, pintura— marcalas como
+**consumible** al editarlas. En esas la cantidad se puede corregir
+escribiéndola directamente, sin registrar una baja por cada una; el ajuste
+igual queda en el historial.
+
+---
+
+## Paso 7 — Revisar las categorías
 
 El sistema ya trae categorías creadas para las dos bodegas (celdas de carga,
 indicadores, masas patrón… y del lado técnico herramienta manual, brocas,
@@ -156,7 +194,7 @@ categorías te dice cuántos van sin clasificar.
 
 ---
 
-## Paso 7 — Crear los usuarios reales
+## Paso 8 — Crear los usuarios reales
 
 Desde el navegador: **Administración → Usuarios → + Nuevo usuario**.
 
@@ -186,7 +224,7 @@ registro a su nombre.
 
 ---
 
-## Paso 8 — Cambiar las contraseñas que quedaron de las pruebas
+## Paso 9 — Cambiar las contraseñas que quedaron de las pruebas
 
 Las contraseñas que se pusieron durante las pruebas quedaron escritas en la
 conversación donde se configuró el sistema, así que **hay que cambiarlas
@@ -205,7 +243,7 @@ docker compose exec web python manage.py cambiar_clave admin --generar
 
 ---
 
-## Paso 9 — Fijar la IP del servidor
+## Paso 10 — Fijar la IP del servidor
 
 ⚠️ **Esto hay que hacerlo antes de repartir el enlace al personal.**
 
@@ -250,7 +288,7 @@ El resto de las computadoras y tablets entran a **`http://192.168.1.6:8000`**
 
 ---
 
-## Paso 10 — Pasar a modo producción
+## Paso 11 — Pasar a modo producción
 
 Hasta ahora el sistema corre con el servidor de desarrollo de Django, que es
 de un solo hilo y no aguanta a varias personas registrando a la vez.
@@ -285,7 +323,7 @@ de un solo hilo y no aguanta a varias personas registrando a la vez.
 
 ---
 
-## Paso 11 — Dejar el respaldo automático
+## Paso 12 — Dejar el respaldo automático
 
 Los scripts funcionan y están probados, pero **hoy hay que ejecutarlos a
 mano**. El paso a paso para dejarlos en el Programador de tareas de Windows
@@ -306,12 +344,13 @@ proyecto vino a evitar.
 - [ ] 3. Importar los dos Excel desde el navegador
 - [ ] 4. Verificar el stock (`recalcular_stock --solo-revisar`)
 - [ ] 5. Revisar los umbrales de alerta
-- [ ] 6. Revisar las categorías (Administración → Categorías)
-- [ ] 7. Crear los usuarios reales y borrar los de prueba
-- [ ] 8. Cambiar las contraseñas de prueba
-- [ ] 9. **Fijar la IP** y ponerla en `DJANGO_ALLOWED_HOSTS`
-- [ ] 10. Pasar a producción (`DJANGO_DEBUG=False` + `docker-compose.prod.yml`)
-- [ ] 11. Programar el respaldo automático
+- [ ] 6. Revisar Bodega Técnica (Reportes → Inventario de Bodega Técnica)
+- [ ] 7. Revisar las categorías (Administración → Categorías)
+- [ ] 8. Crear los usuarios reales y borrar los de prueba
+- [ ] 9. Cambiar las contraseñas de prueba
+- [ ] 10. **Fijar la IP** y ponerla en `DJANGO_ALLOWED_HOSTS`
+- [ ] 11. Pasar a producción (`DJANGO_DEBUG=False` + `docker-compose.prod.yml`)
+- [ ] 12. Programar el respaldo automático
 
 ---
 

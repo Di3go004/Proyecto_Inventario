@@ -75,13 +75,18 @@
 <div class="card" style="margin:20px 0;">
   <h2 class="card-titulo">Bodega Técnica</h2>
   <p class="hint" style="margin:-8px 0 14px;">
-    Se valoriza distinto: cada herramienta es una unidad física, así que el
-    valor es la suma de precios. Las dadas de baja no cuentan.
+    Precio × existencia, igual que arriba. A esta bodega solo entran cosas: lo
+    único que baja la existencia es dar de baja, y los préstamos no la mueven
+    porque la herramienta sigue siendo de la bodega.
   </p>
   <div class="kpi-row">
     <div class="kpi-tile">
       <div class="kpi-label">Valorización</div>
       <div class="kpi-value">Q {{ tecnica.valor|floatformat:2 }}</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Unidades</div>
+      <div class="kpi-value">{{ tecnica.unidades }}</div>
     </div>
     <div class="kpi-tile">
       <div class="kpi-label">En buen estado</div>
@@ -92,8 +97,8 @@
       <div class="kpi-value">{{ tecnica.mal_estado }}</div>
     </div>
     <div class="kpi-tile">
-      <div class="kpi-label">Dadas de baja</div>
-      <div class="kpi-value">{{ tecnica.de_baja }}</div>
+      <div class="kpi-label">Agotadas</div>
+      <div class="kpi-value">{{ tecnica.agotados }}</div>
     </div>
   </div>
 </div>

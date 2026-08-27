@@ -153,7 +153,10 @@
         return;
       }
       var miPeticion = ++peticion;
-      fetch(url + '?q=' + encodeURIComponent(consulta), {
+      // El separador se decide mirando la URL: la pantalla de ingreso ya le
+      // manda "?incluir=tecnica", y concatenar otro "?" la rompería.
+      var separador = url.indexOf('?') === -1 ? '?' : '&';
+      fetch(url + separador + 'q=' + encodeURIComponent(consulta), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
         .then(function (respuesta) { return respuesta.json(); })

@@ -3,8 +3,11 @@
 {% block content %}
 <div class="page-head">
   <div class="titles">
-    <h1 class="page-title">Entradas y salidas — Bodega 1 y 2</h1>
-    <p class="page-sub">Historial completo de movimientos. Reemplaza las boletas FO-SE-013 y FO-SE-012.</p>
+    <h1 class="page-title">Entradas y salidas</h1>
+    <p class="page-sub">
+      Historial completo de las tres bodegas. Reemplaza las boletas FO-SE-013
+      y FO-SE-012, que son un solo talonario.
+    </p>
   </div>
   {% if user.puede_editar %}
     <div class="page-acciones">
@@ -33,6 +36,7 @@
           <option value="">Entradas y salidas</option>
           <option value="ingreso" {% if tipo == 'ingreso' %}selected{% endif %}>Solo ingresos</option>
           <option value="salida" {% if tipo == 'salida' %}selected{% endif %}>Solo salidas</option>
+          <option value="baja" {% if tipo == 'baja' %}selected{% endif %}>Solo bajas (Bodega Técnica)</option>
         </select>
       </label>
       <label class="filtro">
@@ -100,19 +104,15 @@
       <td data-etiqueta="Fecha" class="num" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
       <td data-etiqueta="Folio" class="code">{{ m.folio|default:"—" }}</td>
       <td data-etiqueta="Movimiento">
-        {% if m.tipo_documento == 'ingreso' %}
-          <span class="chip chip-good">Ingreso</span>
-        {% else %}
-          <span class="chip chip-critical">Salida</span>
-        {% endif %}
-        <span class="etiqueta-transaccion">{{ m.get_tipo_transaccion_display }}</span>
+        <span class="chip {{ m.tono }}">{{ m.etiqueta }}</span>
+        <span class="etiqueta-transaccion">{{ m.transaccion }}</span>
       </td>
-      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ m.articulo.nombre_producto }}">
-        {{ m.articulo.nombre_producto }}
-        <span class="code">{{ m.articulo.codigo_interno }}</span>
+      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ m.producto.nombre_producto }}">
+        {{ m.producto.nombre_producto }}
+        <span class="code">{{ m.producto.codigo_interno }}</span>
       </td>
-      <td data-etiqueta="Bodega" class="columna-secundaria">{{ m.articulo.bodega.nombre }}</td>
-      <td data-etiqueta="Cantidad" class="num">{% if m.tipo_documento == 'ingreso' %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
+      <td data-etiqueta="Bodega" class="columna-secundaria">{{ m.producto.bodega.nombre }}</td>
+      <td data-etiqueta="Cantidad" class="num">{% if m.signo == 1 %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
       <td data-etiqueta="Solicitado por" class="truncate columna-secundaria">{{ m.solicitado_por|default:"—" }}</td>
       <td data-etiqueta="Estado">
         {% if m.esta_afuera %}

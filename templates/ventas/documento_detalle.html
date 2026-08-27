@@ -4,11 +4,11 @@
 <div class="page-head">
   <div class="titles">
     <p class="eyebrow">
-      {% if cabecera.tipo_documento == 'ingreso' %}Ingreso a bodega · FO-SE-013{% else %}Salida de bodega · FO-SE-012{% endif %}
+      {% if es_ingreso %}Ingreso a bodega · FO-SE-013{% else %}Salida de bodega · FO-SE-012{% endif %}
     </p>
     <h1 class="page-title">Folio {{ folio }}</h1>
     <p class="page-sub">
-      {{ cabecera.get_tipo_transaccion_display }} ·
+      {% if cabecera.get_tipo_transaccion_display %}{{ cabecera.get_tipo_transaccion_display }} · {% endif %}
       registrado por {{ cabecera.usuario.get_full_name|default:cabecera.usuario.username }}
     </p>
   </div>
@@ -29,19 +29,19 @@
     <div>
       <dt>Tipo de movimiento</dt>
       <dd>
-        {% if cabecera.tipo_documento == 'ingreso' %}
+        {% if es_ingreso %}
           <span class="chip chip-good">Ingreso</span>
         {% else %}
           <span class="chip chip-critical">Salida</span>
         {% endif %}
-        {{ cabecera.get_tipo_transaccion_display }}
+        {{ cabecera.get_tipo_transaccion_display|default:"" }}
       </dd>
     </div>
     <div>
       <dt>Solicitado por</dt>
       <dd>{{ cabecera.solicitado_por|default:"—" }}</dd>
     </div>
-    {% if cabecera.tipo_documento == 'salida' %}
+    {% if not es_ingreso %}
       <div>
         <dt>Entregado por</dt>
         <dd>{{ cabecera.entregado_por|default:"—" }}</dd>
@@ -72,7 +72,7 @@
       <dd class="code">{{ cabecera.no_factura|default:"—" }}</dd>
     </div>
     <div>
-      <dt>{% if cabecera.tipo_documento == 'ingreso' %}Boleta de ingreso{% else %}Boleta de salida{% endif %}</dt>
+      <dt>{% if es_ingreso %}Boleta de ingreso{% else %}Boleta de salida{% endif %}</dt>
       <dd class="code">{{ cabecera.no_boleta|default:"—" }}</dd>
     </div>
     {% if cabecera.observacion %}
@@ -90,7 +90,7 @@
     <tr>
       <th style="width:44px;">#</th><th>Producto</th>
       <th class="columna-secundaria">Bodega</th>
-      {% if cabecera.tipo_documento == 'ingreso' %}<th>Proveedor</th>{% endif %}
+      {% if es_ingreso %}<th>Proveedor</th>{% endif %}
       <th>Cantidad</th>
       <th>Precio unitario</th><th>Subtotal</th><th>Estado</th>
       {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
@@ -98,24 +98,27 @@
   </thead>
   <tbody>
     {% for linea in lineas %}
-    <tr data-href="{% url 'articulo_detalle' linea.articulo.pk %}">
+    {% if linea.es_tecnica %}
+      <tr data-href="{% url 'activo_detalle' linea.producto.pk %}">
+    {% else %}
+      <tr data-href="{% url 'articulo_detalle' linea.producto.pk %}">
+    {% endif %}
       <td class="num" style="text-align:left;">{{ forloop.counter }}</td>
-      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ linea.articulo.nombre_producto }}">
-        {{ linea.articulo.nombre_producto }}
-        <span class="code">{{ linea.articulo.codigo_interno }}</span>
+      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ linea.producto.nombre_producto }}">
+        {{ linea.producto.nombre_producto }}
+        <span class="code">{{ linea.producto.codigo_interno }}</span>
       </td>
-      <td data-etiqueta="Bodega" class="columna-secundaria">{{ linea.articulo.bodega.nombre }}</td>
-      {% if cabecera.tipo_documento == 'ingreso' %}
+      <td data-etiqueta="Bodega" class="columna-secundaria">{{ linea.producto.bodega.nombre }}</td>
+      {% if es_ingreso %}
         <td data-etiqueta="Proveedor" class="truncate">
-          {% firstof linea.proveedor linea.articulo.proveedor as proveedor_linea %}
-          {% if proveedor_linea %}{{ proveedor_linea }}
-          {% elif user.es_administrador %}
+          {% if linea.proveedor_efectivo %}{{ linea.proveedor_efectivo }}
+          {% elif user.es_administrador and not linea.es_tecnica %}
             {% comment %}
               Solo el administrador puede entrar a editar el artículo, así que
               solo a él se le ofrece el enlace; a los demás el aviso les sirve
               igual para saber que el dato falta en el catálogo, no acá.
             {% endcomment %}
-            <a href="{% url 'articulo_editar' linea.articulo.pk %}" class="sin-dato"
+            <a href="{% url 'articulo_editar' linea.producto.pk %}" class="sin-dato"
                title="Este artículo no tiene proveedor en el catálogo. Clic para agregarlo.">Sin proveedor</a>
           {% else %}
             <span class="sin-dato" title="Este artículo no tiene proveedor en el catálogo">Sin proveedor</span>
@@ -123,7 +126,7 @@
         </td>
       {% endif %}
       <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
-      <td data-etiqueta="Precio unitario" class="num">Q {{ linea.articulo.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Precio unitario" class="num">Q {{ linea.producto.precio|floatformat:2 }}</td>
       <td data-etiqueta="Subtotal" class="num">Q {{ linea.subtotal|floatformat:2 }}</td>
       <td data-etiqueta="Estado">
         {% if linea.esta_afuera %}
@@ -161,7 +164,7 @@
 
 <p class="hint" style="margin-top:16px;">
   El PDF sale con el mismo formato del talonario
-  ({% if cabecera.tipo_documento == 'ingreso' %}FO-SE-013{% else %}FO-SE-012{% endif %}),
+  ({% if es_ingreso %}FO-SE-013{% else %}FO-SE-012{% endif %}),
   listo para imprimir y firmar a mano.
 </p>
 {% endblock %}

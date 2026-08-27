@@ -81,35 +81,38 @@ class FolioTests(BaseMovimientos):
         folios = list(MovimientoVenta.objects.order_by('id').values_list('folio', flat=True))
         self.assertEqual(folios, ['ING-00001', 'ING-00002', 'SAL-00001'])
 
-    def test_el_administrador_puede_escribir_su_propio_folio(self):
-        """Para calzar con una boleta de papel ya numerada."""
-        self.client.force_login(self.admin)
-
+    def test_cualquiera_puede_escribir_el_folio_de_su_boleta(self):
+        """
+        El folio lo trae impreso el talonario de papel y es ese el que tiene
+        que quedar guardado. Antes era automático y solo el administrador
+        podía sobrescribirlo, escondido en un desplegable.
+        """
         self.registrar_ingreso([(self.bascula, 5)], folio='ING-2025-077')
 
         self.assertEqual(MovimientoVenta.objects.get().folio, 'ING-2025-077')
 
-    def test_el_operador_no_puede_cambiarlo(self):
-        """
-        El folio es automático: al operador ni se le ofrece el campo, y si
-        lo manda de todas formas se ignora. Tenerlo editable a la vista hacía
-        dudar de si había que llenarlo.
-        """
+    def test_el_campo_se_le_ofrece_al_operador(self):
         respuesta = self.client.get(reverse('movimiento_ingreso'))
-        self.assertNotIn('folio', respuesta.context['form'].fields)
 
-        self.registrar_ingreso([(self.bascula, 5)], folio='ING-INVENTADO')
+        self.assertIn('folio', respuesta.context['form'].fields)
 
-        self.assertEqual(MovimientoVenta.objects.get().folio, 'ING-00001')
-
-    def test_la_pantalla_muestra_que_folio_se_va_a_asignar(self):
+    def test_llega_con_el_siguiente_de_la_serie_ya_escrito(self):
+        """
+        Cuando el talonario va en orden no hay que teclearlo; solo se corrige
+        si va en otro número.
+        """
         respuesta = self.client.get(reverse('movimiento_ingreso'))
 
         self.assertEqual(respuesta.context['folio_siguiente'], 'ING-00001')
-        self.assertContains(respuesta, 'ING-00001')
+        self.assertEqual(respuesta.context['form']['folio'].value(), 'ING-00001')
+
+    def test_si_se_deja_vacio_se_asigna_el_siguiente(self):
+        """Borrarlo no puede dejar el movimiento sin folio."""
+        self.registrar_ingreso([(self.bascula, 5)], folio='')
+
+        self.assertEqual(MovimientoVenta.objects.get().folio, 'ING-00001')
 
     def test_un_folio_escrito_a_mano_no_rompe_el_correlativo(self):
-        self.client.force_login(self.admin)
         self.registrar_ingreso([(self.bascula, 1)], folio='ING-SIN-NUMERO')
         self.registrar_ingreso([(self.bascula, 1)])
 
@@ -364,8 +367,10 @@ class BuscadorTests(BaseMovimientos):
         por_nombre = self.client.get(reverse('api_buscar_articulos'), {'q': 'plataforma'}).json()
         por_codigo = self.client.get(reverse('api_buscar_articulos'), {'q': 'BP-300'}).json()
 
-        self.assertEqual(por_nombre['resultados'][0]['id'], self.bascula.pk)
-        self.assertEqual(por_codigo['resultados'][0]['id'], self.bascula.pk)
+        # El id lleva prefijo de catálogo: la misma pantalla de ingreso ofrece
+        # Bodega 1 y 2 y Bodega Técnica, y el 12 de una no es el 12 de la otra.
+        self.assertEqual(por_nombre['resultados'][0]['id'], f'art-{self.bascula.pk}')
+        self.assertEqual(por_codigo['resultados'][0]['id'], f'art-{self.bascula.pk}')
 
     def test_no_busca_con_menos_de_dos_letras(self):
         """Con una sola letra saldría medio catálogo y no ayuda a nadie."""

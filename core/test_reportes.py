@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from core import exportar, reportes
 from core.models import Bodega
+from tecnica.ayuda_pruebas import dar_de_baja, dar_existencia
 from tecnica.models import Activo, PrestamoActivo
 from usuarios.models import Usuario
 from ventas.models import Articulo, MovimientoVenta
@@ -51,10 +52,13 @@ class BaseReportes(TestCase):
         cls.taladro = Activo.objects.create(
             codigo_interno='SE-T1', nombre_producto='Taladro', bodega=cls.btec, precio=900,
         )
-        cls.de_baja = Activo.objects.create(
-            codigo_interno='SE-T2', nombre_producto='Sierra vieja', bodega=cls.btec,
-            precio=500, estado=Activo.Estado.DE_BAJA,
+        cls.agotado = Activo.objects.create(
+            codigo_interno='SE-T2', nombre_producto='Sierra vieja', bodega=cls.btec, precio=500,
         )
+        # Un taladro entra y se queda; de la sierra entró una y se dio de baja.
+        dar_existencia(cls.taladro, 1, cls.admin)
+        dar_existencia(cls.agotado, 1, cls.admin)
+        dar_de_baja(cls.agotado, 1, cls.admin)
 
     @classmethod
     def articulo(cls, nombre, modelo, bodega, precio):
@@ -138,13 +142,28 @@ class ExistenciasTests(BaseReportes):
         self.assertEqual(b1['niveles']['optimo'], 1)
         self.assertEqual(b1['niveles']['critico'], 1)
 
-    def test_la_bodega_tecnica_no_cuenta_los_dados_de_baja(self):
-        """Un activo de baja ya no es patrimonio utilizable (RF-12)."""
+    def test_la_bodega_tecnica_no_cuenta_lo_que_se_dio_de_baja(self):
+        """Lo descartado queda en existencia 0 y deja de valer (RF-12)."""
         tecnica = reportes.valorizacion_tecnica()
 
-        self.assertEqual(tecnica['valor'], 900, 'la sierra de baja no suma')
-        self.assertEqual(tecnica['cuantos'], 1)
-        self.assertEqual(tecnica['de_baja'], 1)
+        self.assertEqual(tecnica['valor'], 900, 'la sierra dada de baja no suma')
+        self.assertEqual(tecnica['unidades'], 1)
+        self.assertEqual(tecnica['agotados'], 1)
+
+    def test_la_valorizacion_tecnica_multiplica_por_la_existencia(self):
+        """
+        Regresión: sumaba solo los precios porque se asumía una unidad por
+        registro. Con 10 bombillos de Q25 la bodega salía valorizada en 25.
+        """
+        bombillos = Activo.objects.create(
+            codigo_interno='SE-T3', nombre_producto='Bombillo', bodega=self.btec, precio=25,
+        )
+        dar_existencia(bombillos, 10, self.admin)
+
+        tecnica = reportes.valorizacion_tecnica()
+
+        self.assertEqual(tecnica['valor'], 900 + 250)
+        self.assertEqual(tecnica['unidades'], 11)
 
     def test_se_puede_filtrar_por_bodega(self):
         filas, _d, totales = reportes.existencias(bodega_id=self.b2.pk)
@@ -338,3 +357,83 @@ class ExcelTests(BaseReportes):
         """Sin préstamos abiertos el archivo igual se genera, solo vacío."""
         hoja = self.hoja(reverse('reporte_prestamos'))
         self.assertEqual(hoja.max_row, self.fila_del_encabezado(hoja, 'Origen'))
+
+
+class InventarioTecnicaTests(TestCase):
+    """
+    RF-12/RF-14: el listado de Bodega Técnica con su Excel.
+
+    No existía ninguno: de esta bodega solo había cuatro números de
+    valorización y la lista de lo prestado, así que no se podía sacar el
+    inventario completo ni bajarlo como el de Bodega 1 y 2.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.btec = Bodega.objects.create(nombre='Bodega Técnica', tipo=Bodega.Tipo.TECNICA)
+        cls.admin = Usuario.objects.create_user(
+            username='admin_rt', password='clave-de-prueba', rol=Usuario.Rol.ADMINISTRADOR,
+        )
+        cls.taladro = Activo.objects.create(
+            codigo_interno='SE-RT1', nombre_producto='Taladro', bodega=cls.btec, precio=900,
+        )
+        cls.bombillos = Activo.objects.create(
+            codigo_interno='SE-RT2', nombre_producto='Bombillo LED', bodega=cls.btec,
+            precio=25, es_consumible=True,
+        )
+        cls.sierra = Activo.objects.create(
+            codigo_interno='SE-RT3', nombre_producto='Sierra vieja', bodega=cls.btec, precio=500,
+        )
+        dar_existencia(cls.taladro, 1, cls.admin)
+        dar_existencia(cls.bombillos, 10, cls.admin)
+        dar_existencia(cls.sierra, 1, cls.admin)
+        dar_de_baja(cls.sierra, 1, cls.admin)
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_lista_lo_que_tiene_existencia(self):
+        detalle, totales = reportes.inventario_tecnica()
+
+        self.assertEqual(totales['productos'], 2, 'la sierra dada de baja no sale')
+        self.assertEqual(totales['unidades'], 11)
+        self.assertEqual(totales['valor'], 900 + 250)
+
+    def test_se_pueden_incluir_los_dados_de_baja(self):
+        detalle, totales = reportes.inventario_tecnica(solo_con_existencia=False)
+
+        self.assertEqual(totales['productos'], 3)
+        self.assertEqual(totales['valor'], 900 + 250, 'lo agotado no aporta valor')
+
+    def test_cuenta_lo_que_esta_prestado(self):
+        PrestamoActivo.objects.create(
+            activo=self.bombillos, cantidad=4, solicitante='Byron', usuario=self.admin,
+            estado_al_salir=Activo.Estado.BUEN_ESTADO,
+        )
+
+        _detalle, totales = reportes.inventario_tecnica()
+
+        self.assertEqual(totales['afuera'], 4)
+        self.assertEqual(totales['unidades'], 11, 'lo prestado sigue siendo de la bodega')
+
+    def test_la_pantalla_responde(self):
+        respuesta = self.client.get(reverse('reporte_tecnica'))
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Bombillo LED')
+
+    def test_se_descarga_en_excel(self):
+        respuesta = self.client.get(reverse('reporte_tecnica'), {'formato': 'excel'})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn('spreadsheetml', respuesta['Content-Type'])
+        self.assertIn('bodega-tecnica', respuesta['Content-Disposition'])
+
+    def test_contabilidad_tambien_lo_ve(self):
+        """RF-04: consultar e imprimir lo pueden los tres roles."""
+        contable = Usuario.objects.create_user(
+            username='cont_rt', password='clave-de-prueba', rol=Usuario.Rol.CONTABILIDAD,
+        )
+        self.client.force_login(contable)
+
+        self.assertEqual(self.client.get(reverse('reporte_tecnica')).status_code, 200)

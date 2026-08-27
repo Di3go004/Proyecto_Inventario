@@ -95,7 +95,6 @@
       <td data-etiqueta="Estado al regresar">
         {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
         {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
-        {% elif p.estado_al_regresar == 'de_baja' %}<span class="chip chip-critical">De baja</span>
         {% else %}—{% endif %}
       </td>
       {% if user.puede_editar %}

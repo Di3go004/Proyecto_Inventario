@@ -30,6 +30,7 @@ from reportlab.platypus import (
 
 from core import pdf
 
+from . import documentos
 from .models import MovimientoVenta
 
 # Media carta apaisada: la hoja carta cortada a la mitad por el lado largo.
@@ -90,12 +91,15 @@ def _descripcion(linea, ancho_columna):
     Producto, marca/modelo y código en un solo renglón — la columna del papel
     se llama justamente "DESCRIPCIÓN Y CÓDIGO".
     """
-    articulo = linea.articulo
-    detalle = ' '.join(p for p in (articulo.marca, articulo.modelo, articulo.capacidad) if p)
-    partes = [articulo.nombre_producto]
+    producto = linea.producto
+    # capacidad solo la tienen los artículos de venta; la herramienta no.
+    detalle = ' '.join(
+        p for p in (producto.marca, producto.modelo, getattr(producto, 'capacidad', '')) if p
+    )
+    partes = [producto.nombre_producto]
     if detalle:
         partes.append(detalle)
-    partes.append(articulo.codigo_interno)
+    partes.append(producto.codigo_interno)
     return _recortar(' · '.join(partes), ancho_columna, pdf.CELDA_CHICA)
 
 
@@ -108,12 +112,12 @@ def _filas(lineas, es_ingreso):
             [
                 Paragraph(str(linea.cantidad), pdf.CELDA_CHICA_CENTRADA),
                 Paragraph(_descripcion(linea, ancho_descripcion), pdf.CELDA_CHICA),
-                Paragraph(f'Q {linea.articulo.precio:,.2f}', pdf.CELDA_CHICA_DERECHA),
+                Paragraph(f'Q {linea.producto.precio:,.2f}', pdf.CELDA_CHICA_DERECHA),
                 # El proveedor sale del artículo: ya está en el catálogo, así
                 # que pedirlo otra vez al registrar el ingreso era escribir
                 # dos veces el mismo dato. Si el movimiento trae uno propio
                 # (compra puntual a otro proveedor), ese manda.
-                Paragraph(_recortar(str(linea.proveedor or linea.articulo.proveedor or ''),
+                Paragraph(_recortar(str(linea.proveedor_efectivo or ''),
                                     anchos[3], pdf.CELDA_CHICA), pdf.CELDA_CHICA),
                 Paragraph(linea.no_factura or '', pdf.CELDA_CHICA),
             ]
@@ -147,7 +151,10 @@ def _datos_y_casillas(cabecera, es_ingreso):
 
     ancho_casillas = 30 * mm
     return pdf.sin_bordes(Table(
-        [[izquierda, pdf.casillas(OPCIONES_TIPO, cabecera.tipo_transaccion, compacto=True)]],
+        # Un ingreso solo de Bodega Técnica no trae tipo de transacción (esas
+        # casillas son de la boleta de venta): quedan todas sin marcar, como
+        # en el papel cuando no aplica ninguna.
+        [[izquierda, pdf.casillas(OPCIONES_TIPO, getattr(cabecera, 'tipo_transaccion', ''), compacto=True)]],
         colWidths=[ANCHO_UTIL - ancho_casillas, ancho_casillas],
     ))
 
@@ -230,17 +237,12 @@ def boleta_documento(folio):
     comparten el folio). Lanza MovimientoVenta.DoesNotExist si el folio no
     existe, para que la vista responda 404 en vez de un PDF vacío.
     """
-    lineas = list(
-        MovimientoVenta.objects
-        .filter(folio=folio)
-        .select_related('articulo', 'proveedor')
-        .order_by('id')
-    )
+    lineas = documentos.lineas_del_documento(folio)
     if not lineas:
         raise MovimientoVenta.DoesNotExist(f'No hay ningún documento con folio {folio}.')
 
-    cabecera = lineas[0]
-    es_ingreso = cabecera.tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
+    cabecera = lineas[0].movimiento
+    es_ingreso = documentos.es_ingreso(lineas)
 
     grupos = agrupar_en_paginas(lineas)
     total = len(grupos)

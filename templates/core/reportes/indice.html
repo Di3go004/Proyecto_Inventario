@@ -11,9 +11,16 @@
 <div class="reportes-grid">
   <a href="{% url 'reporte_existencias' %}" class="reporte-tarjeta">
     <h2>Existencias y valorización</h2>
-    <p>Cuánto hay y cuánto vale, por bodega. Incluye Bodega Técnica.</p>
+    <p>Cuánto hay y cuánto vale en Bodega 1 y 2, con el resumen de la Técnica.</p>
     <p class="reporte-dato">Q {{ valor_ventas|floatformat:2 }}</p>
     <span class="reporte-pie">en Bodega 1 y 2</span>
+  </a>
+
+  <a href="{% url 'reporte_tecnica' %}" class="reporte-tarjeta">
+    <h2>Inventario de Bodega Técnica</h2>
+    <p>Herramienta e insumos: cuántos hay, cuántos están afuera y qué valen.</p>
+    <p class="reporte-dato">Q {{ valor_tecnica|floatformat:2 }}</p>
+    <span class="reporte-pie">en {{ unidades_tecnica }} unidad(es)</span>
   </a>
 
   <a href="{% url 'reporte_alertas' %}" class="reporte-tarjeta">

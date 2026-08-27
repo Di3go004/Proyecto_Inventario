@@ -15,6 +15,7 @@ from django.urls import reverse
 
 from core.models import Bodega
 from core.paginacion import POR_PAGINA
+from tecnica.ayuda_pruebas import dar_existencia
 from tecnica.models import Activo
 from usuarios.models import Usuario
 from ventas.models import Articulo
@@ -39,11 +40,14 @@ class PaginacionTests(TestCase):
                 bodega=cls.bodega1 if i < 20 else cls.bodega2,
             )
         for i in range(30):
-            Activo.objects.create(
+            activo = Activo.objects.create(
                 codigo_interno=f'SE-ET{i:03d}',
                 nombre_producto=f'Herramienta {i:03d}',
                 bodega=cls.bodega_tecnica,
             )
+            # Con existencia 0 estarían agotadas y el filtro por estado las
+            # dejaría fuera, que es justo lo que debe hacer.
+            dar_existencia(activo, 1, cls.admin)
 
     def setUp(self):
         self.client.force_login(self.admin)
@@ -115,8 +119,8 @@ class PaginacionTests(TestCase):
         self.assertEqual(respuesta.context['pagina'].paginator.count, 30)
 
     def test_bodega_tecnica_respeta_filtro_al_paginar(self):
-        Activo.objects.filter(codigo_interno='SE-ET000').update(estado=Activo.Estado.DE_BAJA)
-        respuesta = self.client.get(reverse('catalogo_activos'), {'estado': 'de_baja'})
+        Activo.objects.filter(codigo_interno='SE-ET000').update(estado=Activo.Estado.MAL_ESTADO)
+        respuesta = self.client.get(reverse('catalogo_activos'), {'estado': 'mal_estado'})
         self.assertEqual(respuesta.context['pagina'].paginator.count, 1)
         self.assertEqual(respuesta.context['filtros_activos'], 1)
 
@@ -212,3 +216,49 @@ class FormatoGuatemalaTests(SimpleTestCase):
         form = Prueba(data={'precio': '1500.50'})
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(str(form.cleaned_data['precio']), '1500.50')
+
+
+class AutodeteccionDeColumnasTests(SimpleTestCase):
+    """
+    La carga masiva propone qué columna es cuál mirando el encabezado. Los dos
+    Excel reales traen varias columnas con la palabra "EXISTENCIA" —el saldo
+    al inicio de la semana, el de cada semana y el total del mes— y la buena
+    es la última. Antes ganaba la que estuviera más a la izquierda, así que la
+    pantalla proponía el saldo del arranque de la semana 1.
+    """
+
+    # Los encabezados reales de FO-SE-053, en el orden en que vienen.
+    COLUMNAS_VENTAS = [
+        ('B', 'PRODUCTO'), ('C', 'No. BODEGA'), ('D', 'MARCA'), ('E', 'MODELO'),
+        ('P', 'EXISTENCIA INICIO SEMANA'), ('AJ', 'EXISTENCIA POR SEMANA'),
+        ('AP', 'TOTAL EXISTENCIA MENSUAL'),
+    ]
+    COLUMNAS_TECNICA = [
+        ('B', 'PRODUCTO'), ('E', 'CODIGO INTERNO'), ('L', 'VIENE MES ANTERIOR'),
+        ('AB', 'EXISTENCIA POR SEMANA'), ('AG', 'TOTAL EXISTENCIA MENSUAL'),
+    ]
+
+    def test_ventas_propone_el_total_del_mes(self):
+        from ventas.importador import autodetectar_mapeo
+
+        mapeo = autodetectar_mapeo(self.COLUMNAS_VENTAS)
+
+        self.assertEqual(mapeo['stock_inicial'], 'AP')
+
+    def test_tecnica_propone_el_total_del_mes(self):
+        from tecnica.importador import autodetectar_mapeo
+
+        mapeo = autodetectar_mapeo(self.COLUMNAS_TECNICA)
+
+        self.assertEqual(
+            mapeo['existencia'], 'AG',
+            '"VIENE MES ANTERIOR" es el saldo del mes pasado y en enero viene vacío',
+        )
+
+    def test_si_falta_la_preferida_usa_la_siguiente(self):
+        """Una hoja recortada a mano igual tiene que poder importarse."""
+        from tecnica.importador import autodetectar_mapeo
+
+        mapeo = autodetectar_mapeo([('B', 'PRODUCTO'), ('C', 'EXISTENCIA POR SEMANA')])
+
+        self.assertEqual(mapeo['existencia'], 'C')

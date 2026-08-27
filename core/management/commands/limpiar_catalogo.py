@@ -16,7 +16,7 @@ accidente esperando a pasar.
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from tecnica.models import Activo, PrestamoActivo
+from tecnica.models import Activo, MovimientoActivo, PrestamoActivo
 from ventas.models import Articulo, MovimientoVenta
 
 OPCIONES = ('ventas', 'tecnica', 'todo')
@@ -46,6 +46,7 @@ class Command(BaseCommand):
             conteo['artículos (Bodega 1 y 2)'] = Articulo.objects.count()
         if toca_tecnica:
             conteo['préstamos de herramienta'] = PrestamoActivo.objects.count()
+            conteo['movimientos de Bodega Técnica'] = MovimientoActivo.objects.count()
             conteo['activos (Bodega Técnica)'] = Activo.objects.count()
 
         self.stdout.write('Se borraría:')
@@ -73,6 +74,7 @@ class Command(BaseCommand):
                     Articulo.objects.all().delete()
                 if toca_tecnica:
                     PrestamoActivo.objects.all().delete()
+                    MovimientoActivo.objects.all().delete()
                     Activo.objects.all().delete()
         except Exception as error:
             raise CommandError(f'No se borró nada: {error}')

@@ -17,7 +17,7 @@ from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 
 from . import boletas, importador
-from .forms import ActivoForm, PrestamoForm, RegresoForm
+from .forms import ActivoForm, BajaActivoForm, PrestamoForm, RegresoForm
 from .models import Activo, PrestamoActivo
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
@@ -38,8 +38,13 @@ def catalogo_activos(request):
         activos = activos.filter(Q(codigo_interno__icontains=q) | Q(nombre_producto__icontains=q))
 
     estado = request.GET.get('estado', '').strip()
-    if estado:
-        activos = activos.filter(estado=estado)
+    if estado == 'agotado':
+        # "De baja" dejó de ser un estado del registro: dar de baja ahora es
+        # un movimiento con cantidad, y lo que se descartó por completo queda
+        # en existencia 0.
+        activos = activos.filter(existencia=0)
+    elif estado:
+        activos = activos.filter(estado=estado, existencia__gt=0)
 
     proveedor_id = request.GET.get('proveedor', '').strip()
     if proveedor_id:
@@ -70,7 +75,7 @@ def catalogo_activos(request):
         'proveedores': Proveedor.objects.order_by('nombre'),
         'q': q,
         'estado': estado,
-        'estados': Activo.Estado.choices,
+        'estados': list(Activo.Estado.choices) + [('agotado', 'Agotado (dado de baja)')],
         'proveedor_id': proveedor_id,
         'precio_min': precio_min,
         'precio_max': precio_max,
@@ -94,13 +99,16 @@ def activo_detalle(request, pk):
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
 def activo_nuevo(request):
     if request.method == 'POST':
-        form = ActivoForm(request.POST, request.FILES)
+        form = ActivoForm(request.POST, request.FILES, usuario=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, 'Activo creado.')
             return redirect('catalogo_activos')
     else:
-        form = ActivoForm(initial={'bodega': Bodega.objects.filter(tipo=Bodega.Tipo.TECNICA).first()})
+        form = ActivoForm(
+            usuario=request.user,
+            initial={'bodega': Bodega.objects.filter(tipo=Bodega.Tipo.TECNICA).first()},
+        )
     return render(request, 'tecnica/activo_form.html', {'form': form, 'modo': 'nuevo'})
 
 
@@ -108,13 +116,13 @@ def activo_nuevo(request):
 def activo_editar(request, pk):
     activo = get_object_or_404(Activo, pk=pk)
     if request.method == 'POST':
-        form = ActivoForm(request.POST, request.FILES, instance=activo)
+        form = ActivoForm(request.POST, request.FILES, instance=activo, usuario=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, 'Activo actualizado.')
             return redirect('catalogo_activos')
     else:
-        form = ActivoForm(instance=activo)
+        form = ActivoForm(instance=activo, usuario=request.user)
     return render(request, 'tecnica/activo_form.html', {'form': form, 'modo': 'editar', 'activo': activo})
 
 
@@ -135,7 +143,7 @@ def activo_eliminar(request, pk):
                 request,
                 f'No se puede eliminar "{activo.nombre_producto}": tiene '
                 f'{cuantos_prestamos} préstamo(s) registrados. Para retirarlo de '
-                'circulación, cámbialo a "De baja" desde Editar (RF-12).',
+                'circulación, dale de baja (RF-12).',
             )
             return redirect('catalogo_activos')
 
@@ -260,14 +268,14 @@ def api_buscar_activos(request):
     """
     RF-13: sugerencias del buscador de activos. Marca los que ya están
     afuera para que el operador lo vea antes de intentar prestarlos, y deja
-    fuera los dados de baja (RF-12).
+    fuera lo que ya no tiene existencia porque se dio de baja (RF-12).
     """
     consulta = request.GET.get('q', '').strip()
     if len(consulta) < 2:
         return JsonResponse({'resultados': []})
 
     encontrados = (
-        Activo.objects.exclude(estado=Activo.Estado.DE_BAJA)
+        Activo.objects.filter(existencia__gt=0)
         .filter(Q(codigo_interno__icontains=consulta) | Q(nombre_producto__icontains=consulta))
         .prefetch_related('prestamos')
         .order_by('nombre_producto')[:10]
@@ -280,9 +288,12 @@ def api_buscar_activos(request):
             'nombre': activo.nombre_producto,
             'detalle': ' '.join(p for p in (activo.marca, activo.modelo) if p),
             'bodega': activo.get_estado_display(),
-            'stock': 0 if activo.esta_prestado else 1,
-            'nivel': 'critico' if activo.esta_prestado else 'optimo',
+            # Lo que importa al prestar es cuántas quedan libres, no cuántas
+            # hay: con 10 bombillos y 8 afuera, solo se pueden sacar 2.
+            'stock': activo.disponibles,
+            'nivel': 'critico' if activo.disponibles == 0 else 'optimo',
             'prestado': activo.esta_prestado,
+            'existencia': activo.existencia,
         }
         for activo in encontrados
     ]})
@@ -437,3 +448,33 @@ def prestamo_regreso(request, pk):
         form = RegresoForm(instance=prestamo)
 
     return render(request, 'tecnica/regreso_form.html', {'form': form, 'prestamo': prestamo})
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+def activo_baja(request, pk):
+    """
+    RF-12: descartar unidades que ya no sirven.
+
+    Es lo único que baja la existencia de Bodega Técnica. No genera boleta —
+    no sale hacia nadie, se retira— pero sí queda registrado cuántas, por qué
+    y quién, que es lo que hoy el Excel no guarda.
+    """
+    activo = get_object_or_404(
+        Activo.objects.prefetch_related('prestamos'), pk=pk,
+    )
+
+    if request.method == 'POST':
+        form = BajaActivoForm(request.POST, activo=activo)
+        if form.is_valid():
+            movimiento = form.guardar(request.user)
+            activo.refresh_from_db()
+            messages.success(
+                request,
+                f'Se dieron de baja {movimiento.cantidad} de "{activo.nombre_producto}". '
+                f'Quedan {activo.existencia}.',
+            )
+            return redirect('activo_detalle', pk=activo.pk)
+    else:
+        form = BajaActivoForm(activo=activo)
+
+    return render(request, 'tecnica/activo_baja.html', {'form': form, 'activo': activo})

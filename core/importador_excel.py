@@ -59,13 +59,22 @@ def detectar_encabezados(ruta, hoja):
 
 
 def autodetectar_mapeo(columnas, campos_importables):
-    """columnas: [(letra, texto), ...]; campos_importables: misma forma que
-    CAMPOS_IMPORTABLES de cada módulo -> {clave_campo: letra_columna}."""
+    """
+    columnas: [(letra, texto), ...]; campos_importables: misma forma que
+    CAMPOS_IMPORTABLES de cada módulo -> {clave_campo: letra_columna}.
+
+    Manda el orden de las palabras clave, no el de las columnas: se busca la
+    primera palabra en toda la hoja, y solo si no aparece se prueba la
+    siguiente. Antes ganaba la columna que estuviera más a la izquierda, y en
+    los Excel reales eso elegía mal: "EXISTENCIA INICIO SEMANA" viene mucho
+    antes que "TOTAL EXISTENCIA MENSUAL", así que la carga masiva proponía el
+    saldo del arranque de la semana 1 en vez del total del mes.
+    """
     mapeo = {}
     for clave, _etiqueta, _obligatorio, palabras in campos_importables:
-        for letra, texto in columnas:
-            texto_up = texto.upper()
-            if any(p in texto_up for p in palabras):
+        for palabra in palabras:
+            letra = next((l for l, texto in columnas if palabra in texto.upper()), None)
+            if letra:
                 mapeo[clave] = letra
                 break
     return mapeo

@@ -64,22 +64,66 @@ def existencias(solo_activos=True, bodega_id=None):
 
 def valorizacion_tecnica():
     """
-    Bodega Técnica se valoriza distinto: cada activo es una unidad física,
-    así que el valor es la suma de precios, no precio × existencia. Los
-    dados de baja no cuentan — ya no son patrimonio utilizable (RF-12).
+    Valorización de Bodega Técnica: precio × existencia, igual que en Bodega
+    1 y 2 (RF-12).
+
+    Antes sumaba solo los precios, porque se modelaba una unidad física por
+    registro. El FO-SE-065 real trae cantidad y 150 de sus 249 productos
+    vienen con más de una, así que la bodega salía valorizada muy por debajo.
+
+    Lo que se dio de baja queda en existencia 0 y por eso no aporta valor,
+    sin necesidad de excluirlo aparte: ya no es patrimonio utilizable.
     """
-    activos = Activo.objects.exclude(estado=Activo.Estado.DE_BAJA)
-    resumen = activos.aggregate(cuantos=Count('id'), valor=Sum('precio'))
+    activos = Activo.objects.all()
+    resumen = activos.aggregate(
+        cuantos=Count('id'),
+        unidades=Sum('existencia'),
+        valor=Sum(F('precio') * F('existencia')),
+    )
+    con_existencia = activos.filter(existencia__gt=0)
     por_estado = dict(
-        activos.values_list('estado').annotate(n=Count('id')).values_list('estado', 'n')
+        con_existencia.values_list('estado').annotate(n=Count('id')).values_list('estado', 'n')
     )
     return {
         'cuantos': resumen['cuantos'] or 0,
+        'unidades': resumen['unidades'] or 0,
         'valor': resumen['valor'] or Decimal('0'),
         'buen_estado': por_estado.get(Activo.Estado.BUEN_ESTADO, 0),
         'mal_estado': por_estado.get(Activo.Estado.MAL_ESTADO, 0),
-        'de_baja': Activo.objects.filter(estado=Activo.Estado.DE_BAJA).count(),
+        'agotados': activos.filter(existencia=0).count(),
     }
+
+
+def inventario_tecnica(estado=None, solo_con_existencia=True):
+    """
+    Listado de Bodega Técnica con su existencia y su valor (RF-12/RF-14).
+
+    Es el equivalente de `existencias()` para la otra bodega. No existía: los
+    únicos reportes que la tocaban eran el resumen de valorización —cuatro
+    números— y los préstamos abiertos, así que no había forma de sacar el
+    listado completo ni de exportarlo a Excel.
+
+    Devuelve (detalle, totales).
+    """
+    activos = (
+        Activo.objects
+        .select_related('bodega', 'categoria', 'proveedor')
+        .prefetch_related('prestamos')
+        .order_by('categoria__nombre', 'nombre_producto')
+    )
+    if solo_con_existencia:
+        activos = activos.filter(existencia__gt=0)
+    if estado:
+        activos = activos.filter(estado=estado)
+
+    detalle = list(activos)
+    totales = {
+        'productos': len(detalle),
+        'unidades': sum(a.existencia for a in detalle),
+        'afuera': sum(a.cantidad_afuera for a in detalle),
+        'valor': sum((a.valor_en_bodega for a in detalle), Decimal('0')),
+    }
+    return detalle, totales
 
 
 def alertas_de_stock(bodega_id=None, incluir_normales=False):

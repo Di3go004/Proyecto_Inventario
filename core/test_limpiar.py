@@ -15,7 +15,8 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.models import Bodega, Categoria, Proveedor
-from tecnica.models import Activo
+from tecnica.ayuda_pruebas import dar_existencia
+from tecnica.models import Activo, MovimientoActivo
 from usuarios.models import Usuario
 from ventas.models import Articulo, MovimientoVenta
 
@@ -44,6 +45,13 @@ class LimpiarCatalogoTests(TestCase):
                 fecha=timezone.now(), usuario=self.usuario,
             )
         return articulo
+
+    def sembrar_tecnica(self, cantidad=5):
+        activo = Activo.objects.create(
+            codigo_interno='SE-TEC-LIMP', nombre_producto='Rotomartillo',
+            modelo='RM-1', bodega=self.tecnica,
+        )
+        return dar_existencia(activo, cantidad, self.usuario)
 
     def test_sin_la_confirmacion_no_borra_nada(self):
         self.sembrar_ventas()
@@ -86,11 +94,23 @@ class LimpiarCatalogoTests(TestCase):
 
     def test_limpiar_ventas_no_toca_la_bodega_tecnica(self):
         self.sembrar_ventas()
-        Activo.objects.create(
-            nombre_producto='Rotomartillo', modelo='RM-1', bodega=self.tecnica,
-        )
+        self.sembrar_tecnica()
 
         call_command('limpiar_catalogo', que='ventas', si_estoy_seguro=True, verbosity=0)
 
         self.assertEqual(Articulo.objects.count(), 0)
         self.assertEqual(Activo.objects.count(), 1, 'son dos inventarios distintos')
+        self.assertEqual(MovimientoActivo.objects.count(), 1)
+
+    def test_vacia_tambien_los_movimientos_de_la_bodega_tecnica(self):
+        """
+        Regresión: el comando borraba los activos pero no sus movimientos, y
+        como el activo está protegido por su historial, no se podía vaciar
+        nada. Salía al correrlo justo el día de la puesta en marcha.
+        """
+        self.sembrar_tecnica()
+
+        call_command('limpiar_catalogo', que='tecnica', si_estoy_seguro=True, verbosity=0)
+
+        self.assertEqual(Activo.objects.count(), 0)
+        self.assertEqual(MovimientoActivo.objects.count(), 0)

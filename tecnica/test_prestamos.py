@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Bodega
+from tecnica.ayuda_pruebas import dar_de_baja, dar_existencia
 from tecnica.models import Activo, PrestamoActivo
 from usuarios.models import Usuario
 
@@ -32,6 +33,10 @@ class BasePrestamos(TestCase):
             codigo_interno='SE-TEC-002', nombre_producto='Rotomartillo',
             bodega=cls.bodega, precio=1800,
         )
+        # Sin existencia no se puede prestar nada: la bodega arranca vacía y
+        # las unidades entran con un ingreso, igual que en el sistema real.
+        dar_existencia(cls.taladro, 1, cls.operador)
+        dar_existencia(cls.rotomartillo, 1, cls.operador)
 
     def setUp(self):
         self.client.login(username='operador_tec', password='clave-de-prueba')
@@ -61,19 +66,58 @@ class SalidaTests(BasePrestamos):
         self.taladro.refresh_from_db()
         self.assertTrue(self.taladro.esta_prestado)
 
-    def test_no_se_puede_prestar_algo_que_ya_esta_afuera(self):
-        """RF-07: un mismo activo no puede tener dos préstamos abiertos."""
+    def test_no_se_puede_prestar_mas_de_lo_disponible(self):
+        """
+        RF-07. Antes esto era "un activo no puede tener dos préstamos
+        abiertos", porque cada registro era una unidad física. Con existencia
+        por cantidad lo que se cuida es no sacar más de lo que hay: del
+        taladro hay uno solo, así que el segundo préstamo no cabe.
+        """
         self.prestar()
 
         respuesta = self.prestar(solicitante='Otra persona')
 
         self.assertEqual(respuesta.status_code, 200, 'se queda en el formulario')
         self.assertEqual(PrestamoActivo.objects.count(), 1)
-        self.assertContains(respuesta, 'ya está prestado')
+        self.assertContains(respuesta, 'ya están afuera')
 
-    def test_no_se_puede_prestar_un_activo_dado_de_baja(self):
-        """RF-12: si está de baja, deja de ofrecerse para préstamo."""
-        Activo.objects.filter(pk=self.rotomartillo.pk).update(estado=Activo.Estado.DE_BAJA)
+    def test_dos_personas_pueden_llevar_unidades_del_mismo_producto(self):
+        """
+        De 10 bombillos, dos personas pueden tener unidades a la vez. Antes lo
+        impedía una restricción única pensada para herramienta de una sola
+        pieza.
+        """
+        bombillos = Activo.objects.create(
+            codigo_interno='SE-TEC-010', nombre_producto='Bombillo LED',
+            bodega=self.bodega, precio=25,
+        )
+        dar_existencia(bombillos, 10, self.operador)
+
+        self.prestar(activo=bombillos, cantidad=4, solicitante='Byron')
+        self.prestar(activo=bombillos, cantidad=3, solicitante='Karla')
+
+        bombillos.refresh_from_db()
+        self.assertEqual(PrestamoActivo.objects.filter(activo=bombillos).count(), 2)
+        self.assertEqual(bombillos.cantidad_afuera, 7)
+        self.assertEqual(bombillos.disponibles, 3)
+
+    def test_no_se_puede_pasar_de_lo_disponible_entre_varios_prestamos(self):
+        bombillos = Activo.objects.create(
+            codigo_interno='SE-TEC-011', nombre_producto='Bombillo LED',
+            bodega=self.bodega, precio=25,
+        )
+        dar_existencia(bombillos, 10, self.operador)
+        self.prestar(activo=bombillos, cantidad=8, solicitante='Byron')
+
+        respuesta = self.prestar(activo=bombillos, cantidad=3, solicitante='Karla')
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'Solo hay 2 disponible')
+        self.assertEqual(PrestamoActivo.objects.filter(activo=bombillos).count(), 1)
+
+    def test_no_se_puede_prestar_algo_que_se_dio_de_baja_por_completo(self):
+        """RF-12: sin existencia deja de ofrecerse para préstamo."""
+        dar_de_baja(self.rotomartillo, 1, self.operador)
 
         respuesta = self.prestar(activo=self.rotomartillo)
 
@@ -156,15 +200,22 @@ class RegresoTests(BasePrestamos):
         self.taladro.refresh_from_db()
         self.assertEqual(self.taladro.estado, Activo.Estado.MAL_ESTADO)
 
-    def test_si_vuelve_para_dar_de_baja_deja_de_prestarse(self):
+    def test_si_vuelve_inservible_se_da_de_baja_y_deja_de_prestarse(self):
+        """
+        El regreso registra en qué condición volvió; sacarlo de la existencia
+        es una baja aparte. Antes eran lo mismo (un estado "De baja" en el
+        registro) y por eso no se podía descartar solo una parte.
+        """
         self.prestar()
         prestamo = PrestamoActivo.objects.get()
-        self.registrar_regreso(prestamo, Activo.Estado.DE_BAJA)
+        self.registrar_regreso(prestamo, Activo.Estado.MAL_ESTADO)
 
+        dar_de_baja(self.taladro, 1, self.operador)
         respuesta = self.prestar()
 
         self.taladro.refresh_from_db()
-        self.assertEqual(self.taladro.estado, Activo.Estado.DE_BAJA)
+        self.assertEqual(self.taladro.estado, Activo.Estado.MAL_ESTADO)
+        self.assertTrue(self.taladro.agotado)
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(PrestamoActivo.objects.count(), 1, 'no se creó un préstamo nuevo')
 
@@ -244,8 +295,8 @@ class BuscadorActivosTests(BasePrestamos):
         self.assertEqual(len(resultados), 1)
         self.assertTrue(resultados[0]['prestado'])
 
-    def test_no_sugiere_los_dados_de_baja(self):
-        Activo.objects.filter(pk=self.rotomartillo.pk).update(estado=Activo.Estado.DE_BAJA)
+    def test_no_sugiere_los_que_ya_no_tienen_existencia(self):
+        dar_de_baja(self.rotomartillo, 1, self.operador)
 
         resultados = self.client.get(reverse('api_buscar_activos'), {'q': 'Rotomartillo'}).json()['resultados']
 

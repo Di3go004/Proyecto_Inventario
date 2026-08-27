@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from core.models import Bodega, Proveedor
 from usuarios.models import Usuario
-from ventas import boletas
+from ventas import boletas, documentos
 from ventas.models import Articulo, MovimientoVenta
 
 
@@ -80,8 +80,7 @@ class ProveedorEnLaBoletaTests(BaseBoletas):
     """
 
     def _columna_proveedor(self, folio):
-        lineas = list(MovimientoVenta.objects.filter(folio=folio).order_by('id'))
-        filas = boletas._filas(lineas, es_ingreso=True)
+        filas = boletas._filas(documentos.lineas_del_documento(folio), es_ingreso=True)
         return [fila[3].text for fila in filas]
 
     def test_hereda_el_proveedor_del_articulo(self):
@@ -215,9 +214,16 @@ class ArmadoDeLaHojaTests(BaseBoletas):
         """La columna "DESCRIPCIÓN Y CÓDIGO" de FO-SE-012."""
         return boletas.COLUMNAS_SALIDA[1][1]
 
+    def linea_de(self, articulo):
+        """
+        Una línea de boleta suelta, sin guardar nada. La boleta ya no recibe
+        el movimiento crudo: recibe la línea normalizada, porque un mismo
+        folio puede traer productos de las dos bodegas.
+        """
+        return documentos._de_venta(MovimientoVenta(articulo=articulo, cantidad=1))
+
     def test_la_descripcion_lleva_el_codigo_interno(self):
-        movimiento = MovimientoVenta(articulo=self.articulo, cantidad=1)
-        texto = boletas._descripcion(movimiento, self.ancho_descripcion)
+        texto = boletas._descripcion(self.linea_de(self.articulo), self.ancho_descripcion)
 
         self.assertIn('Báscula de plataforma', texto)
         self.assertIn(self.articulo.codigo_interno, texto)
@@ -230,17 +236,14 @@ class ArmadoDeLaHojaTests(BaseBoletas):
         largo = Articulo.objects.create(
             nombre_producto='BASCULA ELECTRONICA ' * 9, modelo='XL-1', bodega=self.bodega,
         )
-        texto = boletas._descripcion(MovimientoVenta(articulo=largo, cantidad=1),
-                                     self.ancho_descripcion)
+        texto = boletas._descripcion(self.linea_de(largo), self.ancho_descripcion)
 
         self.assertTrue(texto.endswith('…'))
         self.assertTrue(self.cabe_en_un_renglon(texto, self.ancho_descripcion))
 
     def test_un_nombre_normal_no_se_recorta(self):
         """Los nombres reales del catálogo entran completos, con su código."""
-        texto = boletas._descripcion(
-            MovimientoVenta(articulo=self.articulo, cantidad=1), self.ancho_descripcion,
-        )
+        texto = boletas._descripcion(self.linea_de(self.articulo), self.ancho_descripcion)
 
         self.assertFalse(texto.endswith('…'))
         self.assertTrue(self.cabe_en_un_renglon(texto, self.ancho_descripcion))

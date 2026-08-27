@@ -71,7 +71,7 @@
   <thead>
     <tr>
       <th></th><th>Código</th><th>Producto</th><th class="columna-secundaria">Marca / Modelo</th><th>Precio</th>
-      <th>Estado</th><th>Disponibilidad</th>
+      <th>Existencia</th><th>Estado</th><th>Disponibilidad</th>
       {% if user.es_administrador %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
@@ -83,16 +83,22 @@
         {% else %}<span class="miniatura-vacia"></span>{% endif %}
       </td>
       <td data-etiqueta="Código" class="code truncate" style="max-width:170px;" title="{{ a.codigo_interno }}">{{ a.codigo_interno }}</td>
-      <td data-etiqueta="Producto" class="truncate celda-principal{% if a.estado == 'de_baja' %} texto-dado-de-baja{% endif %}" title="{{ a.nombre_producto }}">{{ a.nombre_producto }}</td>
+      <td data-etiqueta="Producto" class="truncate celda-principal{% if a.agotado %} texto-dado-de-baja{% endif %}" title="{{ a.nombre_producto }}">{{ a.nombre_producto }}</td>
       <td data-etiqueta="Marca / Modelo" class="truncate columna-secundaria" style="max-width:160px;" title="{{ a.marca }} {{ a.modelo }}">{{ a.marca }} {{ a.modelo }}</td>
       <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Existencia" class="num">
+        {{ a.existencia }}{% if a.es_consumible %} <span class="chip chip-neutral">Consumible</span>{% endif %}
+      </td>
       <td data-etiqueta="Estado">
-        {% if a.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-        {% elif a.estado == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
-        {% else %}<span class="chip chip-critical">De baja</span>{% endif %}
+        {% if a.agotado %}<span class="chip chip-critical">Agotado</span>
+        {% elif a.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
       </td>
       <td data-etiqueta="Disponibilidad">
-        {% if a.esta_prestado %}<span class="chip chip-warn">Prestado</span>
+        {% if a.agotado %}—
+        {% elif a.cantidad_afuera %}
+          <span class="chip chip-warn">{{ a.cantidad_afuera }} afuera</span>
+          <span class="chip chip-good">{{ a.disponibles }} libre(s)</span>
         {% else %}<span class="chip chip-good">Disponible</span>{% endif %}
       </td>
       {% if user.es_administrador %}

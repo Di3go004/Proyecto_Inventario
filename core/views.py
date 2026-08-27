@@ -30,8 +30,11 @@ def resumen(request):
         total=Sum(F('precio') * F('stock_actual'))
     )['total'] or 0
 
-    valorizacion_tecnica = Activo.objects.exclude(estado=Activo.Estado.DE_BAJA).aggregate(
-        total=Sum('precio')
+    # precio × existencia, igual que en Bodega 1 y 2. Antes sumaba solo los
+    # precios porque se asumía una unidad por registro, y con 94 unidades de
+    # un mismo producto la bodega salía valorizada en una fracción de lo real.
+    valorizacion_tecnica = Activo.objects.aggregate(
+        total=Sum(F('precio') * F('existencia'))
     )['total'] or 0
 
     prestamos_demo_abiertos = MovimientoVenta.objects.filter(
@@ -90,6 +93,7 @@ def indice_reportes(request):
     return render(request, 'core/reportes/indice.html', {
         'valor_ventas': totales['valor'],
         'valor_tecnica': tecnica['valor'],
+        'unidades_tecnica': tecnica['unidades'],
         'cuantas_alertas': len(reportes.alertas_de_stock()),
         'cuantos_afuera': len(reportes.prestamos_abiertos()),
         'movimientos_del_mes': del_mes['movimientos'],
@@ -131,6 +135,55 @@ def reporte_existencias(request):
         'bodegas': _bodegas_de_venta(),
         'bodega_id': bodega_id,
         'solo_activos': solo_activos,
+    })
+
+
+@login_required
+def reporte_tecnica(request):
+    """
+    RF-12/RF-14: el inventario de Bodega Técnica, con existencia y valor.
+
+    Faltaba: de esta bodega solo había cuatro números de valorización y la
+    lista de lo prestado, sin forma de sacar el listado completo ni bajarlo a
+    Excel como en Bodega 1 y 2.
+    """
+    estado = request.GET.get('estado', '').strip()
+    if estado not in Activo.Estado.values:
+        estado = ''
+    incluir_agotados = request.GET.get('agotados') == 'si'
+
+    detalle, totales = reportes.inventario_tecnica(
+        estado or None, solo_con_existencia=not incluir_agotados,
+    )
+
+    if request.GET.get('formato') == 'excel':
+        return _excel(
+            'bodega-tecnica',
+            'Inventario de Bodega Tecnica',
+            ['Código', 'Producto', 'Categoría', 'Marca / Modelo', 'Estado',
+             'Existencia', 'Prestadas', 'En bodega', 'Precio unitario',
+             'Valor total', 'Consumible', 'Proveedor'],
+            [
+                [a.codigo_interno, a.nombre_producto, str(a.categoria or ''),
+                 f'{a.marca} {a.modelo}'.strip(), a.get_estado_display(),
+                 a.existencia, a.cantidad_afuera, a.disponibles, a.precio,
+                 a.valor_en_bodega, 'Sí' if a.es_consumible else 'No',
+                 str(a.proveedor or '')]
+                for a in detalle
+            ],
+            subtitulo=(
+                'Incluye lo dado de baja' if incluir_agotados
+                else 'Solo lo que tiene existencia'
+            ),
+            formatos={8: exportar.FORMATO_MONEDA, 9: exportar.FORMATO_MONEDA},
+        )
+
+    return render(request, 'core/reportes/tecnica.html', {
+        'pagina': paginar(request, detalle),
+        'totales': totales,
+        'estados': Activo.Estado.choices,
+        'estado': estado,
+        'incluir_agotados': incluir_agotados,
     })
 
 

@@ -1,13 +1,17 @@
 from django import forms
 from django.utils import timezone
 
-from core.forms import solo_el_nombre
+from core.forms import CampoProveedor, solo_el_nombre
 from core.models import Proveedor
 
 from .models import Articulo, MovimientoVenta
 
 
 class ArticuloForm(forms.ModelForm):
+    # Escribible: al comprarle a un proveedor nuevo no hay que salirse del
+    # formulario a darlo de alta primero. Ver core.forms.CampoProveedor.
+    proveedor = CampoProveedor()
+
     class Meta:
         model = Articulo
         # stock_actual NO se incluye: se calcula solo desde los movimientos
@@ -83,9 +87,9 @@ class DocumentoMovimientoForm(forms.Form):
     SOLO_SALIDA = ('entregado_por', 'cliente_nombre', 'envio_recibo')
 
     folio = forms.CharField(
-        max_length=30, required=False, label='Usar otro folio',
-        widget=forms.TextInput(attrs={'placeholder': 'Ej. el número impreso en el talonario'}),
-        help_text='Solo si hay que calzar con una boleta de papel ya numerada.',
+        max_length=30, required=False, label='Folio de la boleta',
+        help_text='El número que trae la boleta de papel. Se propone el '
+                  'siguiente de la serie; cámbialo si el talonario va en otro.',
     )
     fecha = forms.DateTimeField(label='Fecha del movimiento', widget=EntradaFechaHora())
     tipo_transaccion = forms.ChoiceField(choices=TIPOS_VISIBLES, label='Tipo de movimiento')
@@ -99,12 +103,15 @@ class DocumentoMovimientoForm(forms.Form):
         required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
     )
 
-    def __init__(self, *args, tipo_documento, puede_cambiar_folio=False, **kwargs):
+    def __init__(self, *args, tipo_documento, folio_sugerido='', **kwargs):
         """
-        `puede_cambiar_folio`: el folio es automático y correlativo. Solo el
-        administrador puede escribir otro, y para eso el campo queda escondido
-        en un desplegable — tenerlo a la vista y editable hacía dudar de si
-        había que llenarlo.
+        El folio se escribe a mano: lo trae impreso el talonario de papel y es
+        ese el que tiene que quedar guardado. El sistema propone el siguiente
+        de la serie para no tener que teclearlo cuando van en orden, pero
+        cualquiera puede cambiarlo.
+
+        (Antes era automático y solo el administrador podía sobrescribirlo,
+        escondido en un desplegable.)
         """
         super().__init__(*args, **kwargs)
         self.tipo_documento = tipo_documento
@@ -113,9 +120,6 @@ class DocumentoMovimientoForm(forms.Form):
         if es_ingreso:
             for nombre in self.SOLO_SALIDA:
                 del self.fields[nombre]
-
-        if not puede_cambiar_folio:
-            del self.fields['folio']
 
         if es_ingreso:
             self.fields['no_boleta'].label = 'Boleta de ingreso a bodega'
@@ -126,6 +130,7 @@ class DocumentoMovimientoForm(forms.Form):
             # Por defecto "ahora", que es el caso normal; el operador solo la
             # cambia cuando está digitando una boleta de días anteriores.
             self.fields['fecha'].initial = timezone.now()
+            self.fields['folio'].initial = folio_sugerido
 
     def datos_para_movimiento(self):
         """Los campos de cabecera tal como se guardan en cada línea."""
@@ -165,15 +170,72 @@ class DevolucionDemoForm(forms.Form):
 
 LIMITE_LINEAS = 40
 
+# El buscador del FO-SE-013 ofrece los dos catálogos, así que el id de una
+# línea tiene que decir de cuál salió: el 12 de Bodega 1 y 2 no es el 12 de
+# Bodega Técnica.
+PREFIJO_VENTAS = 'art-'
+PREFIJO_TECNICA = 'act-'
 
-def leer_lineas(post):
+
+def identificador_de(producto, es_tecnica):
+    """El id con prefijo que viaja en el formulario y en el buscador."""
+    return f'{PREFIJO_TECNICA if es_tecnica else PREFIJO_VENTAS}{producto.pk}'
+
+
+def _resolver_producto(identificador, texto, incluir_tecnica):
+    """
+    Encuentra el producto de una línea. Devuelve (objeto, es_tecnica).
+
+    El identificador viene del buscador con un prefijo que dice de qué
+    catálogo salió: "art-12" es de Bodega 1 y 2, "act-34" de Bodega Técnica.
+    Hace falta porque el FO-SE-013 es el mismo formato para las tres bodegas
+    y la misma pantalla ofrece los dos catálogos: sin el prefijo, el id 12
+    sería ambiguo.
+
+    Un identificador sin prefijo se toma como de Bodega 1 y 2, que es como
+    se guardaba antes de que Bodega Técnica llevara existencia.
+    """
+    from tecnica.models import Activo
+
+    if identificador.startswith(PREFIJO_TECNICA):
+        if not incluir_tecnica:
+            return None, True
+        crudo = identificador[len(PREFIJO_TECNICA):]
+        activo = Activo.objects.filter(pk=int(crudo)).first() if crudo.isdigit() else None
+        return activo, True
+
+    crudo = identificador[len(PREFIJO_VENTAS):] if identificador.startswith(PREFIJO_VENTAS) else identificador
+    articulo = Articulo.objects.filter(pk=int(crudo)).first() if crudo.isdigit() else None
+    if articulo is not None:
+        return articulo, False
+
+    # Se escribió el código completo y se pasó al siguiente campo sin tocar
+    # la lista de sugerencias: igual se acepta, que es como se va a capturar
+    # más rápido en bodega (RF-13).
+    if texto:
+        articulo = Articulo.objects.filter(codigo_interno__iexact=texto).first()
+        if articulo is not None:
+            return articulo, False
+        if incluir_tecnica:
+            activo = Activo.objects.filter(codigo_interno__iexact=texto).first()
+            if activo is not None:
+                return activo, True
+
+    return None, False
+
+
+def leer_lineas(post, incluir_tecnica=False):
     """
     Interpreta las líneas de producto de un documento (los campos
     linea_articulo[] / linea_cantidad[] / linea_texto[] del formulario).
 
     Devuelve una lista de diccionarios con lo que el usuario escribió más
-    el Articulo resuelto o el error de esa línea, para poder volver a pintar
+    el producto resuelto o el error de esa línea, para poder volver a pintar
     la tabla tal cual quedó en vez de hacerle empezar de nuevo.
+
+    `incluir_tecnica` habilita los activos de Bodega Técnica. Solo se activa
+    en el ingreso: a esa bodega únicamente entran cosas, la existencia baja
+    dando de baja, y no hay salida que registrar en el FO-SE-012.
     """
     identificadores = post.getlist('linea_articulo')
     cantidades = post.getlist('linea_cantidad')
@@ -193,26 +255,20 @@ def leer_lineas(post):
         linea = {
             'texto': texto, 'articulo_id': identificador,
             'cantidad_texto': cantidad_texto, 'articulo': None,
-            'cantidad': None, 'error': '',
+            'es_tecnica': False, 'cantidad': None, 'error': '',
         }
 
-        articulo = None
-        if identificador.isdigit():
-            articulo = Articulo.objects.filter(pk=int(identificador)).first()
-        if articulo is None and texto:
-            # Se escribió el código completo y se pasó al siguiente campo sin
-            # tocar la lista de sugerencias: igual se acepta, que es como se
-            # va a capturar más rápido en bodega (RF-13).
-            articulo = Articulo.objects.filter(codigo_interno__iexact=texto).first()
+        producto, es_tecnica = _resolver_producto(identificador, texto, incluir_tecnica)
 
-        if articulo is None:
-            linea['error'] = 'No se encontró el artículo. Elígelo de las sugerencias.'
-        elif not articulo.activo:
-            linea['error'] = f'"{articulo.nombre_producto}" está marcado como inactivo.'
+        if producto is None:
+            linea['error'] = 'No se encontró el producto. Elígelo de las sugerencias.'
+        elif not es_tecnica and not producto.activo:
+            linea['error'] = f'"{producto.nombre_producto}" está marcado como inactivo.'
         else:
-            linea['articulo'] = articulo
-            linea['articulo_id'] = str(articulo.pk)
-            linea['texto'] = texto or articulo.codigo_interno
+            linea['articulo'] = producto
+            linea['es_tecnica'] = es_tecnica
+            linea['articulo_id'] = identificador_de(producto, es_tecnica)
+            linea['texto'] = texto or producto.codigo_interno
 
         if not linea['error']:
             try:

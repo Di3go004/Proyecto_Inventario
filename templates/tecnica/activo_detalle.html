@@ -8,11 +8,13 @@
     <p class="page-sub">{{ activo.bodega.nombre }}{% if activo.categoria %} · {{ activo.categoria.nombre }}{% endif %}</p>
   </div>
   <div class="page-acciones">
-    {% if user.puede_editar and activo.estado != 'de_baja' %}
+    {% if user.puede_editar and not activo.agotado %}
       {% if prestamo_abierto %}
         <a href="{% url 'prestamo_regreso' prestamo_abierto.pk %}" class="btn">Registrar regreso</a>
-      {% else %}
+      {% endif %}
+      {% if activo.disponibles %}
         <a href="{% url 'prestamo_nuevo' %}?activo={{ activo.pk }}" class="btn">Registrar salida</a>
+        <a href="{% url 'activo_baja' activo.pk %}" class="btn">Dar de baja</a>
       {% endif %}
     {% endif %}
     {% if user.es_administrador %}
@@ -21,10 +23,17 @@
   </div>
 </div>
 
-{% if prestamo_abierto %}
+{% if activo.agotado %}
   <p class="aviso-prestado">
-    Esta herramienta está afuera con <strong>{{ prestamo_abierto.solicitante }}</strong>
-    desde el {{ prestamo_abierto.fecha_salida|date:"d/m/Y H:i" }}.
+    Se dio de baja todo: no queda existencia de esta herramienta. Su historial
+    se conserva.
+  </p>
+{% elif prestamo_abierto %}
+  <p class="aviso-prestado">
+    Hay <strong>{{ activo.cantidad_afuera }}</strong> unidad(es) afuera
+    {% if activo.cantidad_afuera == 1 %}con <strong>{{ prestamo_abierto.solicitante }}</strong>
+    desde el {{ prestamo_abierto.fecha_salida|date:"d/m/Y H:i" }}{% endif %}.
+    Quedan <strong>{{ activo.disponibles }}</strong> en bodega.
   </p>
 {% endif %}
 
@@ -95,7 +104,6 @@
             <td data-etiqueta="Estado al regresar">
               {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
               {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
-              {% elif p.estado_al_regresar == 'de_baja' %}<span class="chip chip-critical">De baja</span>
               {% else %}—{% endif %}
             </td>
           </tr>

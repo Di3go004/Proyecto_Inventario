@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Dar de baja — {{ activo.nombre_producto }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega Técnica · RF-12</p>
+    <h1 class="page-title">Dar de baja</h1>
+    <p class="page-sub">
+      {{ activo.nombre_producto }} <span class="code">{{ activo.codigo_interno }}</span>
+    </p>
+  </div>
+  <a href="{% url 'activo_detalle' activo.pk %}" class="btn">← Volver</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Existencia</dt>
+      <dd class="num">{{ activo.existencia }}</dd>
+    </div>
+    <div>
+      <dt>Prestadas ahora</dt>
+      <dd class="num">{{ activo.cantidad_afuera }}</dd>
+    </div>
+    <div>
+      <dt>En bodega</dt>
+      <dd class="num">{{ activo.disponibles }}</dd>
+    </div>
+  </dl>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <p class="hint" style="margin-top:0;">
+    Dar de baja es descartar lo que ya no sirve: es lo único que baja la
+    existencia de esta bodega. No se imprime boleta, pero queda el registro de
+    cuántas, por qué y quién.
+  </p>
+
+  <div class="form-grid">
+    {% for campo in form %}
+      <div class="field{% if campo.name == 'observacion' %} span-2{% endif %}">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% if campo.help_text %}<span class="hint">{{ campo.help_text }}</span>{% endif %}
+        {% for e in campo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-danger">Registrar la baja</button>
+    <a href="{% url 'activo_detalle' activo.pk %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

@@ -163,6 +163,23 @@ class Articulo(models.Model):
         return 'normal'
 
 
+def _ultimo_folio(modelo, prefijo):
+    """El número más alto usado en esa serie, o 0 si no hay ninguno."""
+    ultimo = (
+        modelo.objects.filter(folio__startswith=f'{prefijo}-')
+        .order_by('-folio')
+        .values_list('folio', flat=True)
+        .first()
+    )
+    if not ultimo:
+        return 0
+    try:
+        return int(ultimo.rsplit('-', 1)[-1])
+    except ValueError:
+        # Alguien escribió un folio a mano con otro formato: se cuenta
+        # cuántos hay en vez de reventar.
+        return modelo.objects.filter(folio__startswith=f'{prefijo}-').count()
+
 class MovimientoVenta(models.Model):
     """
     Reemplaza FO-SE-013 (ingreso) y FO-SE-012 (salida) en una sola tabla.
@@ -237,23 +254,23 @@ class MovimientoVenta(models.Model):
         viene preimpresa en los formatos de papel: ING-00001 para FO-SE-013
         (ingreso) y SAL-00001 para FO-SE-012 (salida).
 
+        Los ingresos se numeran mirando TAMBIÉN los de Bodega Técnica: el
+        FO-SE-013 es un solo talonario para las tres bodegas, así que la
+        serie tiene que ser una sola. Si se contaran por separado, dos
+        boletas distintas saldrían con el mismo número.
+
         Se ordena por el folio como texto — funciona porque el número va
         rellenado con ceros a un ancho fijo. Si alguien escribió un folio a
         mano con otro formato, se ignora en vez de reventar.
         """
         prefijo = 'ING' if tipo_documento == cls.TipoDocumento.INGRESO else 'SAL'
-        ultimo = (
-            cls.objects.filter(folio__startswith=f'{prefijo}-')
-            .order_by('-folio')
-            .values_list('folio', flat=True)
-            .first()
-        )
-        numero = 1
-        if ultimo:
-            try:
-                numero = int(ultimo.rsplit('-', 1)[-1]) + 1
-            except ValueError:
-                numero = cls.objects.filter(folio__startswith=f'{prefijo}-').count() + 1
+
+        candidatos = [_ultimo_folio(cls, prefijo)]
+        if prefijo == 'ING':
+            from tecnica.models import MovimientoActivo
+            candidatos.append(_ultimo_folio(MovimientoActivo, prefijo))
+
+        numero = max(candidatos) + 1
         return f'{prefijo}-{numero:05d}'
 
     @property

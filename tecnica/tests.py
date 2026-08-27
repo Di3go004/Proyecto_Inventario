@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Bodega
+from tecnica.ayuda_pruebas import dar_de_baja, dar_existencia
 from tecnica.models import Activo, PrestamoActivo
 from usuarios.models import Usuario
 
@@ -76,17 +77,36 @@ class DisponibilidadTests(BaseTecnica):
 
 
 class ReglasDePrestamoTests(BaseTecnica):
-    def test_un_activo_no_puede_tener_dos_prestamos_abiertos(self):
-        """RF-07: lo garantiza la base de datos, no solo la pantalla."""
-        activo = self.crear_activo()
+    def test_no_se_puede_prestar_mas_de_lo_que_hay(self):
+        """
+        RF-07. Antes la base de datos lo impedía con una restricción de "un
+        solo préstamo abierto por activo", pensada para cuando cada registro
+        era una unidad física. Con existencia por cantidad esa restricción
+        estorbaba —dos personas sí pueden llevar unidades del mismo
+        producto— y la regla real es no pasarse de lo disponible.
+        """
+        activo = dar_existencia(self.crear_activo(), 1, self.usuario)
         self.prestar(activo)
 
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                self.prestar(activo, solicitante='Otra persona')
+        segundo = PrestamoActivo(
+            activo=activo, cantidad=1, solicitante='Otra persona',
+            usuario=self.usuario, estado_al_salir=Activo.Estado.BUEN_ESTADO,
+        )
+        with self.assertRaises(ValidationError):
+            segundo.clean()
+
+    def test_varias_unidades_del_mismo_producto_se_pueden_prestar_a_la_vez(self):
+        activo = dar_existencia(self.crear_activo(), 10, self.usuario)
+
+        self.prestar(activo, cantidad=4)
+        self.prestar(activo, solicitante='Otra persona', cantidad=3)
+
+        activo.refresh_from_db()
+        self.assertEqual(activo.cantidad_afuera, 7)
+        self.assertEqual(activo.disponibles, 3)
 
     def test_se_puede_volver_a_prestar_despues_de_devolver(self):
-        activo = self.crear_activo()
+        activo = dar_existencia(self.crear_activo(), 1, self.usuario)
         primero = self.prestar(activo)
         primero.fecha_regreso = timezone.now()
         primero.estado_al_regresar = Activo.Estado.BUEN_ESTADO
@@ -96,9 +116,10 @@ class ReglasDePrestamoTests(BaseTecnica):
         self.assertIsNone(segundo.fecha_regreso)
         self.assertTrue(activo.esta_prestado)
 
-    def test_un_activo_de_baja_no_se_puede_prestar(self):
-        """RF-12: 'de baja' lo saca de circulación."""
-        activo = self.crear_activo(estado=Activo.Estado.DE_BAJA)
+    def test_lo_dado_de_baja_por_completo_no_se_puede_prestar(self):
+        """RF-12: sin existencia queda fuera de circulación."""
+        activo = dar_existencia(self.crear_activo(), 1, self.usuario)
+        dar_de_baja(activo, 1, self.usuario)
         prestamo = PrestamoActivo(
             activo=activo, solicitante='Ivan Leiva', usuario=self.usuario,
             estado_al_salir=Activo.Estado.BUEN_ESTADO,
@@ -160,13 +181,18 @@ class EliminarActivoTests(TestCase):
         self.assertTrue(Activo.objects.filter(pk=activo.pk).exists())
         self.assertContains(respuesta, '1 préstamo(s)')
 
-    def test_darlo_de_baja_tampoco_lo_habilita(self):
-        activo = self.crear()
+    def test_darlo_de_baja_tampoco_lo_habilita_para_borrar(self):
+        """
+        Descartarlo no borra su historial: los préstamos siguen ahí y siguen
+        protegiendo el registro.
+        """
+        activo = dar_existencia(self.crear(), 1, self.admin)
         PrestamoActivo.objects.create(
             activo=activo, solicitante='Alguien',
             estado_al_salir=Activo.Estado.BUEN_ESTADO, usuario=self.admin,
+            fecha_regreso=timezone.now(), estado_al_regresar=Activo.Estado.MAL_ESTADO,
         )
-        Activo.objects.filter(pk=activo.pk).update(estado=Activo.Estado.DE_BAJA)
+        dar_de_baja(activo, 1, self.admin)
 
         self.client.post(reverse('activo_eliminar', args=[activo.pk]))
 
@@ -181,5 +207,5 @@ class EliminarActivoTests(TestCase):
 
         pantalla = self.client.get(reverse('activo_eliminar', args=[activo.pk]))
 
-        self.assertContains(pantalla, 'De baja')
+        self.assertContains(pantalla, 'Dar de baja')
         self.assertNotContains(pantalla, 'Sí, eliminar')

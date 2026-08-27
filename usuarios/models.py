@@ -39,5 +39,19 @@ class Usuario(AbstractUser):
         """Contabilidad nunca puede crear/editar/eliminar (RF-04)."""
         return self.rol != self.Rol.CONTABILIDAD
 
+    def save(self, *args, **kwargs):
+        """
+        El rol de la aplicación manda sobre el permiso de Django: solo el
+        administrador entra al panel /admin/. Así los dos no se pueden
+        contradecir — que alguien quede con rol de operador pero con acceso
+        al panel, o al revés, según por dónde se le haya editado.
+
+        A los superusuarios no se les toca: si se les quitara is_staff se
+        perdería la única puerta de entrada al panel cuando algo falle.
+        """
+        if not self.is_superuser:
+            self.is_staff = self.rol == self.Rol.ADMINISTRADOR
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.get_full_name() or self.username} ({self.get_rol_display()})"

@@ -75,6 +75,10 @@ DATABASES = {
 # Ver usuarios/models.py y RF-01/RF-04.
 AUTH_USER_MODEL = 'usuarios.Usuario'
 
+# Entrar escribiendo el usuario con o sin mayúsculas da igual: el sistema se
+# usa desde tablets, donde el teclado capitaliza la primera letra solo.
+AUTHENTICATION_BACKENDS = ['usuarios.backends.AutenticacionSinMayusculas']
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -88,9 +92,47 @@ TIME_ZONE = 'America/Guatemala'
 USE_I18N = True
 USE_TZ = True
 
+# Django no trae un locale es-GT y el "es" genérico es el de España, que usa
+# la coma para los decimales (Q 1.500,00). Guatemala usa el punto, así que se
+# sobreescriben solo esos formatos. Ver config/formats/es/formats.py.
+FORMAT_MODULE_PATH = ['config.formats']
+USE_THOUSAND_SEPARATOR = True
+
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+if not DEBUG:
+    # En desarrollo los estáticos los sirve el propio runserver; en producción
+    # Django deja de hacerlo, así que entra WhiteNoise: los sirve desde el
+    # mismo proceso, comprimidos y con un hash en el nombre para que al
+    # actualizar el CSS los navegadores no se queden con la versión vieja.
+    #
+    # La alternativa sería montar un nginx aparte, que para 4–10 personas en
+    # una red local es sumar una pieza más que puede fallar cuando no haya
+    # nadie para arreglarla.
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+    STORAGES = {
+        'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+        'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+    }
+
+    # `manage.py check --deploy` levanta cuatro avisos que piden HTTPS. El
+    # sistema corre por HTTP dentro de la red local de la empresa, sin
+    # certificado, y activarlos rompería el acceso: una cookie marcada como
+    # "secure" no viaja por HTTP, así que nadie podría iniciar sesión.
+    #
+    # Se silencian a propósito, no por descuido: así el chequeo sigue sirviendo
+    # para detectar problemas nuevos en vez de quedar sepultado bajo avisos
+    # que ya se revisaron. El día que se ponga HTTPS, se quitan de esta lista
+    # y se activan SECURE_SSL_REDIRECT, SESSION_COOKIE_SECURE y
+    # CSRF_COOKIE_SECURE.
+    SILENCED_SYSTEM_CHECKS = [
+        'security.W004',  # SECURE_HSTS_SECONDS
+        'security.W008',  # SECURE_SSL_REDIRECT
+        'security.W012',  # SESSION_COOKIE_SECURE
+        'security.W016',  # CSRF_COOKIE_SECURE
+    ]
 
 # Fotos subidas desde el catálogo (artículos/activos). En el contenedor
 # quedan dentro de /app/media, que por el bind mount del docker-compose

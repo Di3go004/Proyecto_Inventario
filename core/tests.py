@@ -9,6 +9,7 @@ los catálogos tienen 200+ registros.
 from pathlib import Path
 
 from django.conf import settings
+from django.template.loader import get_template
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
@@ -141,3 +142,73 @@ class ComentariosDePlantillaTests(SimpleTestCase):
             'Comentario {# #} sin cerrar en la misma línea: se vería en pantalla. '
             'Para varias líneas hay que usar el bloque comment de Django.',
         )
+
+
+class PlantillasCompilanTests(SimpleTestCase):
+    """
+    Compila TODAS las plantillas para cazar etiquetas sin cerrar.
+
+    A un {% if %} al que le falta su {% endif %} no se le ve nada raro al
+    escribirlo: la plantilla revienta hasta que alguien abre esa pantalla.
+    Solo lo agarra una prueba que justo pinte esa vista, y no todas las
+    tienen. Compilar alcanza para detectarlo y no necesita datos ni contexto.
+    """
+
+    def test_todas_las_plantillas_compilan(self):
+        raiz = Path(settings.BASE_DIR) / 'templates'
+        rotas = []
+        for plantilla in sorted(raiz.rglob('*.html')):
+            nombre = plantilla.relative_to(raiz).as_posix()
+            try:
+                get_template(nombre)
+            except Exception as error:
+                rotas.append(f'{nombre}: {error}')
+
+        self.assertEqual(rotas, [], 'Plantillas que no compilan: ' + '; '.join(rotas))
+
+
+class FormatoGuatemalaTests(SimpleTestCase):
+    """
+    Django trae el "es" de España, que usa la coma para los decimales: los
+    precios salían como `Q 1.500,00`. Guatemala lo usa al revés. Se corrige
+    con config/formats/es/formats.py y esto lo deja fijado.
+    """
+
+    def render(self, plantilla, contexto):
+        from django.template import Context, Template
+        return Template(plantilla).render(Context(contexto))
+
+    def test_los_precios_usan_punto_decimal_y_coma_de_miles(self):
+        from decimal import Decimal
+
+        self.assertEqual(
+            self.render('{{ p|floatformat:2 }}', {'p': Decimal('1500.50')}),
+            '1,500.50',
+        )
+        self.assertEqual(
+            self.render('{{ p|floatformat:2 }}', {'p': Decimal('1004087')}),
+            '1,004,087.00',
+        )
+
+    def test_las_fechas_van_en_dia_mes_ano(self):
+        import datetime
+
+        self.assertEqual(
+            self.render('{{ f }}', {'f': datetime.date(2026, 8, 25)}),
+            '25/08/2026',
+        )
+
+    def test_los_formularios_siguen_recibiendo_numeros_crudos(self):
+        """
+        Lo que se muestra se formatea, pero un <input type="number"> manda y
+        espera el punto decimal sin separadores. Si el formato se colara al
+        formulario, no se podría guardar un precio.
+        """
+        from django import forms
+
+        class Prueba(forms.Form):
+            precio = forms.DecimalField()
+
+        form = Prueba(data={'precio': '1500.50'})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(str(form.cleaned_data['precio']), '1500.50')

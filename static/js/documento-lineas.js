@@ -32,6 +32,16 @@
       });
     }
 
+    function resumen(item) {
+      var partes = [item.bodega, 'existencia ' + item.stock];
+      // Solo en el ingreso: es la columna "Nombre de proveedor" del
+      // FO-SE-013, que ya no se escribe a mano sino que sale del catálogo.
+      // Enseñarla acá confirma de dónde va a salir, y avisa a tiempo si al
+      // producto le falta ese dato.
+      if (!esSalida) partes.push(item.proveedor || 'sin proveedor registrado');
+      return partes.join(' · ');
+    }
+
     function revisarCantidad(fila) {
       if (!esSalida) return;
       var disponible = fila.dataset.stock;
@@ -77,7 +87,7 @@
       var item = evento.detail;
       fila.dataset.stock = item.stock;
       var info = fila.querySelector('.linea-info');
-      if (info) info.textContent = item.bodega + ' · existencia ' + item.stock;
+      if (info) info.textContent = resumen(item);
       revisarCantidad(fila);
     });
 

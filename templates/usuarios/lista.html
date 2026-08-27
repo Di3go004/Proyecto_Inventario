@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Usuarios del sistema</h1>
+    <p class="page-sub">Quién puede entrar y qué puede hacer cada quien.</p>
+  </div>
+  <a href="{% url 'usuario_nuevo' %}" class="btn btn-primary">+ Nuevo usuario</a>
+</div>
+
+<form method="get" class="buscador">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}"
+           placeholder="Buscar por usuario o nombre…" aria-label="Buscar">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+
+  <details class="filtros" {% if filtros_activos %}open{% endif %}>
+    <summary>
+      Filtros
+      {% if filtros_activos %}<span class="chip chip-neutral">{{ filtros_activos }}</span>{% endif %}
+    </summary>
+    <div class="filtros-campos">
+      <label class="filtro">
+        <span>Rol</span>
+        <select name="rol">
+          <option value="">Todos</option>
+          {% for valor, etiqueta in roles %}
+            <option value="{{ valor }}" {% if rol == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="filtro">
+        <span>Acceso</span>
+        <select name="activo">
+          <option value="">Todos</option>
+          <option value="si" {% if activo == 'si' %}selected{% endif %}>Solo activos</option>
+          <option value="no" {% if activo == 'no' %}selected{% endif %}>Solo desactivados</option>
+        </select>
+      </label>
+    </div>
+    <div class="filtros-acciones">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      {% if q or filtros_activos %}
+        <a href="{% url 'lista_usuarios' %}" class="btn">Limpiar todo</a>
+      {% endif %}
+    </div>
+  </details>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="usuarios" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Acceso</th>
+      <th class="columna-secundaria">Registros a su nombre</th>
+      <th class="columna-secundaria">Última entrada</th>
+      <th><span class="visualmente-oculto">Acciones</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in usuarios %}
+    <tr>
+      <td data-etiqueta="Usuario" class="code celda-principal">
+        {{ u.username }}
+        {% if u.pk == user.pk %}<span class="chip chip-neutral">Tú</span>{% endif %}
+      </td>
+      <td data-etiqueta="Nombre" class="truncate">{{ u.get_full_name|default:"—" }}</td>
+      <td data-etiqueta="Rol">
+        {% if u.rol == 'administrador' %}<span class="chip chip-good">Administrador</span>
+        {% elif u.rol == 'operador' %}<span class="chip chip-neutral">Operador</span>
+        {% else %}<span class="chip chip-warn">Contabilidad</span>{% endif %}
+      </td>
+      <td data-etiqueta="Acceso">
+        {% if u.is_active %}<span class="chip chip-good">Activo</span>
+        {% else %}<span class="chip chip-critical">Sin acceso</span>{% endif %}
+      </td>
+      <td data-etiqueta="Registros a su nombre" class="num columna-secundaria">
+        {{ u.movimientos|add:u.prestamos }}
+      </td>
+      <td data-etiqueta="Última entrada" class="columna-secundaria">
+        {{ u.last_login|date:"d/m/Y H:i"|default:"Nunca" }}
+      </td>
+      <td class="celda-acciones">
+        <span class="actions">
+          <a href="{% url 'usuario_editar' u.pk %}" class="btn btn-sm">Editar</a>
+          <a href="{% url 'usuario_clave' u.pk %}" class="btn btn-sm">Contraseña</a>
+          {% if u.pk != user.pk %}
+            <a href="{% url 'usuario_eliminar' u.pk %}" class="btn btn-sm btn-danger">Quitar</a>
+          {% endif %}
+        </span>
+      </td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="7">
+      No hay usuarios que coincidan con los filtros.
+      <a href="{% url 'lista_usuarios' %}">Limpiar filtros</a>
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="usuarios" %}
+
+<div class="card" style="margin-top:20px;">
+  <h2 class="card-titulo">Qué puede hacer cada rol</h2>
+  <dl class="detail-grid">
+    <div>
+      <dt><span class="chip chip-good">Administrador</span></dt>
+      <dd>Todo: catálogos, carga masiva desde Excel, movimientos y usuarios.</dd>
+    </div>
+    <div>
+      <dt><span class="chip chip-neutral">Operador</span></dt>
+      <dd>Registra entradas, salidas y préstamos. No toca el catálogo ni los usuarios.</dd>
+    </div>
+    <div>
+      <dt><span class="chip chip-warn">Contabilidad</span></dt>
+      <dd>Consulta e imprime todo, pero no puede modificar nada.</dd>
+    </div>
+  </dl>
+</div>
+{% endblock %}

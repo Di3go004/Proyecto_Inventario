@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load navegacion %}
+{% block title %}Fuera de bodega{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Reportes</p>
+    <h1 class="page-title">Fuera de bodega</h1>
+    <p class="page-sub">
+      Equipo en demo y herramienta prestada que todavía no regresa, de los dos
+      módulos junto. Lo que lleva más tiempo afuera va primero.
+    </p>
+  </div>
+  <div class="page-acciones">
+    <a href="{% url 'indice_reportes' %}" class="btn">← Reportes</a>
+    <a href="?{% url_con formato='excel' %}" class="btn btn-primary">Descargar Excel</a>
+  </div>
+</div>
+
+<div class="kpi-row" style="margin-bottom:20px;">
+  <div class="kpi-tile">
+    <div class="kpi-label">Pendientes de regreso</div>
+    <div class="kpi-value">{{ cuantos }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Más de una semana afuera</div>
+    <div class="kpi-value">{{ mas_de_una_semana }}</div>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Origen</th><th class="columna-secundaria">Código</th><th>Qué</th>
+      <th>Cantidad</th><th>Quién lo tiene</th><th>Salió el</th><th>Días</th>
+      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in filas %}
+    <tr>
+      <td data-etiqueta="Origen">
+        {% if f.origen == 'Bodega Técnica' %}<span class="chip chip-neutral">Técnica</span>
+        {% else %}<span class="chip chip-neutral">Bodega 1 y 2</span>{% endif %}
+      </td>
+      <td data-etiqueta="Código" class="code columna-secundaria">{{ f.codigo }}</td>
+      <td data-etiqueta="Qué" class="truncate celda-principal">{{ f.que }}</td>
+      <td data-etiqueta="Cantidad" class="num">{{ f.cantidad }}</td>
+      <td data-etiqueta="Quién lo tiene" class="truncate">{{ f.quien }}</td>
+      <td data-etiqueta="Salió el" class="num" style="text-align:left;">{{ f.desde|date:"d/m/Y" }}</td>
+      <td data-etiqueta="Días">
+        {% if f.dias >= 30 %}<span class="chip chip-critical">{{ f.dias }} días</span>
+        {% elif f.dias >= 7 %}<span class="chip chip-warn">{{ f.dias }} días</span>
+        {% else %}<span class="chip chip-neutral">{{ f.dias }} días</span>{% endif %}
+      </td>
+      {% if user.puede_editar %}
+      <td class="celda-acciones">
+        <span class="actions">
+          <a href="{{ f.url }}" class="btn btn-sm btn-primary">Registrar regreso</a>
+        </span>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="8">
+      No hay nada fuera de bodega en este momento.
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@ stock, se rastrea quién lo tiene y en qué estado va y vuelve.
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Bodega
@@ -117,3 +118,68 @@ class ReglasDePrestamoTests(BaseTecnica):
         prestamo.refresh_from_db()
         self.assertEqual(prestamo.estado_al_salir, Activo.Estado.BUEN_ESTADO)
         self.assertEqual(prestamo.estado_al_regresar, Activo.Estado.MAL_ESTADO)
+
+
+class EliminarActivoTests(TestCase):
+    """
+    En Bodega Técnica la carga masiva no crea préstamos, así que lo único que
+    puede bloquear el borrado son préstamos de verdad.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.bodega = Bodega.objects.create(nombre='Bodega Técnica', tipo=Bodega.Tipo.TECNICA)
+        cls.admin = Usuario.objects.create_user(
+            username='admin_act', password='clave-de-prueba', rol=Usuario.Rol.ADMINISTRADOR,
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def crear(self, codigo='SE-T1'):
+        return Activo.objects.create(
+            codigo_interno=codigo, nombre_producto='Taladro', bodega=self.bodega,
+        )
+
+    def test_uno_sin_prestamos_se_borra(self):
+        activo = self.crear()
+
+        self.client.post(reverse('activo_eliminar', args=[activo.pk]))
+
+        self.assertFalse(Activo.objects.filter(pk=activo.pk).exists())
+
+    def test_uno_con_prestamos_no_se_borra(self):
+        activo = self.crear()
+        PrestamoActivo.objects.create(
+            activo=activo, solicitante='Alguien',
+            estado_al_salir=Activo.Estado.BUEN_ESTADO, usuario=self.admin,
+        )
+
+        respuesta = self.client.post(reverse('activo_eliminar', args=[activo.pk]), follow=True)
+
+        self.assertTrue(Activo.objects.filter(pk=activo.pk).exists())
+        self.assertContains(respuesta, '1 préstamo(s)')
+
+    def test_darlo_de_baja_tampoco_lo_habilita(self):
+        activo = self.crear()
+        PrestamoActivo.objects.create(
+            activo=activo, solicitante='Alguien',
+            estado_al_salir=Activo.Estado.BUEN_ESTADO, usuario=self.admin,
+        )
+        Activo.objects.filter(pk=activo.pk).update(estado=Activo.Estado.DE_BAJA)
+
+        self.client.post(reverse('activo_eliminar', args=[activo.pk]))
+
+        self.assertTrue(Activo.objects.filter(pk=activo.pk).exists())
+
+    def test_la_pantalla_manda_a_darlo_de_baja(self):
+        activo = self.crear()
+        PrestamoActivo.objects.create(
+            activo=activo, solicitante='Alguien',
+            estado_al_salir=Activo.Estado.BUEN_ESTADO, usuario=self.admin,
+        )
+
+        pantalla = self.client.get(reverse('activo_eliminar', args=[activo.pk]))
+
+        self.assertContains(pantalla, 'De baja')
+        self.assertNotContains(pantalla, 'Sí, eliminar')

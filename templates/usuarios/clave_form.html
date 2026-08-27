@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load static estaticos %}
+{% block title %}Contraseña de {{ usuario_editado.username }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Usuarios · {{ usuario_editado.get_rol_display }}</p>
+    <h1 class="page-title">Contraseña de {{ usuario_editado.username }}</h1>
+    <p class="page-sub">
+      {{ usuario_editado.get_full_name|default:"Sin nombre registrado" }}. La
+      contraseña anterior deja de servir en cuanto guardes.
+    </p>
+  </div>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <div class="form-grid">
+    <div class="field inline span-2">
+      {{ form.generar }}
+      <label for="{{ form.generar.id_for_label }}">{{ form.generar.label }}</label>
+    </div>
+    <div class="field span-2">
+      <label for="{{ form.clave.id_for_label }}">{{ form.clave.label }}</label>
+      {{ form.clave }}
+      <span class="hint">{{ form.generar.help_text }}</span>
+      {% for e in form.clave.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Restablecer contraseña</button>
+    <a href="{% url 'lista_usuarios' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% estatico 'js/clave.js' %}"></script>
+{% endblock %}

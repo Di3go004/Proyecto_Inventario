@@ -1,6 +1,7 @@
 from django import forms
 from django.utils import timezone
 
+from core.forms import solo_el_nombre
 from ventas.forms import EntradaFechaHora
 
 from .models import Activo, PrestamoActivo
@@ -13,6 +14,10 @@ class ActivoForm(forms.ModelForm):
             'codigo_interno', 'nombre_producto', 'marca', 'modelo',
             'categoria', 'bodega', 'proveedor', 'precio', 'imagen', 'imagen_url', 'estado',
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        solo_el_nombre(self.fields['categoria'])
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get('imagen')

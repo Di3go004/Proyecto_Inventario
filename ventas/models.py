@@ -3,6 +3,8 @@ import re
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 from core.models import Bodega, Categoria, Proveedor
@@ -143,6 +145,11 @@ class Articulo(models.Model):
         Articulo.objects.filter(pk=self.pk).update(stock_actual=total)
         self.stock_actual = total
         return total
+
+    @property
+    def valor_en_bodega(self):
+        """Lo que vale lo que hay de este artículo: precio × existencia (RF-14)."""
+        return self.precio * self.stock_actual
 
     @property
     def nivel_alerta(self):
@@ -299,12 +306,22 @@ class MovimientoVenta(models.Model):
                 )
             articulo.recalcular_stock()
 
-    def delete(self, *args, **kwargs):
-        """Al borrar un movimiento el stock también debe volver a cuadrar."""
-        articulo_id = self.articulo_id
-        with transaction.atomic():
-            resultado = super().delete(*args, **kwargs)
-            articulo = Articulo.objects.filter(pk=articulo_id).first()
-            if articulo:
-                articulo.recalcular_stock()
-        return resultado
+
+@receiver(post_delete, sender=MovimientoVenta)
+def _recuadrar_stock_al_borrar(sender, instance, **kwargs):
+    """
+    Al borrar un movimiento el stock del artículo tiene que volver a cuadrar.
+
+    Va como señal y no como MovimientoVenta.delete(): Django NO llama al
+    delete() del modelo cuando se borra en bloque
+    (MovimientoVenta.objects.filter(...).delete(), que es lo que usa el
+    borrado múltiple del panel de administración y cualquier limpieza por
+    consola). Con el override, ese camino dejaba stock_actual desfasado sin
+    avisar; la señal sí se dispara en los dos casos.
+
+    Si el artículo se está borrando también —cascada— ya no hay nada que
+    recalcular, de ahí el filter().first().
+    """
+    articulo = Articulo.objects.filter(pk=instance.articulo_id).first()
+    if articulo:
+        articulo.recalcular_stock()

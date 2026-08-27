@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load navegacion %}
+{% block title %}Alertas de stock{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Reportes</p>
+    <h1 class="page-title">Alertas de stock</h1>
+    <p class="page-sub">Qué reponer. Lo que está en cero va primero.</p>
+  </div>
+  <div class="page-acciones">
+    <a href="{% url 'indice_reportes' %}" class="btn">← Reportes</a>
+    <a href="?{% url_con formato='excel' pagina='' %}" class="btn btn-primary">Descargar Excel</a>
+  </div>
+</div>
+
+<div class="kpi-row" style="margin-bottom:20px;">
+  <div class="kpi-tile">
+    <div class="kpi-label">En nivel crítico</div>
+    <div class="kpi-value">{{ criticos }}</div>
+  </div>
+  <div class="kpi-tile">
+    <div class="kpi-label">Total bajo el umbral</div>
+    <div class="kpi-value">{{ cuantos }}</div>
+  </div>
+</div>
+
+<form method="get" class="buscador">
+  <div class="filtros-campos" style="padding:0 0 14px;">
+    <label class="filtro">
+      <span>Bodega</span>
+      <select name="bodega">
+        <option value="">Todas</option>
+        {% for b in bodegas %}
+          <option value="{{ b.id }}" {% if bodega_id == b.id|stringformat:"s" %}selected{% endif %}>{{ b.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filtro" style="justify-content:flex-end;">
+      <span>&nbsp;</span>
+      <button type="submit" class="btn btn-primary">Aplicar</button>
+    </label>
+  </div>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="artículos" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Nivel</th><th>Código</th><th>Producto</th>
+      <th class="columna-secundaria">Bodega</th><th>Existencia</th>
+      <th class="columna-secundaria">Umbrales (C/A/Ó)</th><th>Proveedor</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in pagina %}
+    <tr data-href="{% url 'articulo_detalle' a.pk %}">
+      <td data-etiqueta="Nivel">
+        {% if a.nivel_alerta == 'critico' %}<span class="chip chip-critical">Crítico</span>
+        {% else %}<span class="chip chip-warn">Alerta</span>{% endif %}
+      </td>
+      <td data-etiqueta="Código" class="code truncate">{{ a.codigo_interno }}</td>
+      <td data-etiqueta="Producto" class="truncate celda-principal">{{ a.nombre_producto }}</td>
+      <td data-etiqueta="Bodega" class="columna-secundaria">{{ a.bodega.nombre }}</td>
+      <td data-etiqueta="Existencia" class="num"><strong>{{ a.stock_actual }}</strong></td>
+      <td data-etiqueta="Umbrales (C/A/Ó)" class="num columna-secundaria">
+        {{ a.stock_critico }} / {{ a.stock_alerta }} / {{ a.stock_optimo }}
+      </td>
+      <td data-etiqueta="Proveedor" class="truncate">{{ a.proveedor|default:"—" }}</td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="7">
+      Nada por debajo del umbral de alerta. Todo el inventario está en nivel normal u óptimo.
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="artículos" %}
+
+<p class="hint" style="margin-top:16px;">
+  Los umbrales (crítico / alerta / óptimo) se configuran por artículo desde
+  Editar. Por defecto entran en 2 / 5 / 20.
+</p>
+{% endblock %}

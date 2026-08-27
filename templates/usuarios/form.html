@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static estaticos %}
+{% block title %}{% if modo == 'nuevo' %}Nuevo usuario{% else %}Editar usuario{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">
+      {% if modo == 'nuevo' %}Nuevo usuario{% else %}Editar {{ usuario_editado.username }}{% endif %}
+    </h1>
+    <p class="page-sub">
+      {% if modo == 'nuevo' %}
+        Se crea con una contraseña inicial que hay que entregarle a la persona.
+      {% else %}
+        Para cambiarle la contraseña usa el botón "Contraseña" del listado.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <div class="form-grid">
+    <div class="field">
+      <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+      {{ form.username }}
+      <span class="hint">{{ form.username.help_text }}</span>
+      {% for e in form.username.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.rol.id_for_label }}">{{ form.rol.label }}</label>
+      {{ form.rol }}
+      <span class="hint">Administrador: todo. Operador: solo movimientos. Contabilidad: solo consultar.</span>
+      {% for e in form.rol.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
+      {{ form.first_name }}
+    </div>
+    <div class="field">
+      <label for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
+      {{ form.last_name }}
+    </div>
+
+    {% if form.generar %}
+      <div class="field inline span-2" style="margin-top:6px;">
+        {{ form.generar }}
+        <label for="{{ form.generar.id_for_label }}">{{ form.generar.label }}</label>
+      </div>
+      <div class="field span-2">
+        <label for="{{ form.clave.id_for_label }}">{{ form.clave.label }}</label>
+        {{ form.clave }}
+        <span class="hint">{{ form.generar.help_text }}</span>
+        {% for e in form.clave.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="field inline span-2">
+      {{ form.is_active }}
+      <label for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+      {% for e in form.is_active.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">
+      {% if modo == 'nuevo' %}Crear usuario{% else %}Guardar cambios{% endif %}
+    </button>
+    <a href="{% url 'lista_usuarios' %}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% estatico 'js/clave.js' %}"></script>
+{% endblock %}

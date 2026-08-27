@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Eliminar categoría{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Eliminar “{{ categoria.nombre }}”</h1>
+    <p class="page-sub">
+      {% if categoria.modulo == 'ventas' %}Bodega 1 y 2{% else %}Bodega Técnica{% endif %}
+    </p>
+  </div>
+  <a href="{% url 'lista_categorias' %}" class="btn">← Volver</a>
+</div>
+
+<div class="card">
+  {% with usados=categoria.articulos|add:categoria.activos %}
+    {% if usados %}
+      <p>
+        La usan <strong>{{ usados }}</strong> producto(s). Eliminarla
+        <strong>no los borra</strong>: quedan sin categoría, y tendrías que
+        asignarles otra uno por uno desde el catálogo.
+      </p>
+      <p class="hint">
+        Si solo querés cambiarle el nombre, usa
+        <a href="{% url 'categoria_editar' categoria.pk %}">Editar</a> — así los
+        productos se quedan donde están.
+      </p>
+    {% else %}
+      <p>No la usa ningún producto, así que se puede quitar sin consecuencias.</p>
+    {% endif %}
+
+    <form method="post" class="form-actions">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">
+        {% if usados %}Eliminar de todos modos{% else %}Eliminar categoría{% endif %}
+      </button>
+      <a href="{% url 'lista_categorias' %}" class="btn">Cancelar</a>
+    </form>
+  {% endwith %}
+</div>
+{% endblock %}

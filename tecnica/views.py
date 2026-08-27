@@ -120,19 +120,33 @@ def activo_editar(request, pk):
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
 def activo_eliminar(request, pk):
+    """
+    Igual que en el catálogo de ventas: una herramienta con préstamos a su
+    nombre no se borra, porque dejaría el registro sin saber qué se prestó.
+    A diferencia de los artículos, acá la carga masiva no crea ningún
+    préstamo, así que lo único que puede bloquear son préstamos de verdad.
+    """
     activo = get_object_or_404(Activo, pk=pk)
+    cuantos_prestamos = activo.prestamos.count()
+
     if request.method == 'POST':
-        try:
-            activo.delete()
-            messages.success(request, 'Activo eliminado.')
-        except ProtectedError:
+        if cuantos_prestamos:
             messages.error(
                 request,
-                'No se puede eliminar: ya tiene préstamos registrados. '
-                'Cambia su estado a "De baja" desde Editar en su lugar.',
+                f'No se puede eliminar "{activo.nombre_producto}": tiene '
+                f'{cuantos_prestamos} préstamo(s) registrados. Para retirarlo de '
+                'circulación, cámbialo a "De baja" desde Editar (RF-12).',
             )
+            return redirect('catalogo_activos')
+
+        nombre = activo.nombre_producto
+        activo.delete()
+        messages.success(request, f'Activo "{nombre}" eliminado.')
         return redirect('catalogo_activos')
-    return render(request, 'tecnica/activo_confirmar_eliminar.html', {'activo': activo})
+
+    return render(request, 'tecnica/activo_confirmar_eliminar.html', {
+        'activo': activo, 'prestamos': cuantos_prestamos,
+    })
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)

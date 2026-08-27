@@ -1,17 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Eliminar artículo{% endblock %}
 {% block content %}
-<div class="card" style="max-width:480px;">
-  <h1 style="font-size:1.2rem; margin:0 0 8px;">¿Eliminar este artículo?</h1>
-  <p style="color:var(--text-muted);">
-    <strong>{{ articulo.codigo_interno }} — {{ articulo.nombre_producto }}</strong><br>
-    Si ya tiene movimientos registrados, no se podrá eliminar (se protege el historial) —
-    en ese caso, desmárcalo como "activo" desde Editar en su lugar.
-  </p>
-  <form method="post" class="form-actions">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-danger">Sí, eliminar</button>
-    <a href="{% url 'catalogo_articulos' %}" class="btn">Cancelar</a>
-  </form>
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega 1 y 2 · {{ articulo.codigo_interno }}</p>
+    <h1 class="page-title">{{ articulo.nombre_producto }}</h1>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px;">
+  {% if movimientos_reales %}
+    <p class="aviso-prestado">
+      Este artículo tiene <strong>{{ movimientos_reales }} movimiento(s)</strong>
+      registrados: entradas, salidas o préstamos que alguien anotó.
+    </p>
+    <p>
+      <strong>No se puede eliminar.</strong> Borrarlo dejaría esos movimientos
+      sin saber a qué producto pertenecían, y el historial es justo lo que este
+      sistema vino a proteger. Desactivarlo <em>tampoco</em> lo habilita — la
+      protección no depende de eso.
+    </p>
+    <p>
+      Para sacarlo del catálogo sin perder su historial, desmárcalo como
+      <strong>activo</strong> desde Editar: deja de aparecer en el buscador y
+      en las listas de captura, pero su kardex se conserva.
+    </p>
+    <div class="form-actions">
+      <a href="{% url 'articulo_editar' articulo.pk %}" class="btn btn-primary">Ir a Editar</a>
+      <a href="{% url 'catalogo_articulos' %}" class="btn">Volver al catálogo</a>
+    </div>
+  {% else %}
+    <h2 class="card-titulo">¿Eliminar este artículo?</h2>
+    <p>
+      Se borra del catálogo definitivamente. Esta acción no se puede deshacer.
+    </p>
+    {% if ajustes_iniciales %}
+      <p class="hint">
+        Tiene {{ ajustes_iniciales }} registro(s) de <strong>saldo inicial</strong>,
+        creados solos al importar el Excel. No son historial —solo el conteo con
+        el que arrancó— así que se borran junto con el artículo.
+      </p>
+    {% else %}
+      <p class="hint">No tiene ningún movimiento registrado.</p>
+    {% endif %}
+    <form method="post" class="form-actions">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">Sí, eliminar</button>
+      <a href="{% url 'catalogo_articulos' %}" class="btn">Cancelar</a>
+    </form>
+  {% endif %}
 </div>
 {% endblock %}

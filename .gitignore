@@ -2,6 +2,8 @@
 
 # Entorno / secretos
 .env
+.env.*
+!.env.example
 *.local
 
 # Python / Django

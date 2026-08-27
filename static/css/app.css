@@ -10,7 +10,7 @@
 
 :root {
   --bg: #f3f5fb; --surface: #ffffff; --surface-alt: #eceff8; --border: #d9deef;
-  --text: #14152b; --text-muted: #5b5f7d;
+  --text: #14152b; --text-muted: #5b5f7d; --text-faint: #8b8fa8;
   --brand-primary: #202199; --brand-primary-hover: #15166b;
   --brand-secondary: #6889cb; --brand-tertiary: #5db2d6;
   --accent-soft-bg: #e7eafb; --on-brand: #ffffff;
@@ -473,11 +473,20 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
 
 /* Grupos de la barra lateral: con 5 destinos, separarlos por bloque evita
    leerlos como una lista plana. */
+/* Rótulo de sección del menú. Tiene que leerse como un encabezado y no como
+   un destino más al que se puede hacer clic: por eso va con una línea que lo
+   separa del grupo anterior, más chico, más espaciado y más apagado que los
+   enlaces, y sin poder seleccionarse ni reaccionar al puntero. */
 .app-sidebar-grupo {
-  margin: 14px 0 4px; padding: 0 12px;
-  font-size: .66rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--text-muted);
+  margin: 18px 0 6px; padding: 14px 12px 0;
+  border-top: 1px solid var(--border);
+  font-size: .63rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--text-faint);
+  user-select: none; cursor: default;
 }
+/* El primer rótulo va justo debajo de Resumen/Reportes: ahí la línea sí
+   ayuda, pero el margen extra de arriba lo separaría demasiado. */
+.app-sidebar-inner > .app-sidebar-grupo:first-of-type { margin-top: 14px; }
 
 .card-titulo { font-size: .95rem; margin: 0 0 16px; }
 form.card > .errorlist,
@@ -514,7 +523,7 @@ form.card > .errorlist,
 .autocompletar-vacio { padding: 10px; color: var(--text-muted); font-size: .84rem; }
 
 /* --- Detalle de líneas de un documento --- */
-.tabla-lineas { min-width: 0; }
+.tabla-lineas { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius); }
 .tabla-lineas td { vertical-align: top; }
 .tabla-lineas .linea-numero { color: var(--text-muted); padding-top: 18px; }
 .tabla-lineas input { margin: 0; }
@@ -563,3 +572,57 @@ form.card > .errorlist,
   .tabla-lineas .linea-numero::before { content: "Línea "; }
   .tabla-lineas .quitar-linea { width: 100%; margin-top: 6px; }
 }
+
+/* =====================================================================
+   Fase 5 — Reportes
+   ===================================================================== */
+
+/* Tarjetas de la portada de reportes: cada una adelanta su dato principal
+   para decidir si vale la pena abrirla sin tener que entrar. */
+.reportes-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.reporte-tarjeta {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 20px; text-decoration: none; color: inherit;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-md);
+  transition: border-color .12s ease, transform .12s ease;
+}
+.reporte-tarjeta:hover {
+  border-color: var(--brand-secondary);
+  transform: translateY(-2px);
+}
+.reporte-tarjeta h2 { font-size: 1rem; color: var(--brand-primary); }
+.reporte-tarjeta p { margin: 0; font-size: .86rem; color: var(--text-muted); }
+.reporte-dato {
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  font-size: 1.5rem !important; font-weight: 700;
+  color: var(--text) !important; margin-top: auto !important; padding-top: 12px;
+}
+.reporte-dato.es-alerta { color: var(--state-critical-fg) !important; }
+.reporte-pie { font-size: .74rem; color: var(--text-muted); }
+
+/* --- Formulario de movimiento: el detalle va primero --- */
+.cabecera-detalle {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.folio-asignado {
+  font-family: var(--font-data); font-size: .82rem; color: var(--text-muted);
+  background: var(--surface-alt); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 12px;
+}
+.folio-asignado strong { color: var(--brand-primary); }
+
+/* La tabla de líneas NO va dentro de .table-wrap: ese contenedor recorta lo
+   que se sale de él (overflow) y se comía la lista de sugerencias del
+   buscador, que es un desplegable posicionado por encima de la fila. */
+.lineas-wrap { margin-bottom: 12px; }
+
+/* Dato que falta en el catálogo (p. ej. un artículo sin proveedor): se marca
+   como enlace para ir a completarlo, en vez de dejar un guion que parece un
+   error del sistema. */
+.sin-dato { color: var(--text-faint); font-style: italic; text-decoration: none; }
+.sin-dato:hover { color: var(--state-warn-fg); text-decoration: underline; }

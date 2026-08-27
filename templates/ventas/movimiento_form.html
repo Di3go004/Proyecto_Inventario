@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static estaticos %}
 {% block title %}{% if es_ingreso %}Registrar ingreso{% else %}Registrar salida{% endif %}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -20,31 +20,29 @@
 <form method="post" id="form-documento" data-tipo="{{ tipo_documento }}">
   {% csrf_token %}
 
+  {% comment %}
+    El detalle va primero: en bodega se arranca por el producto que se tiene
+    en la mano, no por el papeleo. Los datos del documento quedan abajo, que
+    es el orden en que se llenan de verdad.
+  {% endcomment %}
   <div class="card" style="margin-bottom:16px;">
-    <h2 class="card-titulo">Encabezado del documento</h2>
-    {% if form.non_field_errors %}
-      <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
-    {% endif %}
-    <div class="form-grid">
-      {% for campo in form %}
-        <div class="field {% if campo.name == 'observacion' %}span-2{% endif %}">
-          <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
-          {{ campo }}
-          {% if campo.name == 'folio' %}<span class="hint">Si lo dejas vacío se asigna el siguiente correlativo automático.</span>{% endif %}
-          {% for e in campo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
-        </div>
-      {% endfor %}
+    <div class="cabecera-detalle">
+      <h2 class="card-titulo" style="margin:0;">1 · ¿Qué productos?</h2>
+      <span class="folio-asignado">
+        Folio <strong>{{ folio_siguiente }}</strong>
+      </span>
     </div>
-  </div>
-
-  <div class="card">
-    <h2 class="card-titulo">Detalle de productos</h2>
-    <p class="hint" style="margin:-6px 0 12px;">
+    <p class="hint" style="margin:6px 0 14px;">
       Escribe parte del código o del nombre y elige de la lista. Enter en la
       cantidad agrega otra línea.
     </p>
 
-    <div class="table-wrap" style="box-shadow:none; margin-bottom:12px;">
+    {% comment %}
+      Sin .table-wrap a propósito: ese contenedor recorta lo que se sale de
+      él, y se comía la lista de sugerencias del buscador. La tabla de líneas
+      es angosta y en celular se apila sola, así que no necesita scroll.
+    {% endcomment %}
+    <div class="lineas-wrap">
       <table class="tabla-lineas">
         <thead>
           <tr>
@@ -85,6 +83,39 @@
     <button type="button" id="agregar-linea" class="btn btn-sm">+ Agregar línea</button>
   </div>
 
+  <div class="card">
+    <h2 class="card-titulo">2 · Datos del documento</h2>
+    {% if form.non_field_errors %}
+      <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+    <div class="form-grid">
+      {% for campo in form %}
+        {% if campo.name != 'folio' %}
+          <div class="field {% if campo.name == 'observacion' %}span-2{% endif %}">
+            <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.help_text %}<span class="hint">{{ campo.help_text }}</span>{% endif %}
+            {% for e in campo.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    {% if puede_cambiar_folio %}
+      <details class="filtros" style="margin-top:16px;">
+        <summary>Folio: {{ folio_siguiente }} (automático)</summary>
+        <div class="filtros-campos">
+          <label class="filtro">
+            <span>{{ form.folio.label }}</span>
+            {{ form.folio }}
+            <span class="hint">{{ form.folio.help_text }}</span>
+            {% for e in form.folio.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+          </label>
+        </div>
+      </details>
+    {% endif %}
+  </div>
+
   <div class="form-actions">
     <button type="submit" class="btn btn-primary">
       {% if es_ingreso %}Registrar ingreso{% else %}Registrar salida{% endif %}
@@ -114,6 +145,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/autocompletar.js' %}"></script>
-<script src="{% static 'js/documento-lineas.js' %}"></script>
+<script src="{% estatico 'js/autocompletar.js' %}"></script>
+<script src="{% estatico 'js/documento-lineas.js' %}"></script>
 {% endblock %}

@@ -6,6 +6,7 @@ boleta a medias (unas líneas guardadas y otras no) dejaría el stock
 mintiendo, que es justo el problema que este sistema viene a resolver.
 """
 
+from django.db.models import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -21,6 +22,9 @@ class BaseMovimientos(TestCase):
         cls.bodega = Bodega.objects.create(nombre='Bodega 1', tipo=Bodega.Tipo.VENTA)
         cls.operador = Usuario.objects.create_user(
             username='operador_mov', password='clave-de-prueba', rol=Usuario.Rol.OPERADOR,
+        )
+        cls.admin = Usuario.objects.create_user(
+            username='admin_mov', password='clave-de-prueba', rol=Usuario.Rol.ADMINISTRADOR,
         )
         cls.contable = Usuario.objects.create_user(
             username='contable_mov', password='clave-de-prueba', rol=Usuario.Rol.CONTABILIDAD,
@@ -78,10 +82,34 @@ class FolioTests(BaseMovimientos):
         self.assertEqual(folios, ['ING-00001', 'ING-00002', 'SAL-00001'])
 
     def test_el_administrador_puede_escribir_su_propio_folio(self):
+        """Para calzar con una boleta de papel ya numerada."""
+        self.client.force_login(self.admin)
+
         self.registrar_ingreso([(self.bascula, 5)], folio='ING-2025-077')
+
         self.assertEqual(MovimientoVenta.objects.get().folio, 'ING-2025-077')
 
+    def test_el_operador_no_puede_cambiarlo(self):
+        """
+        El folio es automático: al operador ni se le ofrece el campo, y si
+        lo manda de todas formas se ignora. Tenerlo editable a la vista hacía
+        dudar de si había que llenarlo.
+        """
+        respuesta = self.client.get(reverse('movimiento_ingreso'))
+        self.assertNotIn('folio', respuesta.context['form'].fields)
+
+        self.registrar_ingreso([(self.bascula, 5)], folio='ING-INVENTADO')
+
+        self.assertEqual(MovimientoVenta.objects.get().folio, 'ING-00001')
+
+    def test_la_pantalla_muestra_que_folio_se_va_a_asignar(self):
+        respuesta = self.client.get(reverse('movimiento_ingreso'))
+
+        self.assertEqual(respuesta.context['folio_siguiente'], 'ING-00001')
+        self.assertContains(respuesta, 'ING-00001')
+
     def test_un_folio_escrito_a_mano_no_rompe_el_correlativo(self):
+        self.client.force_login(self.admin)
         self.registrar_ingreso([(self.bascula, 1)], folio='ING-SIN-NUMERO')
         self.registrar_ingreso([(self.bascula, 1)])
 
@@ -279,6 +307,58 @@ class KardexYDocumentoTests(BaseMovimientos):
         self.assertTrue(movimientos[0].esta_afuera)
 
 
+class StockAlBorrarMovimientosTests(BaseMovimientos):
+    """
+    RF-08: el stock se deriva de los movimientos, así que borrar uno tiene
+    que dejarlo cuadrado. Importa el borrado EN BLOQUE, no solo el de uno en
+    uno: es el que usa el panel de administración y cualquier limpieza por
+    consola, y Django no llama al delete() del modelo en ese camino.
+    """
+
+    def test_borrar_un_movimiento_deja_el_stock_cuadrado(self):
+        self.registrar_ingreso([(self.bascula, 10)])
+        self.registrar_ingreso([(self.bascula, 5)])
+        self.bascula.refresh_from_db()
+        self.assertEqual(self.bascula.stock_actual, 15)
+
+        MovimientoVenta.objects.filter(articulo=self.bascula, cantidad=5).first().delete()
+
+        self.bascula.refresh_from_db()
+        self.assertEqual(self.bascula.stock_actual, 10)
+
+    def test_el_borrado_en_bloque_tambien_cuadra_el_stock(self):
+        self.registrar_ingreso([(self.bascula, 10)])
+        self.registrar_ingreso([(self.bascula, 5)])
+
+        MovimientoVenta.objects.filter(articulo=self.bascula, cantidad=5).delete()
+
+        self.bascula.refresh_from_db()
+        self.assertEqual(
+            self.bascula.stock_actual, 10,
+            'el borrado en bloque no llama a delete() del modelo; tiene que '
+            'recalcular por señal o el stock queda desfasado sin avisar',
+        )
+
+    def test_al_vaciar_los_movimientos_el_articulo_queda_en_cero_y_borrable(self):
+        """
+        El artículo está protegido mientras tenga movimientos (PROTECT, no
+        cascada: el historial no se borra solo por borrar del catálogo). Al
+        vaciarlos en bloque tiene que quedar en cero, no con el stock viejo.
+        """
+        self.registrar_ingreso([(self.bascula, 10)])
+        pk = self.bascula.pk
+
+        with self.assertRaises(ProtectedError):
+            self.bascula.delete()
+
+        MovimientoVenta.objects.filter(articulo=self.bascula).delete()
+        self.bascula.refresh_from_db()
+        self.assertEqual(self.bascula.stock_actual, 0)
+
+        self.bascula.delete()
+        self.assertFalse(Articulo.objects.filter(pk=pk).exists())
+
+
 class BuscadorTests(BaseMovimientos):
     def test_sugiere_por_codigo_y_por_nombre(self):
         por_nombre = self.client.get(reverse('api_buscar_articulos'), {'q': 'plataforma'}).json()
@@ -301,6 +381,25 @@ class BuscadorTests(BaseMovimientos):
         self.client.logout()
         respuesta = self.client.get(reverse('api_buscar_articulos'), {'q': 'bascula'})
         self.assertEqual(respuesta.status_code, 302, 'redirige al login')
+
+    def test_la_sugerencia_trae_el_proveedor(self):
+        """
+        En el ingreso el proveedor ya no se escribe a mano: se hereda del
+        catálogo. La pantalla lo enseña al elegir el producto, así que tiene
+        que venir en la respuesta o el operador no ve de dónde va a salir.
+        """
+        from core.models import Proveedor
+        self.bascula.proveedor = Proveedor.objects.create(nombre='BRECKNELL')
+        self.bascula.save()
+
+        respuesta = self.client.get(reverse('api_buscar_articulos'), {'q': 'plataforma'}).json()
+
+        self.assertEqual(respuesta['resultados'][0]['proveedor'], 'BRECKNELL')
+
+    def test_el_articulo_sin_proveedor_no_rompe_la_sugerencia(self):
+        self.assertIsNone(self.indicador.proveedor)
+        respuesta = self.client.get(reverse('api_buscar_articulos'), {'q': 'Indicador'}).json()
+        self.assertEqual(respuesta['resultados'][0]['proveedor'], '')
 
 
 class PermisosMovimientosTests(BaseMovimientos):

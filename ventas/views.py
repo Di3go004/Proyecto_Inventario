@@ -140,20 +140,47 @@ def articulo_editar(request, pk):
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
 def articulo_eliminar(request, pk):
+    """
+    Un artículo con historial real no se borra: quedarían movimientos sin
+    saber a qué producto pertenecían.
+
+    Pero el "ajuste / saldo inicial" que crea la carga masiva (RF-09) no es
+    historial — es solo el conteo con el que arrancó el artículo. Si es lo
+    único que tiene, se borra junto con él. Sin esta distinción, importar el
+    Excel dejaba los 216 artículos imposibles de borrar para siempre, incluso
+    los que se hubieran importado por error, y el aviso además daba a entender
+    que desactivarlos servía de algo — no servía.
+    """
     articulo = get_object_or_404(Articulo, pk=pk)
+    movimientos_reales = articulo.movimientos.exclude(
+        tipo_transaccion=MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL,
+    )
+    cuantos_reales = movimientos_reales.count()
+
     if request.method == 'POST':
-        try:
-            articulo.delete()
-            messages.success(request, 'Artículo eliminado.')
-        except ProtectedError:
-            # Tiene movimientos asociados (protegidos a propósito, ver BASE_DATOS.sql).
+        if cuantos_reales:
             messages.error(
                 request,
-                'No se puede eliminar: ya tiene movimientos registrados. '
-                'Desmárcalo como "activo" para descontinuarlo sin perder su historial.',
+                f'No se puede eliminar "{articulo.nombre_producto}": tiene '
+                f'{cuantos_reales} movimiento(s) registrados. Desactivarlo tampoco '
+                'lo habilita — el historial se protege siempre. Para sacarlo del '
+                'catálogo, desmárcalo como activo desde Editar.',
             )
+            return redirect('catalogo_articulos')
+
+        nombre = articulo.nombre_producto
+        with transaction.atomic():
+            # A esta altura lo único que puede quedar es el ajuste inicial.
+            articulo.movimientos.all().delete()
+            articulo.delete()
+        messages.success(request, f'Artículo "{nombre}" eliminado.')
         return redirect('catalogo_articulos')
-    return render(request, 'ventas/articulo_confirmar_eliminar.html', {'articulo': articulo})
+
+    return render(request, 'ventas/articulo_confirmar_eliminar.html', {
+        'articulo': articulo,
+        'movimientos_reales': cuantos_reales,
+        'ajustes_iniciales': articulo.movimientos.count() - cuantos_reales,
+    })
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR)
@@ -290,7 +317,7 @@ def api_buscar_articulos(request):
             | Q(nombre_producto__icontains=consulta)
             | Q(numero_serie__icontains=consulta)
         )
-        .select_related('bodega')
+        .select_related('bodega', 'proveedor')
         .order_by('nombre_producto')[:10]
     )
 
@@ -301,6 +328,10 @@ def api_buscar_articulos(request):
             'nombre': articulo.nombre_producto,
             'detalle': ' '.join(p for p in (articulo.marca, articulo.modelo, articulo.capacidad) if p),
             'bodega': articulo.bodega.nombre,
+            # El proveedor viaja para poder enseñarlo al elegir el producto:
+            # en el ingreso ya no se escribe a mano, se hereda del catálogo, y
+            # sin verlo en pantalla parece que el sistema no lo está tomando.
+            'proveedor': articulo.proveedor.nombre if articulo.proveedor else '',
             'stock': articulo.stock_actual,
             'nivel': articulo.nivel_alerta,
         }
@@ -331,9 +362,16 @@ def _registrar_documento(request, tipo_documento):
     """Pantalla compartida de ingreso (FO-SE-013) y salida (FO-SE-012)."""
     es_ingreso = tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
     lineas = []
+    # El folio es automático; solo el administrador puede escribir otro para
+    # calzar con una boleta de papel ya numerada.
+    puede_cambiar_folio = request.user.es_administrador
+    folio_siguiente = MovimientoVenta.siguiente_folio(tipo_documento)
 
     if request.method == 'POST':
-        form = DocumentoMovimientoForm(request.POST, tipo_documento=tipo_documento)
+        form = DocumentoMovimientoForm(
+            request.POST, tipo_documento=tipo_documento,
+            puede_cambiar_folio=puede_cambiar_folio,
+        )
         lineas = leer_lineas(request.POST)
         formulario_valido = form.is_valid()
 
@@ -371,12 +409,16 @@ def _registrar_documento(request, tipo_documento):
                 )
                 return redirect('documento_detalle', folio=folio)
     else:
-        form = DocumentoMovimientoForm(tipo_documento=tipo_documento)
+        form = DocumentoMovimientoForm(
+            tipo_documento=tipo_documento, puede_cambiar_folio=puede_cambiar_folio,
+        )
 
     return render(request, 'ventas/movimiento_form.html', {
         'form': form,
         'lineas': lineas,
         'es_ingreso': es_ingreso,
+        'folio_siguiente': folio_siguiente,
+        'puede_cambiar_folio': puede_cambiar_folio,
         'tipo_documento': tipo_documento,
     })
 
@@ -515,6 +557,11 @@ def documento_pdf(request, folio):
     # "inline" abre el visor del navegador, que es desde donde se manda a
     # imprimir; el nombre solo se usa si deciden guardar el archivo.
     respuesta['Content-Disposition'] = f'inline; filename="{folio}.pdf"'
+    # La boleta se arma en el momento y puede cambiar (se corrigió un dato del
+    # artículo, cambió el formato). Sin esto el navegador guarda la primera
+    # que descargó y sigue mostrándola, que es difícil de diagnosticar porque
+    # el archivo del servidor sí cambió.
+    respuesta['Cache-Control'] = 'no-store, must-revalidate'
     return respuesta
 
 

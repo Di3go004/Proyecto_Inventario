@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Reportes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Reportes</h1>
+    <p class="page-sub">Todos se pueden descargar a Excel para trabajarlos aparte.</p>
+  </div>
+</div>
+
+<div class="reportes-grid">
+  <a href="{% url 'reporte_existencias' %}" class="reporte-tarjeta">
+    <h2>Existencias y valorización</h2>
+    <p>Cuánto hay y cuánto vale, por bodega. Incluye Bodega Técnica.</p>
+    <p class="reporte-dato">Q {{ valor_ventas|floatformat:2 }}</p>
+    <span class="reporte-pie">en Bodega 1 y 2</span>
+  </a>
+
+  <a href="{% url 'reporte_alertas' %}" class="reporte-tarjeta">
+    <h2>Alertas de stock</h2>
+    <p>Qué hay que reponer, lo más urgente primero.</p>
+    <p class="reporte-dato {% if cuantas_alertas %}es-alerta{% endif %}">{{ cuantas_alertas }}</p>
+    <span class="reporte-pie">artículo(s) bajo el umbral</span>
+  </a>
+
+  <a href="{% url 'reporte_movimientos' %}" class="reporte-tarjeta">
+    <h2>Movimientos por período</h2>
+    <p>Qué entró y qué salió entre dos fechas, con el total por tipo.</p>
+    <p class="reporte-dato">{{ movimientos_del_mes }}</p>
+    <span class="reporte-pie">este mes (desde el {{ inicio_de_mes|date:"d/m" }})</span>
+  </a>
+
+  <a href="{% url 'reporte_prestamos' %}" class="reporte-tarjeta">
+    <h2>Fuera de bodega</h2>
+    <p>Equipo en demo y herramienta prestada, y desde hace cuántos días.</p>
+    <p class="reporte-dato {% if cuantos_afuera %}es-alerta{% endif %}">{{ cuantos_afuera }}</p>
+    <span class="reporte-pie">pendiente(s) de regreso</span>
+  </a>
+</div>
+
+<p class="hint" style="margin-top:20px;">
+  El kardex de un artículo (su historial con el saldo después de cada
+  movimiento) se abre desde su ficha en el catálogo.
+</p>
+{% endblock %}

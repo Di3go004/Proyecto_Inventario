@@ -54,10 +54,17 @@
         <dt>Envío / recibo</dt>
         <dd>{{ cabecera.envio_recibo|default:"—" }}</dd>
       </div>
-    {% else %}
+    {% endif %}
+    {% comment %}
+      En el ingreso ya no se pide el proveedor acá: cada artículo trae el
+      suyo del catálogo y se muestra en su línea, abajo. Solo se enseña este
+      campo si el movimiento trae uno propio (documentos viejos, o una compra
+      puntual a otro proveedor).
+    {% endcomment %}
+    {% if cabecera.proveedor %}
       <div>
-        <dt>Proveedor</dt>
-        <dd>{{ cabecera.proveedor|default:"—" }}</dd>
+        <dt>Proveedor del documento</dt>
+        <dd>{{ cabecera.proveedor }}</dd>
       </div>
     {% endif %}
     <div>
@@ -82,7 +89,9 @@
   <thead>
     <tr>
       <th style="width:44px;">#</th><th>Producto</th>
-      <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
+      <th class="columna-secundaria">Bodega</th>
+      {% if cabecera.tipo_documento == 'ingreso' %}<th>Proveedor</th>{% endif %}
+      <th>Cantidad</th>
       <th>Precio unitario</th><th>Subtotal</th><th>Estado</th>
       {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
@@ -96,6 +105,23 @@
         <span class="code">{{ linea.articulo.codigo_interno }}</span>
       </td>
       <td data-etiqueta="Bodega" class="columna-secundaria">{{ linea.articulo.bodega.nombre }}</td>
+      {% if cabecera.tipo_documento == 'ingreso' %}
+        <td data-etiqueta="Proveedor" class="truncate">
+          {% firstof linea.proveedor linea.articulo.proveedor as proveedor_linea %}
+          {% if proveedor_linea %}{{ proveedor_linea }}
+          {% elif user.es_administrador %}
+            {% comment %}
+              Solo el administrador puede entrar a editar el artículo, así que
+              solo a él se le ofrece el enlace; a los demás el aviso les sirve
+              igual para saber que el dato falta en el catálogo, no acá.
+            {% endcomment %}
+            <a href="{% url 'articulo_editar' linea.articulo.pk %}" class="sin-dato"
+               title="Este artículo no tiene proveedor en el catálogo. Clic para agregarlo.">Sin proveedor</a>
+          {% else %}
+            <span class="sin-dato" title="Este artículo no tiene proveedor en el catálogo">Sin proveedor</span>
+          {% endif %}
+        </td>
+      {% endif %}
       <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
       <td data-etiqueta="Precio unitario" class="num">Q {{ linea.articulo.precio|floatformat:2 }}</td>
       <td data-etiqueta="Subtotal" class="num">Q {{ linea.subtotal|floatformat:2 }}</td>

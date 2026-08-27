@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Categorías{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Categorías del catálogo</h1>
+    <p class="page-sub">
+      Agrupan los productos dentro de cada bodega. El sistema trae unas
+      cuantas para arrancar; agrega, cambia o quita las que quieras.
+    </p>
+  </div>
+  <a href="{% url 'categoria_nueva' %}{% if modulo %}?modulo={{ modulo }}{% endif %}"
+     class="btn btn-primary">+ Nueva categoría</a>
+</div>
+
+<form method="get" class="buscador">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}"
+           placeholder="Buscar categoría…" aria-label="Buscar">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+
+  <details class="filtros" {% if filtros_activos %}open{% endif %}>
+    <summary>
+      Filtros
+      {% if filtros_activos %}<span class="chip chip-neutral">{{ filtros_activos }}</span>{% endif %}
+    </summary>
+    <div class="filtros-campos">
+      <label class="filtro">
+        <span>Bodega</span>
+        <select name="modulo">
+          <option value="">Todas</option>
+          {% for valor, etiqueta in modulos %}
+            <option value="{{ valor }}" {% if modulo == valor %}selected{% endif %}>
+              {% if valor == 'ventas' %}Bodega 1 y 2{% else %}Bodega Técnica{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="filtros-acciones">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      {% if q or filtros_activos %}
+        <a href="{% url 'lista_categorias' %}" class="btn">Limpiar todo</a>
+      {% endif %}
+    </div>
+  </details>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="categorías" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Categoría</th><th>Bodega</th>
+      <th>Productos que la usan</th>
+      <th><span class="visualmente-oculto">Acciones</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in categorias %}
+    <tr>
+      <td data-etiqueta="Categoría" class="celda-principal truncate">{{ c.nombre }}</td>
+      <td data-etiqueta="Bodega">
+        {% if c.modulo == 'ventas' %}
+          <span class="chip chip-neutral">Bodega 1 y 2</span>
+        {% else %}
+          <span class="chip chip-neutral">Bodega Técnica</span>
+        {% endif %}
+      </td>
+      <td data-etiqueta="Productos que la usan" class="num">
+        {{ c.articulos|add:c.activos }}
+      </td>
+      <td class="celda-acciones">
+        <span class="actions">
+          <a href="{% url 'categoria_editar' c.pk %}" class="btn btn-sm">Editar</a>
+          <a href="{% url 'categoria_eliminar' c.pk %}" class="btn btn-sm btn-danger">Quitar</a>
+        </span>
+      </td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="4">
+      {% if q or filtros_activos %}
+        No hay categorías que coincidan.
+        <a href="{% url 'lista_categorias' %}">Limpiar filtros</a>
+      {% else %}
+        Todavía no hay categorías.
+        <a href="{% url 'categoria_nueva' %}">Crear la primera</a>
+      {% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="categorías" %}
+
+{% if sin_clasificar_ventas or sin_clasificar_tecnica %}
+<div class="card" style="margin-top:20px;">
+  <h2 class="card-titulo">Productos sin categoría</h2>
+  <p class="hint">
+    La categoría es opcional, pero sin ella el producto no sale al filtrar por
+    categoría en el catálogo ni en los reportes.
+  </p>
+  <dl class="detail-grid">
+    {% if sin_clasificar_ventas %}
+      <div>
+        <dt>Bodega 1 y 2</dt>
+        <dd><a href="{% url 'catalogo_articulos' %}">{{ sin_clasificar_ventas }} sin categoría</a></dd>
+      </div>
+    {% endif %}
+    {% if sin_clasificar_tecnica %}
+      <div>
+        <dt>Bodega Técnica</dt>
+        <dd><a href="{% url 'catalogo_activos' %}">{{ sin_clasificar_tecnica }} sin categoría</a></dd>
+      </div>
+    {% endif %}
+  </dl>
+</div>
+{% endif %}
+{% endblock %}

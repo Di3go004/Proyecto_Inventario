@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load navegacion %}
+{% block title %}Existencias y valorización{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Reportes</p>
+    <h1 class="page-title">Existencias y valorización</h1>
+    <p class="page-sub">Cuánto hay en cada bodega y cuánto vale.</p>
+  </div>
+  <div class="page-acciones">
+    <a href="{% url 'indice_reportes' %}" class="btn">← Reportes</a>
+    <a href="?{% url_con formato='excel' pagina='' %}" class="btn btn-primary">Descargar Excel</a>
+  </div>
+</div>
+
+<form method="get" class="buscador">
+  <div class="filtros-campos" style="padding:0 0 14px;">
+    <label class="filtro">
+      <span>Bodega</span>
+      <select name="bodega">
+        <option value="">Todas</option>
+        {% for b in bodegas %}
+          <option value="{{ b.id }}" {% if bodega_id == b.id|stringformat:"s" %}selected{% endif %}>{{ b.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filtro">
+      <span>Artículos</span>
+      <select name="activos">
+        <option value="si" {% if solo_activos %}selected{% endif %}>Solo activos</option>
+        <option value="no" {% if not solo_activos %}selected{% endif %}>Activos e inactivos</option>
+      </select>
+    </label>
+    <label class="filtro" style="justify-content:flex-end;">
+      <span>&nbsp;</span>
+      <button type="submit" class="btn btn-primary">Aplicar</button>
+    </label>
+  </div>
+</form>
+
+<div class="table-wrap" style="margin-bottom:20px;">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Bodega</th><th>Artículos</th><th>Unidades</th><th>Valorización</th>
+      <th>Crítico</th><th>Alerta</th><th>Normal</th><th>Óptimo</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in filas %}
+    <tr>
+      <td data-etiqueta="Bodega" class="celda-principal">{{ f.bodega }}</td>
+      <td data-etiqueta="Artículos" class="num">{{ f.articulos }}</td>
+      <td data-etiqueta="Unidades" class="num">{{ f.unidades }}</td>
+      <td data-etiqueta="Valorización" class="num">Q {{ f.valor|floatformat:2 }}</td>
+      <td data-etiqueta="Crítico" class="num">{{ f.niveles.critico }}</td>
+      <td data-etiqueta="Alerta" class="num">{{ f.niveles.alerta }}</td>
+      <td data-etiqueta="Normal" class="num">{{ f.niveles.normal }}</td>
+      <td data-etiqueta="Óptimo" class="num">{{ f.niveles.optimo }}</td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="8">No hay artículos que coincidan.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="totales-documento">
+  <span>Total Bodega 1 y 2</span>
+  <span class="num">{{ totales.articulos }} artículo(s) · {{ totales.unidades }} unidad(es)</span>
+  <span class="num totales-monto">Q {{ totales.valor|floatformat:2 }}</span>
+</div>
+
+<div class="card" style="margin:20px 0;">
+  <h2 class="card-titulo">Bodega Técnica</h2>
+  <p class="hint" style="margin:-8px 0 14px;">
+    Se valoriza distinto: cada herramienta es una unidad física, así que el
+    valor es la suma de precios. Las dadas de baja no cuentan.
+  </p>
+  <div class="kpi-row">
+    <div class="kpi-tile">
+      <div class="kpi-label">Valorización</div>
+      <div class="kpi-value">Q {{ tecnica.valor|floatformat:2 }}</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">En buen estado</div>
+      <div class="kpi-value">{{ tecnica.buen_estado }}</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">En mal estado</div>
+      <div class="kpi-value">{{ tecnica.mal_estado }}</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Dadas de baja</div>
+      <div class="kpi-value">{{ tecnica.de_baja }}</div>
+    </div>
+  </div>
+</div>
+
+<h2 class="card-titulo" style="margin-top:24px;">Detalle por artículo</h2>
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="artículos" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Código</th><th>Producto</th><th class="columna-secundaria">Bodega</th>
+      <th>Existencia</th><th>Precio</th><th>Valor total</th><th>Nivel</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in pagina %}
+    <tr data-href="{% url 'articulo_detalle' a.pk %}">
+      <td data-etiqueta="Código" class="code truncate">{{ a.codigo_interno }}</td>
+      <td data-etiqueta="Producto" class="truncate celda-principal">{{ a.nombre_producto }}</td>
+      <td data-etiqueta="Bodega" class="columna-secundaria">{{ a.bodega.nombre }}</td>
+      <td data-etiqueta="Existencia" class="num">{{ a.stock_actual }}</td>
+      <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Valor total" class="num">Q {{ a.valor_en_bodega|floatformat:2 }}</td>
+      <td data-etiqueta="Nivel">
+        {% if a.nivel_alerta == 'critico' %}<span class="chip chip-critical">Crítico</span>
+        {% elif a.nivel_alerta == 'alerta' %}<span class="chip chip-warn">Alerta</span>
+        {% elif a.nivel_alerta == 'optimo' %}<span class="chip chip-good">Óptimo</span>
+        {% else %}<span class="chip chip-neutral">Normal</span>{% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="7">Sin artículos.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="artículos" %}
+{% endblock %}

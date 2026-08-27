@@ -68,11 +68,10 @@
 </div>
 
 {% comment %}
-  Se comprueba is_staff y no el rol: es exactamente lo que Django exige para
-  dejar entrar a /admin/. Mostrárselo a un operador lo mandaba a una pantalla
-  de login que nunca iba a poder pasar.
+  Ya no se enlaza el panel /admin/ de Django: todo lo que hacía falta de ahí
+  (usuarios y roles) tiene su propia pantalla en Administración → Usuarios.
+  El panel sigue existiendo en /admin/ como puerta trasera para el
+  administrador, pero no se ofrece porque muestra tablas en crudo sin las
+  validaciones del sistema.
 {% endcomment %}
-{% if user.is_staff %}
-  <p style="margin-top:24px;"><a href="{% url 'admin:index' %}">Ir al panel de administración →</a></p>
-{% endif %}
 {% endblock %}

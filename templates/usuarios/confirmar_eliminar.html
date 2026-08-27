@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Quitar a {{ usuario_editado.username }}{% endblock %}
+{% block content %}
+{% with registros=usuario_editado.movimientos|add:usuario_editado.prestamos %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Usuarios · {{ usuario_editado.get_rol_display }}</p>
+    <h1 class="page-title">Quitar a {{ usuario_editado.username }}</h1>
+    <p class="page-sub">{{ usuario_editado.get_full_name|default:"Sin nombre registrado" }}</p>
+  </div>
+</div>
+
+<div class="card">
+  {% if registros %}
+    <p class="aviso-prestado">
+      Esta persona tiene <strong>{{ registros }} registro(s)</strong> a su nombre
+      (movimientos de bodega y préstamos de herramienta).
+    </p>
+    <p>
+      Su usuario <strong>no se puede eliminar</strong>: el historial quedaría sin
+      saber quién hizo cada cosa, que es justo lo que este sistema vino a
+      resolver. Lo correcto es <strong>desactivarlo</strong>: deja de poder entrar,
+      pero todo lo que registró se conserva.
+    </p>
+    <form method="post" class="form-actions">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="desactivar">
+      <button type="submit" class="btn btn-danger">Desactivar el acceso</button>
+      <a href="{% url 'lista_usuarios' %}" class="btn">Cancelar</a>
+    </form>
+  {% else %}
+    <p>
+      Esta persona todavía no ha registrado nada en el sistema, así que su
+      usuario se puede eliminar sin dejar huecos en el historial.
+    </p>
+    <p class="hint">
+      Si más adelante va a volver, es preferible desactivarla en vez de
+      borrarla: así conserva su usuario y su historial futuro.
+    </p>
+    <form method="post" class="form-actions">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">Eliminar definitivamente</button>
+      <button type="submit" name="accion" value="desactivar" class="btn">Solo desactivar</button>
+      <a href="{% url 'lista_usuarios' %}" class="btn">Cancelar</a>
+    </form>
+  {% endif %}
+</div>
+{% endwith %}
+{% endblock %}

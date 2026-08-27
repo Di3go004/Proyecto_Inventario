@@ -1,0 +1,20 @@
+# Arranque de producción (la PC servidor de la oficina).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Cambia solo el arranque del servicio web; todo lo demás lo hereda de
+# docker-compose.yml. Requiere DJANGO_DEBUG=False en el .env.
+#
+# Diferencias con el arranque de desarrollo:
+#   - Waitress en lugar de runserver. El servidor de desarrollo de Django no
+#     está pensado para uso real: es de un solo hilo y no aguanta a varias
+#     personas registrando movimientos a la vez. Waitress es el servidor WSGI
+#     que mejor funciona en Windows.
+#   - Corre migrate y collectstatic antes de levantar, para que actualizar el
+#     sistema sea solo volver a ejecutar esta línea.
+services:
+  web:
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             waitress-serve --host=0.0.0.0 --port=8000 --threads=8 config.wsgi:application"

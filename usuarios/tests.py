@@ -159,12 +159,19 @@ class AdministradorTests(BasePermisos):
         self.assertFalse(Articulo.objects.filter(pk=articulo.pk).exists())
 
     def test_no_puede_eliminar_un_articulo_con_historial(self):
-        """El historial de movimientos se protege: se descontinúa, no se borra."""
+        """
+        El historial de movimientos se protege: se descontinúa, no se borra.
+
+        Ojo con el tipo de movimiento: el "ajuste / saldo inicial" que crea la
+        carga masiva sí permite borrar (no es historial, es el conteo de
+        arranque). Lo que bloquea es un movimiento real, como este ingreso.
+        Ver ventas/test_eliminar.py para esa distinción en detalle.
+        """
         from ventas.models import MovimientoVenta
 
         MovimientoVenta.objects.create(
             articulo=self.articulo, tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
-            tipo_transaccion=MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL,
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.REPUESTOS,
             cantidad=5, usuario=self.admin,
         )
         respuesta = self.client.post(reverse('articulo_eliminar', args=[self.articulo.pk]), follow=True)
@@ -173,24 +180,55 @@ class AdministradorTests(BasePermisos):
         self.assertContains(respuesta, 'No se puede eliminar')
 
 
-class EnlaceAlPanelDeAdminTests(BasePermisos):
+class CambiarClaveTests(BasePermisos):
     """
-    El panel /admin/ de Django exige is_staff, que no es lo mismo que el rol
-    de la aplicación. Si el enlace se muestra a quien no puede entrar, lo
-    único que consigue es mandarlo a un login que nunca va a poder pasar.
+    El comando `cambiar_clave` es la única forma de rotar una contraseña sin
+    entrar al panel /admin/, al que solo llega el administrador.
     """
 
-    ENLACE = 'panel de administración'
+    def ejecutar(self, *args, **opciones):
+        from io import StringIO
+        from django.core.management import call_command
+        salida = StringIO()
+        call_command('cambiar_clave', *args, stdout=salida, **opciones)
+        return salida.getvalue()
 
-    def test_no_se_le_ofrece_a_quien_no_puede_entrar(self):
-        for usuario in (self.operador, self.contabilidad):
-            with self.subTest(rol=usuario.rol):
-                self.assertFalse(usuario.is_staff)
-                self.client.force_login(usuario)
-                self.assertNotContains(self.client.get(reverse('resumen')), self.ENLACE)
+    def test_la_clave_generada_sirve_para_entrar(self):
+        salida = self.ejecutar(self.operador.username, generar=True)
 
-    def test_se_le_ofrece_a_quien_si_puede(self):
-        self.admin.is_staff = True
-        self.admin.save(update_fields=['is_staff'])
-        self.client.force_login(self.admin)
-        self.assertContains(self.client.get(reverse('resumen')), self.ENLACE)
+        # El comando la imprime una sola vez; es la única copia que queda.
+        generada = next(l.strip() for l in salida.splitlines() if l.startswith('    '))
+        self.operador.refresh_from_db()
+        self.assertTrue(self.operador.check_password(generada))
+        self.assertGreaterEqual(len(generada), 16)
+
+    def test_la_clave_anterior_deja_de_servir(self):
+        self.operador.set_password('la-vieja-de-antes')
+        self.operador.save()
+
+        self.ejecutar(self.operador.username, generar=True)
+
+        self.operador.refresh_from_db()
+        self.assertFalse(self.operador.check_password('la-vieja-de-antes'))
+
+    def test_rechaza_una_clave_debil(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError) as caso:
+            self.ejecutar(self.operador.username, password='12345')
+
+        self.assertIn('Contraseña rechazada', str(caso.exception))
+
+    def test_avisa_si_el_usuario_no_existe(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError) as caso:
+            self.ejecutar('nadie', generar=True)
+
+        self.assertIn('No existe', str(caso.exception))
+
+    def test_no_acepta_generar_y_password_a_la_vez(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            self.ejecutar(self.operador.username, password='UnaClaveLarga123', generar=True)

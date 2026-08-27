@@ -1,5 +1,9 @@
 # Sistema de Control de Bodega — Plan
 
+> 📌 **Para poner el sistema en marcha con los datos reales**, seguí
+> [PUESTA_EN_MARCHA.md](PUESTA_EN_MARCHA.md) — es el paso a paso, con dónde
+> se corre cada comando. Este documento es el porqué de cada decisión.
+
 ## Diseño visual (referencia)
 
 - **[DESIGN.md](DESIGN.md)** — sistema de tokens ("Precision Logic": color, tipografía Inter, radios, espaciado) generado con Stitch a partir de la paleta real de la empresa.
@@ -286,21 +290,59 @@ Docker ni al equipo de la oficina, que muchas veces trabaja sin internet.
 
 Decisiones que conviene tener presentes:
 
-- **Tamaño carta.** Los talonarios son un poco más alargados; se prioriza que
-  se imprima 1:1 en cualquier impresora sin escalar. La estructura, el folio
-  y los espacios de firma se conservan.
-- **7 líneas por hoja** en las boletas de venta. Con más, una hoja llena de
-  descripciones largas empujaba el bloque de firmas a una segunda página casi
-  vacía. Un documento con más líneas se reparte en varias hojas, cada una con
-  su encabezado y su "Página X de Y".
-- **Las descripciones muy largas se recortan** (95 caracteres) por la misma
-  razón. El nombre completo siempre queda en el sistema.
+- **Cada formato sale en el tamaño real de su talonario**, y no es un detalle
+  estético: las boletas se imprimen, se firman y se archivan junto a las de
+  papel de los años anteriores. Si no calzan, no entran en el mismo folder.
+  - FO-SE-013 / FO-SE-012 → **media carta apaisada** (216 × 140 mm), que es
+    la hoja carta partida a la mitad. Ojo: el `HALF_LETTER` de ReportLab mide
+    140 × 203 mm (5.5 × 8") y **no** es media carta.
+  - FO-SE-066 → carta vertical.
+- **6 líneas por hoja** en las boletas de venta. En 140 mm de alto no entran
+  más sin empujar el bloque de firmas a una segunda página, y la hoja que se
+  firma tiene que ser una. Un documento con más líneas se reparte en varias,
+  cada una con su encabezado y su "Página X de Y".
+- **Las descripciones largas se recortan a un renglón**, midiendo el ancho
+  real del texto con las métricas de la fuente en vez de contar caracteres
+  (una "W" y una "l" no ocupan lo mismo, y el cálculo fallaba justo con los
+  nombres largos). El nombre completo siempre queda en el sistema.
 - **El estado de regreso de una herramienta se anota** bajo su nombre en la
   hoja técnica, solo si volvió distinta de como salió. El papel no tiene esa
   columna, pero perder ese dato justo al imprimir el registro dejaría fuera
   lo que hoy más cuesta rastrear.
 - **Imprimir lo pueden hacer los 3 roles**, contabilidad incluida: imprimir es
   consultar, no modificar (RF-04).
+
+## Reportes (Fase 5)
+
+Cuatro reportes, todos descargables a Excel, y los ven los tres roles — para
+contabilidad son la razón de ser de su acceso: consultan e imprimen, no
+modifican (RF-04).
+
+| Reporte | Responde a |
+|---|---|
+| **Existencias y valorización** | Cuánto hay y cuánto vale, por bodega |
+| **Alertas de stock** | Qué reponer, lo que está en cero primero |
+| **Movimientos por período** | Qué entró y qué salió entre dos fechas |
+| **Fuera de bodega** | Qué está prestado, con quién y desde hace cuántos días |
+
+El kardex por artículo (RF-14) ya existía desde la Fase 3; se abre desde la
+ficha del producto.
+
+Decisiones que conviene tener presentes:
+
+- **La pantalla y el Excel comparten `core/reportes.py`.** Es el error
+  clásico de los reportes: cada camino arma su propia consulta y con el
+  tiempo dejan de cuadrar. Con una sola función no pueden separarse, y hay
+  una prueba que compara ambos resultados.
+- **Bodega Técnica se valoriza distinto**: cada herramienta es una unidad
+  física, así que el valor es la suma de precios, no precio × existencia.
+  Las dadas de baja no cuentan — ya no son patrimonio utilizable (RF-12).
+- **El Excel sale listo para trabajar**: encabezado fijo al hacer scroll,
+  filtros puestos, anchos ajustados, y los montos y fechas como número y
+  fecha de verdad (no como texto). Un reporte que hay que reformatear a mano
+  cada vez termina no usándose.
+- **Los filtros de la pantalla se aplican a la descarga.** Si estás viendo
+  solo Bodega 2, eso es lo que baja.
 
 ## Requerimientos
 
@@ -325,7 +367,7 @@ flujo/contexto del proyecto:
    formato de FO-SE-013/FO-SE-012/FO-SE-066 (folio, líneas, espacios de
    firma) para imprimir y firmar a mano, conservando también el registro
    digital.
-5. ⬜ **Reportes**: stock actual y valorización por bodega, alertas de stock
+5. ✅ **Reportes**: stock actual y valorización por bodega, alertas de stock
    por los 3 umbrales (óptimo/alerta/crítico) en Bodega 1, activos/equipos
    actualmente prestados y por quién, kardex por artículo/activo, exportar
    a Excel/PDF. Vista de solo lectura para el rol Contabilidad.
@@ -335,45 +377,150 @@ flujo/contexto del proyecto:
 
 ## Operación y mantenimiento
 
-Comandos del día a día (desde la carpeta del proyecto):
+### Levantar el sistema
 
 ```bash
-docker compose up -d                              # levantar el sistema
-docker compose exec web python manage.py test     # correr todas las pruebas
+# Desarrollo (la máquina donde se programa): recarga sola al guardar
+docker compose up -d
+
+# Producción (la PC servidor de la oficina): Waitress, con migrate y
+# collectstatic incluidos. Requiere DJANGO_DEBUG=False en el .env.
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Actualizar el sistema en el servidor es volver a ejecutar esa misma línea de
+producción: aplica migraciones, recopila los estáticos y reinicia.
+
+Antes de dejarlo corriendo por primera vez conviene revisar la configuración
+con `manage.py check --deploy`. Debe salir limpio: los 4 avisos que piden
+HTTPS están silenciados a propósito y explicados en `config/settings.py`.
+
+### Acceso desde el resto de la red (RF-15)
+
+Las demás computadoras y las tablets entran por navegador a la IP de la PC
+servidor: `http://<IP-del-servidor>:8000`. Para que funcione hacen falta
+tres cosas, y las tres ya están puestas:
+
+1. **Regla de firewall** que abra el puerto 8000 de entrada.
+2. **Perfil de red "Privada"** en Windows. Con perfil "Pública" el firewall
+   bloquea la conexión aunque la regla exista.
+3. **La IP en `DJANGO_ALLOWED_HOSTS`** del `.env`. Con `DEBUG=False` Django
+   rechaza cualquier host que no esté en esa lista, con un error 400.
+
+⚠️ **La IP tiene que ser fija.** Hoy la asigna el router por DHCP y ya cambió
+una vez (de `192.168.1.17` a `192.168.1.6`). Cuando cambia, se rompen dos
+cosas a la vez: el enlace que tiene guardado la gente deja de responder, y
+Django empieza a rechazar el host. Hay que resolverlo de una de estas dos
+formas, **antes de repartir el enlace al personal**:
+
+- **Reserva DHCP en el router** (lo más recomendable): se le dice al router
+  que a esa PC siempre le dé la misma IP. No hay que tocar nada en Windows.
+- **IP estática en Windows**: configurarla a mano en el adaptador de red.
+  Funciona, pero hay que elegir una IP fuera del rango que reparte el router
+  o dos equipos pueden terminar con la misma.
+
+Después de fijarla, actualizar `DJANGO_ALLOWED_HOSTS` en el `.env` y
+reiniciar con `docker compose restart web`.
+
+### Qué se puede borrar del catálogo y qué no
+
+- **Sin movimientos** → se borra.
+- **Solo con el "saldo inicial"** que crea la carga masiva → se borra, y ese
+  ajuste se va con él. No es historial: es el conteo con el que arrancó. Sin
+  esta distinción, importar el Excel dejaba los 216 artículos imposibles de
+  borrar para siempre, incluso los importados por error.
+- **Con movimientos registrados por alguien** → no se borra, y desactivarlo
+  *tampoco* lo habilita. Para sacarlo de circulación se desmarca como activo
+  (o, en Bodega Técnica, se pasa a "De baja"): deja de aparecer en el
+  buscador y en las listas de captura, pero su kardex se conserva.
+
+Para **empezar de cero** (una carga masiva que salió mal, el Excel con las
+columnas cambiadas), borrar 200 artículos uno por uno no es viable:
+
+```bash
+docker compose exec web python manage.py limpiar_catalogo --que ventas
+# muestra qué se borraría y NO toca nada; agregar --si-estoy-seguro para hacerlo
+```
+
+No está en la interfaz a propósito: es irreversible, y un botón de "borrar
+todo" a un clic en la pantalla de catálogo es un accidente esperando a pasar.
+
+### Comandos del día a día
+
+```bash
+docker compose exec web python manage.py test
+docker compose exec web python manage.py recalcular_stock --solo-revisar
+docker compose exec web python manage.py crear_usuario <usuario> <rol>
+docker compose exec web python manage.py cambiar_clave <usuario> --generar
 ```
 
 ```powershell
-.\scriptsespaldo.ps1                             # respaldar la base de datos
-.\scriptsestaurar.ps1                            # ver respaldos disponibles
+.\scripts\respaldo.ps1     # respaldar la base de datos
+.\scripts\restaurar.ps1    # ver los respaldos disponibles
 ```
 
 - **Respaldos (RNF-08)**: ver [scripts/PROGRAMAR_RESPALDO.md](scripts/PROGRAMAR_RESPALDO.md)
   para dejarlo automático en el servidor. Se conservan 30 días.
-- **Crear usuarios**: `python manage.py crear_usuario <usuario> <rol>`
-  (roles: administrador / operador / contabilidad). Solo el administrador
-  recibe acceso al panel `/admin/` de Django.
-- **Auditar el stock**: `python manage.py recalcular_stock --solo-revisar`
-  compara el stock guardado contra el historial de movimientos y avisa si
-  algo no cuadra; sin `--solo-revisar` lo corrige.
+- **Usuarios**: lo normal es hacerlo desde la pantalla **Administración →
+  Usuarios** del propio sistema (ver abajo). Los comandos quedan como salida
+  de emergencia, para cuando nadie pueda entrar.
+- **Cambiar contraseñas**: `cambiar_clave` con `--generar` produce una fuerte
+  y la muestra una sola vez.
+
+### Pantalla de usuarios
+
+Crear, editar, desactivar y restablecer contraseñas se hace desde el sistema,
+no desde el panel `/admin/` de Django. El panel muestra grupos, permisos,
+`is_staff` y `is_superuser` — cosas que este sistema no usa (el rol lo decide
+todo) y que un administrador no técnico podría cambiar sin querer y dejarse
+fuera. Solo la ve el rol administrador.
+
+Dos detalles que salieron de un bloqueo real, no de la teoría:
+
+- **El nombre de usuario se guarda siempre en minúsculas**, y al entrar da
+  igual cómo se escriba. En tablets el teclado capitaliza la primera letra
+  solo: así se creó un "Karla" que después nadie lograba escribir igual para
+  iniciar sesión.
+- **Si se escribe una contraseña, esa es la que vale**, aunque la casilla de
+  "Generar" haya quedado marcada. Antes ganaba la generada en silencio, con
+  lo que alguien ponía la suya, se guardaba otra al azar, y se quedaba fuera
+  sin entender por qué.
+
+Tres reglas que la pantalla hace cumplir sola:
+
+- **El rol manda sobre el panel de Django**: solo el administrador recibe
+  `is_staff`. Así los dos no se pueden contradecir según por dónde se edite.
+- **Nadie se puede dejar fuera a sí mismo**: no se puede quitar el propio rol
+  de administrador, ni desactivarse, ni borrarse. Y no deja que el sistema se
+  quede sin ningún administrador activo.
+- **A quien ya registró movimientos no se le borra, se le desactiva**: pierde
+  el acceso pero su historial conserva el autor. Borrarlo dejaría los
+  registros sin saber quién los hizo, que es justo lo que este sistema vino a
+  resolver. La pantalla lo explica y ofrece desactivar en su lugar.
+- **Auditar el stock**: `recalcular_stock --solo-revisar` compara el stock
+  guardado contra el historial de movimientos y avisa si algo no cuadra; sin
+  `--solo-revisar` lo corrige.
 
 ### Pruebas automatizadas
 
-36 pruebas cubren lo que no se puede romper en silencio: cálculo de stock
-(alta, edición y borrado de movimientos), préstamos y devoluciones, umbrales
-de alerta, generación del código interno, y los permisos de los tres roles.
-Correrlas antes de cada commit evita reintroducir errores ya corregidos.
+219 pruebas cubren lo que no se puede romper en silencio: cálculo de stock
+(alta, edición y borrado de movimientos), atomicidad de un documento
+completo, préstamos y devoluciones en ambos módulos, umbrales de alerta,
+generación del código interno, carga masiva desde Excel, paginación con
+filtros, las boletas en PDF, el formato de números de Guatemala, la gestión
+de usuarios (incluidas las protecciones contra dejarse fuera), qué se puede
+borrar del catálogo y qué no, los reportes y su exportación a Excel, y los
+permisos de los tres roles. Correrlas antes de cada commit evita
+reintroducir errores ya corregidos.
 
 ## Pendiente conocido (deuda técnica)
 
 Registrado a conciencia, no olvidado:
 
-- **Servidor de desarrollo**: corre con `runserver` y `DEBUG=True`. Sirve para
-  la red interna, pero antes de dejarlo definitivo hay que pasar a un
-  servidor de producción (gunicorn/waitress) y `DEBUG=False`.
-- **Puerto 5432 expuesto** en `docker-compose.yml`: la base es alcanzable
-  desde otros equipos de la red sin necesidad. Se puede cerrar.
-- **Contraseñas débiles** en los usuarios de prueba (`operador_test`,
-  `contabilidad`). Hay que cambiarlas antes de usar el sistema de verdad.
+- **Respaldo automático sin programar**: los scripts funcionan y están
+  probados con una restauración real, pero hoy hay que ejecutarlos a mano.
+  Falta dejarlos en el Programador de tareas de Windows del servidor — el
+  paso a paso está en [scripts/PROGRAMAR_RESPALDO.md](scripts/PROGRAMAR_RESPALDO.md).
 - **Correlativo de folio bajo concurrencia**: se calcula dentro de la
   transacción, pero no hay una secuencia en la base. Con 4–10 personas es
   muy improbable que choquen; si alguna vez pasa, la solución es una
@@ -382,17 +529,23 @@ Registrado a conciencia, no olvidado:
   regresan 2, hoy no se puede cerrar a medias — la fila se cierra completa.
   No apareció como caso real todavía; si aparece, hay que separar la
   devolución en su propia tabla.
-- **Formato de números**: en las pantallas los precios se muestran como
-  `Q 1.500,00` (coma decimal) porque el idioma está en `es` genérico, cuando
-  Guatemala usa el punto decimal. En los PDF sí sale correcto (`Q 1,500.00`)
-  porque ahí el formato se arma a mano. Se corrige con un formato regional
-  propio; afecta a todas las pantallas por igual, no solo a las nuevas.
 - **La hoja de préstamos se limita a 300 registros** por impresión. Si el
   filtro trae más, se pide acotarlo en vez de generar un PDF de decenas de
   páginas por accidente.
+- **Las fotos subidas las sirve Django**, no un servidor de archivos. La
+  documentación lo desaconseja para sitios de tráfico alto; para 4–10
+  personas en red local es la opción sensata y evita montar un nginx aparte.
 
-Ya resueltos (quedan aquí para dejar rastro): paginación de catálogos y
-autocompletado en vivo (RF-13), ambos en funcionamiento.
+Ya resueltos (quedan aquí para dejar rastro):
+
+- Paginación de catálogos y autocompletado en vivo (RF-13).
+- **Servidor de producción**: Waitress + WhiteNoise vía
+  `docker-compose.prod.yml`, con `DEBUG=False` y `check --deploy` limpio.
+- **Puerto 5432**: atado a `127.0.0.1`, ya no es alcanzable desde la red.
+- **Contraseñas débiles**: rotadas, y con `cambiar_clave` para hacerlo de
+  nuevo cuando haga falta.
+- **Formato de números**: `config/formats/es/formats.py` deja los precios
+  como `Q 1,500.00` y las fechas en día/mes/año.
 
 ## Verificación
 

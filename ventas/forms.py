@@ -1,6 +1,7 @@
 from django import forms
 from django.utils import timezone
 
+from core.forms import solo_el_nombre
 from core.models import Proveedor
 
 from .models import Articulo, MovimientoVenta
@@ -24,6 +25,10 @@ class ArticuloForm(forms.ModelForm):
                 'placeholder': 'Vacío = se genera solo (SE-MODELO-CAPACIDAD)',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        solo_el_nombre(self.fields['categoria'])
 
     def clean(self):
         datos = super().clean()
@@ -75,22 +80,18 @@ class DocumentoMovimientoForm(forms.Form):
     ]
 
     # Campos que solo existen en uno de los dos documentos.
-    SOLO_INGRESO = ('proveedor',)
     SOLO_SALIDA = ('entregado_por', 'cliente_nombre', 'envio_recibo')
 
     folio = forms.CharField(
-        max_length=30, required=False, label='Folio',
-        widget=forms.TextInput(attrs={'placeholder': 'Vacío = correlativo automático'}),
+        max_length=30, required=False, label='Usar otro folio',
+        widget=forms.TextInput(attrs={'placeholder': 'Ej. el número impreso en el talonario'}),
+        help_text='Solo si hay que calzar con una boleta de papel ya numerada.',
     )
     fecha = forms.DateTimeField(label='Fecha del movimiento', widget=EntradaFechaHora())
     tipo_transaccion = forms.ChoiceField(choices=TIPOS_VISIBLES, label='Tipo de movimiento')
     solicitado_por = forms.CharField(max_length=150, label='Solicitado por')
     entregado_por = forms.CharField(max_length=150, required=False, label='Entregado por')
     cliente_nombre = forms.CharField(max_length=150, required=False, label='Cliente')
-    proveedor = forms.ModelChoiceField(
-        queryset=Proveedor.objects.order_by('nombre'), required=False,
-        label='Proveedor', empty_label='— Sin proveedor —',
-    )
     no_factura = forms.CharField(max_length=50, required=False, label='No. de factura')
     no_boleta = forms.CharField(max_length=50, required=False, label='No. de boleta')
     envio_recibo = forms.CharField(max_length=100, required=False, label='Envío / recibo')
@@ -98,13 +99,23 @@ class DocumentoMovimientoForm(forms.Form):
         required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
     )
 
-    def __init__(self, *args, tipo_documento, **kwargs):
+    def __init__(self, *args, tipo_documento, puede_cambiar_folio=False, **kwargs):
+        """
+        `puede_cambiar_folio`: el folio es automático y correlativo. Solo el
+        administrador puede escribir otro, y para eso el campo queda escondido
+        en un desplegable — tenerlo a la vista y editable hacía dudar de si
+        había que llenarlo.
+        """
         super().__init__(*args, **kwargs)
         self.tipo_documento = tipo_documento
         es_ingreso = tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
 
-        for nombre in (self.SOLO_SALIDA if es_ingreso else self.SOLO_INGRESO):
-            del self.fields[nombre]
+        if es_ingreso:
+            for nombre in self.SOLO_SALIDA:
+                del self.fields[nombre]
+
+        if not puede_cambiar_folio:
+            del self.fields['folio']
 
         if es_ingreso:
             self.fields['no_boleta'].label = 'Boleta de ingreso a bodega'

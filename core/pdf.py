@@ -67,7 +67,7 @@ PIE = _estilo('pie', 6.5)
 TITULO_EMPRESA_CHICO = _estilo('empresa_chico', 9, negrita=True, alineacion=1)
 TITULO_FORMATO_CHICO = _estilo('formato_chico', 8.5, negrita=True, alineacion=1, interlineado=10)
 META_CHICA = _estilo('meta_chica', 6)
-FOLIO_CHICO = _estilo('folio_chico', 11, negrita=True)
+FOLIO_CHICO = _estilo('folio_chico', 9, negrita=True)
 ETIQUETA_CHICA = _estilo('etiqueta_chica', 6.5, negrita=True)
 DATO_CHICO = _estilo('dato_chico', 7)
 ENCABEZADO_TABLA_CHICO = _estilo('encabezado_chico', 6, negrita=True, alineacion=1, interlineado=7)
@@ -147,9 +147,15 @@ def tabla_de_detalle(encabezados, filas, anchos, filas_minimas, alto_fila=ALTO_F
     datos.extend(filas)
 
     # El espacio duro (&nbsp;) le da a la fila vacía la misma altura que a una
-    # con texto, sin imprimir nada.
+    # con texto, sin imprimir nada. Va en TODAS las columnas, no solo en la
+    # primera: una celda con la cadena vacía no es un Paragraph, así que
+    # ReportLab la mide con su tipografía por omisión —12 pt de interlineado
+    # contra los 9 de la boleta— y la fila vacía salía un 12 % más alta que
+    # las llenas. Se veía en la boleta impresa y, peor, hacía que una boleta
+    # con pocas líneas se pasara a una segunda hoja mientras una llena cabía.
     vacias = max(0, filas_minimas - len(filas))
-    datos.extend([[Paragraph('&nbsp;', estilo_celda)] + [''] * (len(encabezados) - 1) for _ in range(vacias)])
+    fila_vacia = [Paragraph('&nbsp;', estilo_celda) for _ in encabezados]
+    datos.extend([list(fila_vacia) for _ in range(vacias)])
 
     tabla = Table(datos, colWidths=anchos, repeatRows=1)
     relleno_encabezado = 2 if compacto else 5

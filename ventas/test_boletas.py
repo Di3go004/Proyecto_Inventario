@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from core.models import Bodega, Proveedor
 from usuarios.models import Usuario
+from core import pdf
 from ventas import boletas, documentos
 from ventas.models import Articulo, MovimientoVenta
 
@@ -189,6 +190,73 @@ class TamanoDeLaHojaTests(BaseBoletas):
         contenido = boletas.boleta_documento('SAL-LLENA')
 
         self.assertEqual(self.cuantas_paginas(contenido), 1)
+
+    def test_un_ingreso_lleno_tambien_cabe_en_una_hoja(self):
+        self.crear_documento(
+            'ING-LLENA', MovimientoVenta.TipoDocumento.INGRESO,
+            cuantas=boletas.FILAS_POR_PAGINA,
+            observacion='Compra de repuestos para existencia de bodega.',
+        )
+        contenido = boletas.boleta_documento('ING-LLENA')
+
+        self.assertEqual(self.cuantas_paginas(contenido), 1)
+
+    def test_la_boleta_aprovecha_toda_la_hoja(self):
+        """
+        Que quepa no basta: el talonario de papel trae 9 renglones y los usa
+        todos. Antes entraban 6, bastante más altos, y quedaba un tercio de la
+        media carta en blanco — impresa al lado de una boleta de papel se veía
+        como una ampliación de la misma boleta.
+
+        Se comprueba al revés: con un renglón más ya no cabe, así que no está
+        sobrando espacio.
+        """
+        from unittest.mock import patch
+
+        for tipo, folio in (
+            (MovimientoVenta.TipoDocumento.INGRESO, 'ING-APRETADA'),
+            (MovimientoVenta.TipoDocumento.SALIDA, 'SAL-APRETADA'),
+        ):
+            with self.subTest(tipo=tipo):
+                de_mas = boletas.FILAS_POR_PAGINA + 1
+                self.crear_documento(folio, tipo, cuantas=de_mas)
+
+                with patch.object(boletas, 'FILAS_POR_PAGINA', de_mas):
+                    contenido = boletas.boleta_documento(folio)
+
+                self.assertEqual(
+                    self.cuantas_paginas(contenido), 2,
+                    f'con {de_mas} renglones tendría que desbordar: si cabe, '
+                    'es que la hoja se está quedando a medio llenar',
+                )
+
+    def test_las_filas_vacias_miden_lo_mismo_que_las_llenas(self):
+        """
+        Regresión: las celdas de relleno eran cadenas vacías, no párrafos, así
+        que ReportLab las medía con su tipografía por omisión —12 pt de
+        interlineado contra los 9 de la boleta— y la fila vacía salía un 12 %
+        más alta. Se notaba en el papel, y además hacía que una boleta con
+        pocas líneas se pasara a una segunda hoja mientras una llena cabía.
+        """
+        from reportlab.lib.units import mm
+
+        self.crear_documento('ING-UNA', MovimientoVenta.TipoDocumento.INGRESO, cuantas=1)
+        encabezados, anchos = boletas.COLUMNAS_INGRESO
+        tabla = pdf.tabla_de_detalle(
+            encabezados,
+            boletas._filas(documentos.lineas_del_documento('ING-UNA'), es_ingreso=True),
+            anchos, boletas.FILAS_POR_PAGINA, boletas.ALTO_FILA_INGRESO, compacto=True,
+        )
+        tabla.wrap(boletas.ANCHO_UTIL, 500)
+
+        # [0] es el encabezado; el resto son la línea con datos y las vacías.
+        cuerpo = tabla._rowHeights[1:]
+        self.assertEqual(len(cuerpo), boletas.FILAS_POR_PAGINA)
+        for alto in cuerpo:
+            self.assertAlmostEqual(
+                alto / mm, boletas.ALTO_FILA_INGRESO / mm, delta=0.1,
+                msg=f'filas del cuerpo: {[round(h / mm, 2) for h in cuerpo]}',
+            )
 
     def cuantas_paginas(self, pdf_bytes):
         """Cuenta los objetos /Type /Page del PDF (sin /Pages, que es el índice)."""

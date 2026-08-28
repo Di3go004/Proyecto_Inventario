@@ -40,10 +40,24 @@ PAGINA = MEDIA_CARTA
 MARGEN = 7 * mm
 ANCHO_UTIL = PAGINA[0] - 2 * MARGEN           # ≈ 202 mm
 
-# En 140 mm de alto no entran más: el bloque de firmas tiene que caber en la
-# misma hoja, como en el talonario.
-FILAS_POR_PAGINA = 6
-ALTO_FILA = 8 * mm
+# El talonario real trae 9 renglones y llena la hoja. Antes eran 6 y bastante
+# más altos, y quedaba un tercio de la media carta en blanco: impresa al lado
+# de una boleta de papel se veía como una ampliación de la misma boleta.
+FILAS_POR_PAGINA = 9
+
+# El ingreso puede estirar más el renglón porque no lleva el bloque de firmas
+# abajo; la salida sí, y ahí el espacio se reparte.
+#
+# Son los valores más altos con los que las 9 filas todavía caben en una sola
+# hoja **con observación**, que es el caso más largo: la observación no viene
+# en el talonario de papel, se agregó para no perder lo que escribió el
+# operador, y ocupa un renglón extra al pie.
+#
+# Hay pruebas que lo comprueban armando el PDF y contando hojas, porque
+# calcularlo a mano se queda corto: el relleno de las celdas y el de la fila
+# de encabezado se derivan de este mismo alto.
+ALTO_FILA_INGRESO = 8.6 * mm
+ALTO_FILA_SALIDA = 6.1 * mm
 
 VERSION = '03'
 
@@ -66,6 +80,12 @@ COLUMNAS_SALIDA = (
 
 # Lo que ocupa el relleno lateral de una celda de tabla en ReportLab.
 RELLENO_CELDA = 12
+
+# En el papel la línea para llenar a mano llega casi hasta las casillas.
+ANCHO_LINEA_DATO = 90 * mm
+
+# Alto de cada renglón del pie de la salida (factura, envío, firmas).
+ALTO_PIE = 6.4 * mm
 
 
 def _recortar(texto, ancho_columna, estilo):
@@ -140,13 +160,14 @@ def _datos_y_casillas(cabecera, es_ingreso):
     izquierda = [
         Paragraph(f'No. {cabecera.folio}', pdf.FOLIO_CHICO),
         Spacer(1, 1.5 * mm),
-        pdf.campo('FECHA:', fecha, ancho_linea=42 * mm, alto=5 * mm, compacto=True),
-        pdf.campo('SOLICITADO POR:', cabecera.solicitado_por, ancho_linea=42 * mm, alto=5 * mm, compacto=True),
+        pdf.campo('FECHA:', fecha, ancho_linea=ANCHO_LINEA_DATO, alto=4.6 * mm, compacto=True),
+        pdf.campo('SOLICITADO POR:', cabecera.solicitado_por,
+                  ancho_linea=ANCHO_LINEA_DATO, alto=4.6 * mm, compacto=True),
     ]
     if not es_ingreso:
         izquierda.append(
             pdf.campo('ENTREGADO POR:', cabecera.entregado_por,
-                      ancho_linea=42 * mm, alto=5 * mm, compacto=True)
+                      ancho_linea=ANCHO_LINEA_DATO, alto=4.6 * mm, compacto=True)
         )
 
     ancho_casillas = 30 * mm
@@ -161,39 +182,49 @@ def _datos_y_casillas(cabecera, es_ingreso):
 
 def _pie_de_salida(cabecera):
     """
-    Solo FO-SE-012 lo trae: los datos de factura/envío/devolución y los tres
-    espacios de firma. En la hoja apaisada las firmas caben una al lado de la
-    otra, que aprovecha mejor el ancho que apilarlas como en el talonario.
+    Solo FO-SE-012 lo trae. En el papel son dos columnas de tres renglones:
+    a la izquierda factura/envío/devuelto por, a la derecha las tres firmas.
+
+    Antes iban en dos bandas a lo ancho de la hoja —los campos en una fila y
+    las firmas en otra— y ocupaban casi el doble de alto, que era parte de por
+    qué la boleta entraba con tres renglones menos que la de papel.
     """
-    campos = pdf.sin_bordes(Table(
-        [[
-            pdf.campo('No. FACTURA', cabecera.no_factura, ancho_linea=32 * mm, alto=5 * mm,
-                      compacto=True, ancho_etiqueta=20 * mm),
-            pdf.campo('ENVÍO / RECIBO', cabecera.envio_recibo, ancho_linea=32 * mm, alto=5 * mm,
-                      compacto=True, ancho_etiqueta=24 * mm),
-            pdf.campo('DEVUELTO POR:', cabecera.devuelto_por, ancho_linea=32 * mm, alto=5 * mm,
-                      compacto=True, ancho_etiqueta=24 * mm),
-        ]],
-        colWidths=[ANCHO_UTIL / 3] * 3,
-    ))
+    ancho_columna = ANCHO_UTIL / 2
+    ancho_linea = ancho_columna - 30 * mm
 
-    ancho_firma = ANCHO_UTIL / 3 - 6 * mm
-    firmas = pdf.sin_bordes(Table(
-        [[
-            pdf.linea_de_firma("NOMBRE Y FIRMA AUT.", ancho_firma, alto=8 * mm, compacto=True),
-            pdf.linea_de_firma("NOMBRE Y FIRMA REC.", ancho_firma, alto=8 * mm, compacto=True),
-            pdf.linea_de_firma("NOMBRE Y FIRMA DEV.", ancho_firma, alto=8 * mm, compacto=True),
-        ]],
-        colWidths=[ANCHO_UTIL / 3] * 3,
-    ))
+    izquierda = [
+        pdf.campo('No. FACTURA', cabecera.no_factura, ancho_linea=ancho_linea,
+                  alto=ALTO_PIE, compacto=True, ancho_etiqueta=24 * mm),
+        pdf.campo('ENVÍO Y/O RECIBO', cabecera.envio_recibo, ancho_linea=ancho_linea,
+                  alto=ALTO_PIE, compacto=True, ancho_etiqueta=24 * mm),
+        pdf.campo('DEVUELTO POR:', cabecera.devuelto_por, ancho_linea=ancho_linea,
+                  alto=ALTO_PIE, compacto=True, ancho_etiqueta=24 * mm),
+    ]
+    # Las firmas son campos vacíos con su rótulo: en el papel se llenan a mano
+    # sobre la misma línea, no en un recuadro aparte.
+    derecha = [
+        pdf.campo('NOMBRE Y FIRMA AUT:', '', ancho_linea=ancho_linea,
+                  alto=ALTO_PIE, compacto=True, ancho_etiqueta=30 * mm),
+        pdf.campo('NOMBRE Y FIRMA REC:', '', ancho_linea=ancho_linea,
+                  alto=ALTO_PIE, compacto=True, ancho_etiqueta=30 * mm),
+        pdf.campo('NOMBRE Y FIRMA DEV:', '', ancho_linea=ancho_linea,
+                  alto=ALTO_PIE, compacto=True, ancho_etiqueta=30 * mm),
+    ]
 
-    return [Spacer(1, 2 * mm), campos, Spacer(1, 3 * mm), KeepTogether(firmas)]
+    return [
+        Spacer(1, 1.5 * mm),
+        KeepTogether(pdf.sin_bordes(Table(
+            [[izquierda, derecha]], colWidths=[ancho_columna] * 2,
+        ))),
+    ]
 
 
 def _pagina(cabecera, lineas, es_ingreso, numero, total):
     titulo = 'INGRESO A BODEGA' if es_ingreso else 'SALIDA DE BODEGA'
     codigo = 'FO-SE-013' if es_ingreso else 'FO-SE-012'
     encabezados, anchos = COLUMNAS_INGRESO if es_ingreso else COLUMNAS_SALIDA
+
+    alto_fila = ALTO_FILA_INGRESO if es_ingreso else ALTO_FILA_SALIDA
 
     elementos = [
         pdf.bloque_encabezado(
@@ -208,7 +239,7 @@ def _pagina(cabecera, lineas, es_ingreso, numero, total):
         Spacer(1, 2 * mm),
         pdf.tabla_de_detalle(
             encabezados, _filas(lineas, es_ingreso), anchos,
-            FILAS_POR_PAGINA, ALTO_FILA, compacto=True,
+            FILAS_POR_PAGINA, alto_fila, compacto=True,
         ),
     ]
 

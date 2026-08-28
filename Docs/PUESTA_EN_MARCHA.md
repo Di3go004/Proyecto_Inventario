@@ -247,44 +247,126 @@ docker compose exec web python manage.py cambiar_clave admin --generar
 
 ⚠️ **Esto hay que hacerlo antes de repartir el enlace al personal.**
 
-Hoy el router asigna la IP por DHCP y **ya cambió una vez** (de
-`192.168.1.17` a `192.168.1.6`). Cuando cambia se rompen dos cosas a la vez:
-el enlace guardado deja de responder, y el sistema empieza a rechazar la
-conexión con un error 400.
+**Ya está hecho: el servidor quedó en `192.168.1.200`.** Lo que sigue explica
+cómo quedó y qué hacer si algún día hay que cambiarlo.
 
-Dos formas de resolverlo:
+El router asigna las IP por DHCP y ya la cambió dos veces (`192.168.1.17` →
+`192.168.1.6` → se fijó en `192.168.1.200`). Cuando cambia se rompen dos
+cosas a la vez: el enlace que la gente tiene guardado deja de responder, y el
+sistema rechaza la conexión con un **error 400**.
 
-- **Reserva DHCP en el router** (recomendado): se le indica que a esa PC
-  siempre le dé la misma IP. No hay que tocar nada en Windows.
-- **IP estática en Windows**: se configura a mano en el adaptador de red.
-  Funciona, pero hay que elegir una IP fuera del rango que reparte el router
-  o dos equipos pueden terminar con la misma.
+### Por qué se fijó desde Windows y no desde el router
 
-Para ver la IP actual:
+Lo normal sería una **reserva DHCP** en el router: se le indica que a esa PC
+siempre le dé la misma IP. Pero el ARRIS que entrega el proveedor **tiene esa
+opción bloqueada**, así que se fijó desde Windows.
+
+### Por qué `.200` y no un número bajo
+
+Porque el router reparte **desde `.2` hacia arriba**. Al momento de
+configurarlo había 17 dispositivos ocupando de `.2` a `.29`.
+
+Fijar la PC en un número bajo —como el `.6` que tenía— es peligroso
+justamente porque el router también reparte ahí: un fin de semana con la PC
+apagada, el router le entrega esa misma dirección a un celular, y el lunes
+hay dos equipos peleando la misma IP. Falla de forma intermitente y cuesta
+días encontrar el motivo.
+
+`.200` está muy por encima de donde va el router, así que tendría que haber
+unos 200 dispositivos conectados a la vez para llegar ahí. Evitar del `.250`
+en adelante: ahí hay equipo del propio proveedor.
+
+### Cómo se configuró (y cómo cambiarlo)
+
+1. `Windows + R` → escribir `ncpa.cpl` → Enter
+2. Clic derecho sobre el adaptador activo → **Propiedades**
+3. Seleccionar **Protocolo de Internet versión 4 (TCP/IPv4)** → **Propiedades**
+4. Marcar **"Usar la siguiente dirección IP"** y llenar:
+
+   | Campo | Valor |
+   |---|---|
+   | Dirección IP | `192.168.1.200` |
+   | Máscara de subred | `255.255.255.0` |
+   | Puerta de enlace predeterminada | `192.168.1.1` |
+   | DNS preferido | `8.8.8.8` |
+   | DNS alternativo | `8.8.4.4` |
+
+5. **Aceptar** en las dos ventanas
+
+Para confirmar que quedó fija (tiene que decir `Manual`, no `Dhcp`):
 
 ```powershell
-Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -like '192.168.*' }
+Get-NetIPConfiguration | Where-Object { $_.IPv4Address -and $_.IPv4DefaultGateway } |
+  ForEach-Object { $_.InterfaceAlias; $_.IPv4Address.IPAddress;
+    (Get-NetIPAddress -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4).PrefixOrigin }
 ```
 
-Ya fijada, ponerla en el archivo `.env`:
+### Avisarle al sistema (este paso NO se puede saltar)
+
+En el archivo `.env` de la carpeta del proyecto:
 
 ```
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.6
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.200
 ```
 
-y reiniciar:
+Y después:
 
 ```powershell
-docker compose restart web
+docker compose up -d
 ```
 
-El resto de las computadoras y tablets entran a **`http://192.168.1.6:8000`**
-(con la IP que haya quedado).
+> ⚠️ **`up -d`, no `restart`.** Es la trampa en la que ya se cayó una vez:
+> `docker compose restart` reinicia el proceso pero **el contenedor conserva
+> las variables con las que se creó**, así que sigue usando la IP vieja
+> aunque el archivo `.env` ya diga la nueva — y la pantalla sigue dando error
+> 400 sin explicación. `up -d` recrea el contenedor leyendo el `.env` de
+> nuevo. Esto aplica a **cualquier** cambio del `.env`, no solo a la IP.
+>
+> Para comprobar que el contenedor sí agarró el cambio:
+> ```powershell
+> docker compose exec web printenv DJANGO_ALLOWED_HOSTS
+> ```
 
-> El firewall y el perfil de red ya están configurados. Si alguna PC no
-> conecta, revisar que el perfil de red de la PC servidor siga en
-> **Privada** — con "Pública" el firewall bloquea aunque la regla exista:
-> `Get-NetConnectionProfile`
+### El enlace para el personal
+
+**`http://192.168.1.200:8000`**
+
+Solo hace falta estar en la misma red (`Administracion 2`). No se necesita
+internet: el sistema funciona completo dentro de la red local (RNF-02).
+
+### Si algún día se pasa a cable (recomendado)
+
+Hoy el servidor está conectado por **Wi-Fi**. Para la PC de la que dependen
+4 a 10 personas conviene un cable: es más estable y arranca antes al encender
+el equipo.
+
+Ojo: la configuración de IP es **por tarjeta de red**, no por computadora. Al
+pasar a cable hay que repetir los pasos de arriba en *esa* tarjeta y volver a
+correr `docker compose up -d`.
+
+### Si alguna PC no conecta
+
+El firewall y el perfil de red ya están configurados —regla **"Control de
+Bodega - Django 8000"** (TCP entrante, habilitada) y red en **Privada**—.
+Si aun así una PC no entra, revisar en este orden:
+
+```powershell
+# 1. ¿El perfil de red sigue en Privada? Con "Pública" el firewall bloquea
+#    aunque la regla exista.
+Get-NetConnectionProfile
+
+# 2. ¿La regla del firewall sigue activa?
+netsh advfirewall firewall show rule name="Control de Bodega - Django 8000"
+
+# 3. ¿El sistema está autorizando la IP correcta?
+docker compose exec web printenv DJANGO_ALLOWED_HOSTS
+```
+
+Y desde la PC que no conecta, para ver si el problema es de red o del sistema:
+
+```powershell
+Test-NetConnection 192.168.1.200 -Port 8000
+```
 
 ---
 

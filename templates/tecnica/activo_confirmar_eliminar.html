@@ -9,14 +9,18 @@
 </div>
 
 <div class="card" style="max-width:640px;">
-  {% if prestamos %}
+  {% if prestamos or movimientos_reales %}
     <p class="aviso-prestado">
-      Esta herramienta tiene <strong>{{ prestamos }} préstamo(s)</strong> registrados.
+      Esta herramienta tiene
+      {% if prestamos %}<strong>{{ prestamos }} préstamo(s)</strong>{% endif %}
+      {% if prestamos and movimientos_reales %} y {% endif %}
+      {% if movimientos_reales %}<strong>{{ movimientos_reales }} movimiento(s)</strong>{% endif %}
+      registrados.
     </p>
     <p>
-      <strong>No se puede eliminar.</strong> Borrarla dejaría esos préstamos sin
-      saber qué se prestó ni en qué estado volvió, que es justo lo que hoy se
-      pierde en el Excel.
+      <strong>No se puede eliminar.</strong> Borrarla dejaría ese historial sin
+      saber a qué herramienta pertenecía — qué entró, qué se dio de baja y en
+      qué estado volvió de cada préstamo.
     </p>
     <p>
       Para retirarla de circulación, <strong>dale de baja</strong>: se descuenta
@@ -29,7 +33,13 @@
   {% else %}
     <h2 class="card-titulo">¿Eliminar este activo?</h2>
     <p>Se borra del catálogo definitivamente. Esta acción no se puede deshacer.</p>
-    <p class="hint">No tiene ningún préstamo registrado.</p>
+    <p class="hint">
+      No tiene préstamos ni movimientos.
+      {% if ajustes %}
+        Solo trae {{ ajustes }} ajuste(s) de conteo —el saldo con el que se
+        capturó—, que se borran con él.
+      {% endif %}
+    </p>
     <form method="post" class="form-actions">
       {% csrf_token %}
       <button type="submit" class="btn btn-danger">Sí, eliminar</button>

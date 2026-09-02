@@ -17,7 +17,7 @@
         <a href="{% url 'activo_baja' activo.pk %}" class="btn">Dar de baja</a>
       {% endif %}
     {% endif %}
-    {% if user.es_administrador %}
+    {% if user.puede_editar_catalogo %}
       <a href="{% url 'activo_editar' activo.pk %}" class="btn btn-primary">Editar</a>
     {% endif %}
   </div>
@@ -86,35 +86,41 @@
   </dl>
 </div>
 
-<div class="card" style="margin-bottom:16px;">
-  <h2 style="margin:0 0 14px; font-size:1rem;">Historial de préstamos</h2>
-  {% if prestamos %}
-    <div class="table-wrap" style="box-shadow:none; max-height:none;">
-      <table class="tabla-responsiva">
-        <thead>
-          <tr><th>Solicitante</th><th>Salida</th><th>Estado al salir</th><th>Regreso</th><th>Estado al regresar</th></tr>
-        </thead>
-        <tbody>
-          {% for p in prestamos %}
-          <tr>
-            <td data-etiqueta="Solicitante" class="celda-principal">{{ p.solicitante }}</td>
-            <td data-etiqueta="Salida">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
-            <td data-etiqueta="Estado al salir">{% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>{% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}</td>
-            <td data-etiqueta="Regreso">{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
-            <td data-etiqueta="Estado al regresar">
-              {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-              {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
-              {% else %}—{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% else %}
-    <p class="empty" style="padding:0;">Sin préstamos registrados todavía.</p>
-  {% endif %}
-</div>
+{% comment %}
+  Los préstamos son inventario, no catálogo: el practicante captura
+  productos, no lleva el control de quién se llevó qué.
+{% endcomment %}
+{% if not user.es_practicante %}
+  <div class="card" style="margin-bottom:16px;">
+    <h2 style="margin:0 0 14px; font-size:1rem;">Historial de préstamos</h2>
+    {% if prestamos %}
+      <div class="table-wrap" style="box-shadow:none; max-height:none;">
+        <table class="tabla-responsiva">
+          <thead>
+            <tr><th>Solicitante</th><th>Salida</th><th>Estado al salir</th><th>Regreso</th><th>Estado al regresar</th></tr>
+          </thead>
+          <tbody>
+            {% for p in prestamos %}
+            <tr>
+              <td data-etiqueta="Solicitante" class="celda-principal">{{ p.solicitante }}</td>
+              <td data-etiqueta="Salida">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
+              <td data-etiqueta="Estado al salir">{% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>{% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}</td>
+              <td data-etiqueta="Regreso">{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
+              <td data-etiqueta="Estado al regresar">
+                {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
+                {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty" style="padding:0;">Sin préstamos registrados todavía.</p>
+    {% endif %}
+  </div>
+{% endif %}
 
 <a href="{% url 'catalogo_activos' %}" class="btn">← Volver al catálogo</a>
 {% endblock %}

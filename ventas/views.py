@@ -15,7 +15,7 @@ from django.utils.dateparse import parse_date
 from core.models import Bodega, Proveedor
 from core.paginacion import paginar
 from tecnica.models import Activo, MovimientoActivo
-from usuarios.decorators import rol_requerido
+from usuarios.decorators import rol_excluido, rol_requerido
 from usuarios.models import Usuario
 
 from . import boletas, documentos, importador
@@ -114,7 +114,7 @@ def articulo_detalle(request, pk):
     })
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def articulo_nuevo(request):
     if request.method == 'POST':
         form = ArticuloForm(request.POST, request.FILES)
@@ -127,7 +127,7 @@ def articulo_nuevo(request):
     return render(request, 'ventas/articulo_form.html', {'form': form, 'modo': 'nuevo'})
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def articulo_editar(request, pk):
     articulo = get_object_or_404(Articulo, pk=pk)
     if request.method == 'POST':
@@ -141,7 +141,7 @@ def articulo_editar(request, pk):
     return render(request, 'ventas/articulo_form.html', {'form': form, 'modo': 'editar', 'articulo': articulo})
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def articulo_eliminar(request, pk):
     """
     Un artículo con historial real no se borra: quedarían movimientos sin
@@ -480,7 +480,7 @@ def movimiento_salida(request):
     return _registrar_documento(request, MovimientoVenta.TipoDocumento.SALIDA)
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def movimientos_ventas(request):
     """
     Historial de entradas y salidas (RF-05). Lo ven los 3 roles: es la
@@ -531,7 +531,7 @@ def movimientos_ventas(request):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def documento_detalle(request, folio):
     """
     Todas las líneas de un mismo folio, como se ve la boleta en papel.
@@ -557,7 +557,7 @@ def documento_detalle(request, folio):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def documento_pdf(request, folio):
     """
     RF-10: la boleta lista para imprimir y firmar a mano, con el mismo
@@ -582,7 +582,7 @@ def documento_pdf(request, folio):
     return respuesta
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def kardex_articulo(request, pk):
     """
     RF-08/RF-14: historial de un artículo con el saldo después de cada

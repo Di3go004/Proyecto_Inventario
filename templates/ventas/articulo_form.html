@@ -23,7 +23,7 @@
     <div class="field">
       <label for="{{ form.numero_serie.id_for_label }}">Número de serie</label>
       {{ form.numero_serie }}
-      <span class="hint">Identificador único adicional, si aplica.</span>
+      <span class="hint">Identificador único adicional. Si el equipo no trae placa, dejalo vacío: aparecerá como <strong>S/S</strong>.</span>
       {% for e in form.numero_serie.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
     </div>
 

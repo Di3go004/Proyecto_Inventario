@@ -26,3 +26,34 @@ def rol_requerido(*roles_permitidos):
         return envoltura
 
     return decorador
+
+
+def rol_excluido(*roles_bloqueados):
+    """
+    Cierra una vista a ciertos roles, dejándola abierta al resto. Ejemplo:
+
+        @rol_excluido(Usuario.Rol.PRACTICANTE)
+        def reporte_existencias(request): ...
+
+    Es el complemento de rol_requerido, para las pantallas que hasta ahora
+    solo pedían sesión iniciada. Se usa así, y no listando los tres roles que
+    sí pasan, porque son una docena de vistas y la lista se desactualizaría
+    sola en cuanto aparezca otro rol.
+
+    Ojo: al ser una lista de bloqueados, un rol nuevo entra por defecto. Por
+    eso hay una prueba que recorre TODAS las urls y comprueba, una por una,
+    a cuáles llega el practicante — es ahí donde se caza el decorador que
+    alguien olvidó poner.
+    """
+
+    def decorador(vista):
+        @login_required
+        @wraps(vista)
+        def envoltura(request, *args, **kwargs):
+            if request.user.rol in roles_bloqueados:
+                raise PermissionDenied('No tienes permiso para ver esta pantalla.')
+            return vista(request, *args, **kwargs)
+
+        return envoltura
+
+    return decorador

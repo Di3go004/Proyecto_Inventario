@@ -18,4 +18,10 @@ urlpatterns = [
     path('categorias/nueva/', views.categoria_nueva, name='categoria_nueva'),
     path('categorias/<int:pk>/editar/', views.categoria_editar, name='categoria_editar'),
     path('categorias/<int:pk>/eliminar/', views.categoria_eliminar, name='categoria_eliminar'),
+
+    # Proveedores (RF-02/RF-03), solo administrador
+    path('proveedores/', views.lista_proveedores, name='lista_proveedores'),
+    path('proveedores/nuevo/', views.proveedor_nuevo, name='proveedor_nuevo'),
+    path('proveedores/<int:pk>/editar/', views.proveedor_editar, name='proveedor_editar'),
+    path('proveedores/<int:pk>/eliminar/', views.proveedor_eliminar, name='proveedor_eliminar'),
 ]

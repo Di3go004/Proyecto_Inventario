@@ -8,8 +8,15 @@
     <p class="page-sub">{{ articulo.bodega.nombre }}{% if articulo.categoria %} · {{ articulo.categoria.nombre }}{% endif %}</p>
   </div>
   <div class="page-acciones">
-    <a href="{% url 'kardex_articulo' articulo.pk %}" class="btn">Ver kardex completo</a>
-    {% if user.es_administrador %}
+    {% comment %}
+      El kardex y los movimientos son inventario, no catálogo: el
+      practicante no los alcanza, así que tampoco se le enseñan los
+      enlaces —le darían un 403.
+    {% endcomment %}
+    {% if not user.es_practicante %}
+      <a href="{% url 'kardex_articulo' articulo.pk %}" class="btn">Ver kardex completo</a>
+    {% endif %}
+    {% if user.puede_editar_catalogo %}
       <a href="{% url 'articulo_editar' articulo.pk %}" class="btn btn-primary">Editar</a>
     {% endif %}
   </div>
@@ -28,7 +35,7 @@
     </div>
     <div>
       <dt>Número de serial</dt>
-      <dd class="code">{{ articulo.numero_serie|default:"—" }}</dd>
+      <dd class="code">{{ articulo.serial }}</dd>
     </div>
     <div>
       <dt>Marca / Modelo</dt>
@@ -76,49 +83,51 @@
   </dl>
 </div>
 
-<div class="card" style="margin-bottom:16px;">
-  <h2 class="card-titulo">Últimos movimientos</h2>
-  {% if movimientos %}
-    <div class="table-wrap" style="box-shadow:none; max-height:none;">
-      <table class="tabla-responsiva">
-        <thead>
-          <tr><th>Fecha</th><th>Folio</th><th>Movimiento</th><th>Cantidad</th><th>Registrado por</th></tr>
-        </thead>
-        <tbody>
-          {% for m in movimientos %}
-          <tr>
-            <td data-etiqueta="Fecha" class="num celda-principal" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
-            <td data-etiqueta="Folio" class="code">
-              {% if m.folio %}<a href="{% url 'documento_detalle' m.folio %}">{{ m.folio }}</a>{% else %}—{% endif %}
-            </td>
-            <td data-etiqueta="Movimiento">
-              {% if m.tipo_documento == 'ingreso' %}
-                <span class="chip chip-good">Ingreso</span>
-              {% else %}
-                <span class="chip chip-critical">Salida</span>
-              {% endif %}
-              <span class="etiqueta-transaccion">{{ m.get_tipo_transaccion_display }}</span>
-              {% if m.esta_afuera %}<span class="chip chip-warn">Afuera</span>{% endif %}
-            </td>
-            <td data-etiqueta="Cantidad" class="num">{% if m.tipo_documento == 'ingreso' %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
-            <td data-etiqueta="Registrado por" class="truncate">{{ m.usuario.get_full_name|default:m.usuario.username }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="hint" style="margin-top:12px;">
-      <a href="{% url 'kardex_articulo' articulo.pk %}">Ver el kardex completo con el saldo después de cada movimiento →</a>
-    </p>
-  {% else %}
-    <p class="empty" style="padding:0;">
-      Este artículo todavía no tiene movimientos registrados.
-      {% if user.puede_editar %}
-        <a href="{% url 'movimiento_ingreso' %}">Registrar un ingreso →</a>
-      {% endif %}
-    </p>
-  {% endif %}
-</div>
+{% if not user.es_practicante %}
+  <div class="card" style="margin-bottom:16px;">
+    <h2 class="card-titulo">Últimos movimientos</h2>
+    {% if movimientos %}
+      <div class="table-wrap" style="box-shadow:none; max-height:none;">
+        <table class="tabla-responsiva">
+          <thead>
+            <tr><th>Fecha</th><th>Folio</th><th>Movimiento</th><th>Cantidad</th><th>Registrado por</th></tr>
+          </thead>
+          <tbody>
+            {% for m in movimientos %}
+            <tr>
+              <td data-etiqueta="Fecha" class="num celda-principal" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+              <td data-etiqueta="Folio" class="code">
+                {% if m.folio %}<a href="{% url 'documento_detalle' m.folio %}">{{ m.folio }}</a>{% else %}—{% endif %}
+              </td>
+              <td data-etiqueta="Movimiento">
+                {% if m.tipo_documento == 'ingreso' %}
+                  <span class="chip chip-good">Ingreso</span>
+                {% else %}
+                  <span class="chip chip-critical">Salida</span>
+                {% endif %}
+                <span class="etiqueta-transaccion">{{ m.get_tipo_transaccion_display }}</span>
+                {% if m.esta_afuera %}<span class="chip chip-warn">Afuera</span>{% endif %}
+              </td>
+              <td data-etiqueta="Cantidad" class="num">{% if m.tipo_documento == 'ingreso' %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
+              <td data-etiqueta="Registrado por" class="truncate">{{ m.usuario.get_full_name|default:m.usuario.username }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:12px;">
+        <a href="{% url 'kardex_articulo' articulo.pk %}">Ver el kardex completo con el saldo después de cada movimiento →</a>
+      </p>
+    {% else %}
+      <p class="empty" style="padding:0;">
+        Este artículo todavía no tiene movimientos registrados.
+        {% if user.puede_editar %}
+          <a href="{% url 'movimiento_ingreso' %}">Registrar un ingreso →</a>
+        {% endif %}
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
 
 <a href="{% url 'catalogo_articulos' %}" class="btn">← Volver al catálogo</a>
 {% endblock %}

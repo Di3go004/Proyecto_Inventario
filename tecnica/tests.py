@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from core.models import Bodega
 from tecnica.ayuda_pruebas import dar_de_baja, dar_existencia
-from tecnica.models import Activo, PrestamoActivo
+from tecnica.models import Activo, MovimientoActivo, PrestamoActivo
 from usuarios.models import Usuario
 
 
@@ -143,8 +143,13 @@ class ReglasDePrestamoTests(BaseTecnica):
 
 class EliminarActivoTests(TestCase):
     """
-    En Bodega Técnica la carga masiva no crea préstamos, así que lo único que
-    puede bloquear el borrado son préstamos de verdad.
+    Qué bloquea el borrado de un activo: los préstamos y los movimientos de
+    verdad (un ingreso del FO-SE-013, una baja). El ajuste de conteo NO —es
+    el saldo con el que se capturó, no historial— y se borra con él.
+
+    Sin esa distinción, desde que la bodega lleva existencia por cantidad
+    ningún activo se podía borrar: al crearlo con su cantidad ya nacía con un
+    movimiento que lo protegía, y la pantalla reventaba con un error.
     """
 
     @classmethod
@@ -161,6 +166,55 @@ class EliminarActivoTests(TestCase):
         return Activo.objects.create(
             codigo_interno=codigo, nombre_producto='Taladro', bodega=self.bodega,
         )
+
+    def ajuste_de_conteo(self, activo, cantidad):
+        """
+        El saldo con el que se capturó el activo: es lo que crea el formulario
+        del catálogo al ponerle cantidad, y lo que deja la carga masiva del
+        FO-SE-065. No es historial.
+        """
+        return MovimientoActivo.objects.create(
+            tipo=MovimientoActivo.Tipo.AJUSTE, activo=activo,
+            cantidad=cantidad, usuario=self.admin,
+        )
+
+    def test_uno_con_solo_su_ajuste_de_conteo_se_borra(self):
+        """Regresión: el saldo inicial hacía imposible borrar cualquier activo."""
+        activo = self.crear('SE-CONTEO')
+        self.ajuste_de_conteo(activo, 5)
+
+        self.client.post(reverse('activo_eliminar', args=[activo.pk]))
+
+        self.assertFalse(Activo.objects.filter(pk=activo.pk).exists())
+        self.assertFalse(MovimientoActivo.objects.filter(activo_id=activo.pk).exists())
+
+    def test_uno_con_un_ingreso_de_boleta_no_se_borra(self):
+        activo = self.crear('SE-INGRESO')
+        MovimientoActivo.objects.create(
+            folio='ING-00007', tipo=MovimientoActivo.Tipo.INGRESO,
+            activo=activo, cantidad=3, usuario=self.admin,
+        )
+
+        respuesta = self.client.post(
+            reverse('activo_eliminar', args=[activo.pk]), follow=True,
+        )
+
+        self.assertTrue(Activo.objects.filter(pk=activo.pk).exists())
+        self.assertContains(respuesta, 'No se puede eliminar')
+
+    def test_uno_con_una_baja_no_se_borra(self):
+        """
+        La baja es el registro de lo que se descartó y no se puede perder.
+        Se parte de un ajuste de conteo —que por sí solo no bloquearía— para
+        que lo único que impida borrar sea la baja.
+        """
+        activo = self.crear('SE-BAJA')
+        self.ajuste_de_conteo(activo, 4)
+        dar_de_baja(activo, 2, self.admin)
+
+        self.client.post(reverse('activo_eliminar', args=[activo.pk]))
+
+        self.assertTrue(Activo.objects.filter(pk=activo.pk).exists())
 
     def test_uno_sin_prestamos_se_borra(self):
         activo = self.crear()

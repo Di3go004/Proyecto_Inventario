@@ -68,7 +68,12 @@
       <td data-etiqueta="Umbrales (C/A/Ó)" class="num columna-secundaria">
         {{ a.stock_critico }} / {{ a.stock_alerta }} / {{ a.stock_optimo }}
       </td>
-      <td data-etiqueta="Proveedor" class="truncate">{{ a.proveedor|default:"—" }}</td>
+      <td data-etiqueta="Proveedor" class="truncate">
+        {{ a.proveedor|default:"—" }}
+        {% if a.proveedor.es_extranjero %}
+          <span class="chip chip-warn" title="Es importado: hay que pedirlo con mucha más anticipación">Extranjero</span>
+        {% endif %}
+      </td>
     </tr>
     {% empty %}
     <tr class="fila-vacia"><td colspan="7">

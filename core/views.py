@@ -1,16 +1,16 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Sum, F
+from django.db.models import Count, F, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from core import exportar, reportes
-from core.forms import CategoriaForm
-from core.models import Bodega, Categoria
+from core.forms import CategoriaForm, ProveedorForm
+from core.models import Bodega, Categoria, Proveedor
 from core.paginacion import paginar
-from usuarios.decorators import rol_requerido
+from usuarios.decorators import rol_excluido, rol_requerido
 from usuarios.models import Usuario
 from ventas.models import Articulo, MovimientoVenta
 from tecnica.models import Activo, PrestamoActivo
@@ -19,10 +19,17 @@ from tecnica.models import Activo, PrestamoActivo
 @login_required
 def resumen(request):
     """
-    Primera pantalla tras el login (RF-15 la ven los 3 roles). Sirve
-    también para comprobar de un vistazo que los modelos y sus reglas
-    (stock, alertas, préstamos abiertos) están funcionando de verdad.
+    Primera pantalla tras el login. Sirve también para comprobar de un
+    vistazo que los modelos y sus reglas (stock, alertas, préstamos abiertos)
+    están funcionando de verdad.
+
+    El practicante no la ve: enseña la valorización total de las dos bodegas,
+    y su trabajo es capturar el catálogo. Se le redirige en vez de darle un
+    403 porque es la pantalla a la que cae todo el mundo al iniciar sesión.
     """
+    if request.user.es_practicante:
+        return redirect('catalogo_articulos')
+
     articulos = Articulo.objects.filter(activo=True)
     alertas = [a for a in articulos if a.nivel_alerta in ('alerta', 'critico')]
 
@@ -79,7 +86,7 @@ def _bodegas_de_venta():
     return Bodega.objects.filter(tipo=Bodega.Tipo.VENTA)
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def indice_reportes(request):
     """Portada de reportes, con un dato de cada uno para saber si vale la pena abrirlo."""
     _filas, _detalle, totales = reportes.existencias()
@@ -101,7 +108,7 @@ def indice_reportes(request):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def reporte_existencias(request):
     """RF-14: existencias y valorización por bodega."""
     bodega_id = request.GET.get('bodega', '').strip()
@@ -114,17 +121,17 @@ def reporte_existencias(request):
         return _excel(
             'existencias',
             'Existencias y valorizacion - Bodega 1 y 2',
-            ['Código', 'Producto', 'Bodega', 'Marca / Modelo', 'Existencia',
-             'Precio unitario', 'Valor total', 'Nivel', 'Proveedor'],
+            ['Código', 'N.º de serial', 'Producto', 'Bodega', 'Marca / Modelo',
+             'Existencia', 'Precio unitario', 'Valor total', 'Nivel', 'Proveedor'],
             [
-                [a.codigo_interno, a.nombre_producto, a.bodega.nombre,
+                [a.codigo_interno, a.serial, a.nombre_producto, a.bodega.nombre,
                  f'{a.marca} {a.modelo}'.strip(), a.stock_actual, a.precio,
                  a.precio * a.stock_actual, a.nivel_alerta.capitalize(),
                  str(a.proveedor or '')]
                 for a in detalle
             ],
             subtitulo='Solo artículos activos' if solo_activos else 'Activos e inactivos',
-            formatos={5: exportar.FORMATO_MONEDA, 6: exportar.FORMATO_MONEDA},
+            formatos={6: exportar.FORMATO_MONEDA, 7: exportar.FORMATO_MONEDA},
         )
 
     return render(request, 'core/reportes/existencias.html', {
@@ -138,7 +145,7 @@ def reporte_existencias(request):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def reporte_tecnica(request):
     """
     RF-12/RF-14: el inventario de Bodega Técnica, con existencia y valor.
@@ -187,7 +194,7 @@ def reporte_tecnica(request):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def reporte_alertas(request):
     """RF-11/RF-14: qué hay que reponer, lo más urgente primero."""
     bodega_id = request.GET.get('bodega', '').strip()
@@ -198,11 +205,12 @@ def reporte_alertas(request):
             'alertas-de-stock',
             'Alertas de stock - que reponer',
             ['Nivel', 'Código', 'Producto', 'Bodega', 'Existencia',
-             'Crítico', 'Alerta', 'Óptimo', 'Proveedor'],
+             'Crítico', 'Alerta', 'Óptimo', 'Proveedor', 'Origen'],
             [
                 [a.nivel_alerta.capitalize(), a.codigo_interno, a.nombre_producto,
                  a.bodega.nombre, a.stock_actual, a.stock_critico, a.stock_alerta,
-                 a.stock_optimo, str(a.proveedor or '')]
+                 a.stock_optimo, str(a.proveedor or ''),
+                 a.proveedor.get_origen_display() if a.proveedor and a.proveedor.origen else '']
                 for a in articulos
             ],
             subtitulo=f'{len(articulos)} artículo(s) en alerta o crítico',
@@ -217,7 +225,7 @@ def reporte_alertas(request):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def reporte_movimientos(request):
     """RF-05/RF-14: qué entró y qué salió en un período."""
     desde = parse_date(request.GET.get('desde', '') or '')
@@ -257,7 +265,7 @@ def reporte_movimientos(request):
     })
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def reporte_prestamos(request):
     """RF-06/RF-07/RF-14: todo lo que está fuera de bodega ahora mismo."""
     filas = reportes.prestamos_abiertos()
@@ -387,3 +395,107 @@ def categoria_eliminar(request, pk):
         return redirect('lista_categorias')
 
     return render(request, 'core/categorias/confirmar_eliminar.html', {'categoria': categoria})
+
+
+# ---------------------------------------------------------------------------
+# Proveedores (RF-02/RF-03). Solo el administrador.
+#
+# Antes no había pantalla: se creaban solos por la carga masiva o al
+# escribirlos en el formulario de un producto, y no se podían corregir ni
+# borrar. Así entraron proveedores llamados "-" desde celdas vacías del Excel.
+# ---------------------------------------------------------------------------
+
+def _con_productos(consulta):
+    """Cuántos productos usan cada proveedor: decide si se puede borrar sin ruido."""
+    return consulta.annotate(
+        articulos=Count('articulo', distinct=True),
+        activos=Count('activo', distinct=True),
+    )
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def lista_proveedores(request):
+    proveedores = _con_productos(Proveedor.objects.all()).order_by('nombre')
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        proveedores = proveedores.filter(
+            Q(nombre__icontains=q) | Q(contacto__icontains=q) | Q(telefono__icontains=q)
+        )
+
+    origen = request.GET.get('origen', '').strip()
+    if origen in Proveedor.Origen.values:
+        proveedores = proveedores.filter(origen=origen)
+    elif origen == 'sin_clasificar':
+        proveedores = proveedores.filter(origen='')
+    else:
+        origen = ''
+
+    pagina = paginar(request, proveedores)
+
+    return render(request, 'core/proveedores/lista.html', {
+        'proveedores': pagina,
+        'pagina': pagina,
+        'origenes': Proveedor.Origen.choices,
+        'filtros_activos': 1 if origen else 0,
+        'q': q, 'origen': origen,
+        'sin_clasificar': Proveedor.objects.filter(origen='').count(),
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def proveedor_nuevo(request):
+    if request.method == 'POST':
+        form = ProveedorForm(request.POST)
+        if form.is_valid():
+            proveedor = form.save()
+            messages.success(request, f'Proveedor "{proveedor.nombre}" creado.')
+            return redirect('lista_proveedores')
+    else:
+        form = ProveedorForm()
+
+    return render(request, 'core/proveedores/form.html', {'form': form, 'modo': 'nuevo'})
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def proveedor_editar(request, pk):
+    proveedor = get_object_or_404(Proveedor, pk=pk)
+
+    if request.method == 'POST':
+        form = ProveedorForm(request.POST, instance=proveedor)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Proveedor "{proveedor.nombre}" actualizado.')
+            return redirect('lista_proveedores')
+    else:
+        form = ProveedorForm(instance=proveedor)
+
+    return render(request, 'core/proveedores/form.html', {
+        'form': form, 'modo': 'editar', 'proveedor': proveedor,
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def proveedor_eliminar(request, pk):
+    """
+    Borrar un proveedor en uso NO borra sus productos: el campo queda en
+    blanco (SET_NULL). Como volver a asignarlo es uno por uno, la pantalla
+    dice cuántos son antes de confirmar.
+    """
+    proveedor = get_object_or_404(_con_productos(Proveedor.objects.all()), pk=pk)
+
+    if request.method == 'POST':
+        cuantos = proveedor.articulos + proveedor.activos
+        nombre = proveedor.nombre
+        proveedor.delete()
+        if cuantos:
+            messages.warning(
+                request,
+                f'Proveedor "{nombre}" eliminado. {cuantos} producto(s) quedaron '
+                'sin proveedor; asígnales otro desde el catálogo.',
+            )
+        else:
+            messages.success(request, f'Proveedor "{nombre}" eliminado.')
+        return redirect('lista_proveedores')
+
+    return render(request, 'core/proveedores/confirmar_eliminar.html', {'proveedor': proveedor})

@@ -10,6 +10,46 @@ from django.utils import timezone
 from core.models import Bodega, Categoria, Proveedor
 
 
+# Lo dicen la restricción de la base y el formulario: un solo texto para
+# que el operador lea siempre lo mismo.
+UMBRALES_EN_ORDEN = 'Los umbrales deben cumplir: crítico ≤ alerta ≤ óptimo.'
+
+# Cómo se escribe "no tiene número de serie". Es la abreviatura que ya usan
+# en la empresa, así que se pone tal cual en pantalla y en los reportes en
+# vez de una raya. Vive en una constante para que diga lo mismo en todos
+# lados: se muestra en el catálogo, en la ficha, en la vista previa de la
+# carga masiva y en el Excel de existencias.
+SIN_SERIAL = 'S/S'
+
+# Lo que, escrito en el campo, quiere decir "no tiene serial". Se compara sin
+# espacios y en mayúsculas, así que "s/s" y "S / S" también caen aquí.
+_ESCRITURAS_DE_SIN_SERIAL = {'S/S', 'SINSERIE', 'SINSERIAL'}
+
+
+def limpiar_serial(texto):
+    """
+    Deja el serial como se guarda: sin espacios de sobra, y vacío (NULL) si
+    lo que vino en realidad significa "no tiene".
+
+    Hace falta porque "S/S" está a la vista en todas las pantallas y en el
+    manual, así que tarde o temprano alguien lo escribe en el campo. Y como
+    el serial es único, el primero se guardaría y el segundo se caería con
+    "ya existe un artículo con ese número de serie": un error incomprensible
+    para quien solo quiso decir que la báscula no traía placa.
+
+    Lo mismo llega del Excel viejo, donde esa columna trae "S/S", "s/s" y
+    celdas rellenas con puras rayas.
+    """
+    texto = (texto or '').strip()
+    if not texto:
+        return None
+    if texto.replace(' ', '').upper() in _ESCRITURAS_DE_SIN_SERIAL:
+        return None
+    if set(texto) <= set('-–—.'):
+        return None
+    return texto
+
+
 class Articulo(models.Model):
     """
     Catálogo de Bodega 1 y 2 (venta). El stock_actual se recalcula solo
@@ -61,9 +101,22 @@ class Articulo(models.Model):
         verbose_name = 'Artículo'
         verbose_name_plural = 'Artículos'
         ordering = ['nombre_producto']
+        # El mensaje va escrito a mano: sin él, Django enseña el nombre técnico
+        # de la restricción ("No se cumple la restricción
+        # chk_critico_lte_alerta"), que a quien está capturando el catálogo no
+        # le dice nada. Es el mismo texto que valida el formulario, así que se
+        # vea por donde se vea, se lee igual.
         constraints = [
-            models.CheckConstraint(check=models.Q(stock_critico__lte=models.F('stock_alerta')), name='chk_critico_lte_alerta'),
-            models.CheckConstraint(check=models.Q(stock_alerta__lte=models.F('stock_optimo')), name='chk_alerta_lte_optimo'),
+            models.CheckConstraint(
+                check=models.Q(stock_critico__lte=models.F('stock_alerta')),
+                name='chk_critico_lte_alerta',
+                violation_error_message=UMBRALES_EN_ORDEN,
+            ),
+            models.CheckConstraint(
+                check=models.Q(stock_alerta__lte=models.F('stock_optimo')),
+                name='chk_alerta_lte_optimo',
+                violation_error_message=UMBRALES_EN_ORDEN,
+            ),
         ]
 
     def __str__(self):
@@ -145,6 +198,18 @@ class Articulo(models.Model):
         Articulo.objects.filter(pk=self.pk).update(stock_actual=total)
         self.stock_actual = total
         return total
+
+    @property
+    def serial(self):
+        """
+        El número de serie como se muestra: si no tiene, "S/S".
+
+        No se guarda así en la base a propósito. Guardar el texto haría
+        imposible distinguir un artículo sin serial de uno cuyo serial fuera
+        literalmente "S/S", y rompería las búsquedas por serial. Es una forma
+        de escribirlo, no un dato.
+        """
+        return self.numero_serie or SIN_SERIAL
 
     @property
     def valor_en_bodega(self):

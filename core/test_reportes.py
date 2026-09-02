@@ -96,6 +96,17 @@ class BaseReportes(TestCase):
                 return numero
         self.fail(f'no se encontró el encabezado "{primer_titulo}" en la hoja')
 
+    def columna(self, hoja, fila_encabezado, titulo):
+        """
+        Busca la columna por su título y no por su número. Insertar una columna
+        nueva corre todas las que van después: con el número escrito a mano,
+        la prueba pasaría a mirar la columna de al lado sin avisar de nada.
+        """
+        for numero in range(1, 25):
+            if hoja.cell(row=fila_encabezado, column=numero).value == titulo:
+                return numero
+        self.fail(f'no se encontró la columna "{titulo}" en la hoja')
+
 
 class AccesoTests(BaseReportes):
     RUTAS = ['indice_reportes', 'reporte_existencias', 'reporte_alertas',
@@ -323,7 +334,7 @@ class ExcelTests(BaseReportes):
         """Si llegan como texto, en Excel no se pueden sumar ni ordenar."""
         hoja = self.hoja(reverse('reporte_existencias'))
         fila = self.fila_del_encabezado(hoja, 'Código')
-        precio = hoja.cell(row=fila + 1, column=6)
+        precio = hoja.cell(row=fila + 1, column=self.columna(hoja, fila, 'Precio unitario'))
 
         self.assertIsInstance(precio.value, (int, float))
         self.assertEqual(precio.number_format, exportar.FORMATO_MONEDA)

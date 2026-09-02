@@ -7,9 +7,16 @@
     <h1 class="page-title">Catálogo — Bodega 1 y 2</h1>
     <p class="page-sub">Indicadores, básculas y repuestos para venta.</p>
   </div>
-  {% if user.es_administrador %}
+  {% if user.puede_editar_catalogo %}
     <div class="page-acciones">
-      <a href="{% url 'carga_masiva_subir' %}" class="btn">Carga masiva desde Excel</a>
+      {% comment %}
+        La carga masiva es solo del administrador: una importación mal
+        mapeada mete cientos de filas malas de un golpe. El practicante
+        captura uno por uno.
+      {% endcomment %}
+      {% if user.es_administrador %}
+        <a href="{% url 'carga_masiva_subir' %}" class="btn">Carga masiva desde Excel</a>
+      {% endif %}
       <a href="{% url 'articulo_nuevo' %}" class="btn btn-primary">+ Nuevo artículo</a>
     </div>
   {% endif %}
@@ -90,7 +97,7 @@
     <tr>
       <th></th><th>Código</th><th class="columna-secundaria">N.º de serial</th><th>Producto</th><th>Bodega</th><th class="columna-secundaria">Marca / Modelo</th>
       <th>Stock</th><th>Precio</th><th>Nivel</th>
-      {% if user.es_administrador %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+      {% if user.puede_editar_catalogo %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -101,7 +108,7 @@
         {% else %}<span class="miniatura-vacia"></span>{% endif %}
       </td>
       <td data-etiqueta="Código" class="code truncate" style="max-width:170px;" title="{{ a.codigo_interno }}">{{ a.codigo_interno }}</td>
-      <td data-etiqueta="N.º de serial" class="code columna-secundaria">{{ a.numero_serie|default:"—" }}</td>
+      <td data-etiqueta="N.º de serial" class="code columna-secundaria">{{ a.serial }}</td>
       <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ a.nombre_producto }}">{{ a.nombre_producto }}{% if not a.activo %} <span class="chip chip-neutral">Inactivo</span>{% endif %}</td>
       <td data-etiqueta="Bodega">{{ a.bodega.nombre }}</td>
       <td data-etiqueta="Marca / Modelo" class="truncate columna-secundaria" style="max-width:160px;" title="{{ a.marca }} {{ a.modelo }}">{{ a.marca }} {{ a.modelo }}</td>
@@ -113,7 +120,7 @@
         {% elif a.nivel_alerta == 'optimo' %}<span class="chip chip-good">Óptimo</span>
         {% else %}<span class="chip chip-neutral">Normal</span>{% endif %}
       </td>
-      {% if user.es_administrador %}
+      {% if user.puede_editar_catalogo %}
       <td class="celda-acciones">
         <span class="actions">
           <a href="{% url 'articulo_editar' a.pk %}" class="btn btn-sm">Editar</a>
@@ -128,7 +135,7 @@
         No hay artículos que coincidan con los filtros.
         <a href="{% url 'catalogo_articulos' %}">Limpiar filtros</a>
       {% else %}
-        Sin artículos todavía.{% if user.es_administrador %} Créalo con "+ Nuevo artículo" o usa la carga masiva desde Excel.{% endif %}
+        Sin artículos todavía.{% if user.puede_editar_catalogo %} Créalo con "+ Nuevo artículo" o usa la carga masiva desde Excel.{% endif %}
       {% endif %}
     </td></tr>
     {% endfor %}

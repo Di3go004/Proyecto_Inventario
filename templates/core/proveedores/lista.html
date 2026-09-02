@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Proveedores{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <h1 class="page-title">Proveedores</h1>
+    <p class="page-sub">
+      A quién se le compra. Marcar si es local o del extranjero ayuda a saber
+      con cuánta anticipación hay que pedir.
+    </p>
+  </div>
+  <a href="{% url 'proveedor_nuevo' %}" class="btn btn-primary">+ Nuevo proveedor</a>
+</div>
+
+{% if sin_clasificar %}
+  <p class="aviso-prestado">
+    Hay <strong>{{ sin_clasificar }}</strong> proveedor(es) sin clasificar como
+    local o extranjero. Son los que entraron por la carga masiva o al escribirlos
+    en un producto. <a href="?origen=sin_clasificar">Verlos</a>
+  </p>
+{% endif %}
+
+<form method="get" class="buscador">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}"
+           placeholder="Buscar por nombre, contacto o teléfono…" aria-label="Buscar">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+
+  <details class="filtros" {% if filtros_activos %}open{% endif %}>
+    <summary>
+      Filtros
+      {% if filtros_activos %}<span class="chip chip-neutral">{{ filtros_activos }}</span>{% endif %}
+    </summary>
+    <div class="filtros-campos">
+      <label class="filtro">
+        <span>Origen</span>
+        <select name="origen">
+          <option value="">Todos</option>
+          {% for valor, etiqueta in origenes %}
+            <option value="{{ valor }}" {% if origen == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+          <option value="sin_clasificar" {% if origen == 'sin_clasificar' %}selected{% endif %}>Sin clasificar</option>
+        </select>
+      </label>
+    </div>
+    <div class="filtros-acciones">
+      <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+      {% if q or filtros_activos %}
+        <a href="{% url 'lista_proveedores' %}" class="btn">Limpiar todo</a>
+      {% endif %}
+    </div>
+  </details>
+</form>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="proveedores" %}
+
+<div class="table-wrap">
+<table class="tabla-responsiva">
+  <thead>
+    <tr>
+      <th>Proveedor</th><th>Origen</th>
+      <th class="columna-secundaria">Contacto</th>
+      <th class="columna-secundaria">Teléfono</th>
+      <th>Productos</th>
+      <th><span class="visualmente-oculto">Acciones</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in proveedores %}
+    <tr>
+      <td data-etiqueta="Proveedor" class="celda-principal truncate">{{ p.nombre }}</td>
+      <td data-etiqueta="Origen">
+        {% if p.origen == 'extranjero' %}
+          <span class="chip chip-warn">Extranjero</span>
+        {% elif p.origen == 'local' %}
+          <span class="chip chip-good">Local</span>
+        {% else %}
+          <a href="{% url 'proveedor_editar' p.pk %}" class="sin-dato"
+             title="Nadie lo ha clasificado todavía">Sin clasificar</a>
+        {% endif %}
+      </td>
+      <td data-etiqueta="Contacto" class="truncate columna-secundaria">{{ p.contacto|default:"—" }}</td>
+      <td data-etiqueta="Teléfono" class="columna-secundaria">{{ p.telefono|default:"—" }}</td>
+      <td data-etiqueta="Productos" class="num">{{ p.articulos|add:p.activos }}</td>
+      <td class="celda-acciones">
+        <span class="actions">
+          <a href="{% url 'proveedor_editar' p.pk %}" class="btn btn-sm">Editar</a>
+          <a href="{% url 'proveedor_eliminar' p.pk %}" class="btn btn-sm btn-danger">Quitar</a>
+        </span>
+      </td>
+    </tr>
+    {% empty %}
+    <tr class="fila-vacia"><td colspan="6">
+      {% if q or filtros_activos %}
+        No hay proveedores que coincidan.
+        <a href="{% url 'lista_proveedores' %}">Limpiar filtros</a>
+      {% else %}
+        Todavía no hay proveedores.
+        <a href="{% url 'proveedor_nuevo' %}">Crear el primero</a>
+      {% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% include "componentes/paginacion.html" with pagina=pagina etiqueta="proveedores" %}
+{% endblock %}

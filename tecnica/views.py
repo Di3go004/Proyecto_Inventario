@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import ProtectedError, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -13,12 +14,12 @@ from django.utils.dateparse import parse_date
 
 from core.models import Bodega, Proveedor
 from core.paginacion import paginar
-from usuarios.decorators import rol_requerido
+from usuarios.decorators import rol_excluido, rol_requerido
 from usuarios.models import Usuario
 
 from . import boletas, importador
 from .forms import ActivoForm, BajaActivoForm, PrestamoForm, RegresoForm
-from .models import Activo, PrestamoActivo
+from .models import Activo, MovimientoActivo, PrestamoActivo
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
 
@@ -96,7 +97,7 @@ def activo_detalle(request, pk):
     })
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def activo_nuevo(request):
     if request.method == 'POST':
         form = ActivoForm(request.POST, request.FILES, usuario=request.user)
@@ -112,7 +113,7 @@ def activo_nuevo(request):
     return render(request, 'tecnica/activo_form.html', {'form': form, 'modo': 'nuevo'})
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def activo_editar(request, pk):
     activo = get_object_or_404(Activo, pk=pk)
     if request.method == 'POST':
@@ -126,34 +127,55 @@ def activo_editar(request, pk):
     return render(request, 'tecnica/activo_form.html', {'form': form, 'modo': 'editar', 'activo': activo})
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def activo_eliminar(request, pk):
     """
-    Igual que en el catálogo de ventas: una herramienta con préstamos a su
-    nombre no se borra, porque dejaría el registro sin saber qué se prestó.
-    A diferencia de los artículos, acá la carga masiva no crea ningún
-    préstamo, así que lo único que puede bloquear son préstamos de verdad.
+    Una herramienta con historial no se borra: quedarían préstamos y bajas
+    sin saber a qué activo pertenecían.
+
+    Pero el ajuste de existencia NO es historial — es el conteo con el que
+    arrancó el activo (carga masiva del FO-SE-065, saldo inicial al crearlo,
+    o una corrección de cantidad en un consumible). Si es lo único que tiene,
+    se borra junto con él.
+
+    Sin esa distinción, desde que Bodega Técnica lleva existencia por
+    cantidad, **ningún activo se podía borrar**: al crearlo con su cantidad
+    ya nacía con un movimiento que lo protegía, y la pantalla reventaba con
+    un error en vez de explicar nada.
     """
     activo = get_object_or_404(Activo, pk=pk)
     cuantos_prestamos = activo.prestamos.count()
+    movimientos_reales = activo.movimientos.exclude(tipo=MovimientoActivo.Tipo.AJUSTE)
+    cuantos_reales = movimientos_reales.count()
 
     if request.method == 'POST':
-        if cuantos_prestamos:
+        if cuantos_prestamos or cuantos_reales:
+            razones = []
+            if cuantos_prestamos:
+                razones.append(f'{cuantos_prestamos} préstamo(s)')
+            if cuantos_reales:
+                razones.append(f'{cuantos_reales} movimiento(s)')
             messages.error(
                 request,
                 f'No se puede eliminar "{activo.nombre_producto}": tiene '
-                f'{cuantos_prestamos} préstamo(s) registrados. Para retirarlo de '
+                f'{" y ".join(razones)} registrados. Para retirarlo de '
                 'circulación, dale de baja (RF-12).',
             )
             return redirect('catalogo_activos')
 
         nombre = activo.nombre_producto
-        activo.delete()
+        with transaction.atomic():
+            # A esta altura lo único que puede quedar son ajustes de conteo.
+            activo.movimientos.all().delete()
+            activo.delete()
         messages.success(request, f'Activo "{nombre}" eliminado.')
         return redirect('catalogo_activos')
 
     return render(request, 'tecnica/activo_confirmar_eliminar.html', {
-        'activo': activo, 'prestamos': cuantos_prestamos,
+        'activo': activo,
+        'prestamos': cuantos_prestamos,
+        'movimientos_reales': cuantos_reales,
+        'ajustes': activo.movimientos.count() - cuantos_reales,
     })
 
 
@@ -348,7 +370,7 @@ def _prestamos_filtrados(request):
     return prestamos, {'q': q, 'estado': estado, 'desde': desde, 'hasta': hasta}
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def prestamos_tecnica(request):
     """
     Historial de préstamos de herramienta (RF-07). Por defecto muestra los
@@ -375,7 +397,7 @@ def prestamos_tecnica(request):
 MAX_PRESTAMOS_PDF = 300
 
 
-@login_required
+@rol_excluido(Usuario.Rol.PRACTICANTE)
 def prestamos_pdf(request):
     """RF-10: la hoja FO-SE-066 con los préstamos que se están viendo."""
     prestamos, _filtros = _prestamos_filtrados(request)

@@ -5,6 +5,56 @@ from django.utils.safestring import mark_safe
 from .models import Categoria, Proveedor
 
 
+class ProveedorForm(forms.ModelForm):
+    """
+    Alta y edición de proveedores.
+
+    Antes no existía pantalla: los proveedores se creaban solos —por la carga
+    masiva del Excel o al escribirlos en el formulario de un producto— y no
+    había forma de corregirlos ni de borrar los que entraron por error.
+    """
+
+    class Meta:
+        model = Proveedor
+        fields = ['nombre', 'origen', 'contacto', 'telefono']
+        labels = {
+            'contacto': 'Persona de contacto',
+            'telefono': 'Teléfono',
+        }
+        help_texts = {
+            'origen': 'Lo importado tarda semanas o meses; sirve para saber '
+                      'qué hay que pedir con más anticipación.',
+            'contacto': 'Opcional. A quién buscar cuando hay que hacer un pedido.',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Desde esta pantalla sí se sabe qué es, así que la opción vacía no
+        # se ofrece; la dejan en blanco solo los que se crean al vuelo.
+        self.fields['origen'].choices = Proveedor.Origen.choices
+        self.fields['origen'].required = True
+        if not self.instance.pk:
+            self.initial.setdefault('origen', Proveedor.Origen.LOCAL)
+
+    def clean_nombre(self):
+        # Mismo motivo que en las categorías: sin normalizar entran "LOCOSC"
+        # y "locosc " como dos proveedores distintos.
+        return ' '.join(self.cleaned_data['nombre'].split())
+
+    def clean(self):
+        datos = super().clean()
+        nombre = datos.get('nombre')
+        if not nombre:
+            return datos
+
+        repetido = Proveedor.objects.filter(nombre__iexact=nombre)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError(f'Ya existe un proveedor "{nombre}".')
+        return datos
+
+
 def solo_el_nombre(campo_categoria):
     """
     Quita el "(Ventas)" / "(Técnica)" de las opciones del desplegable.

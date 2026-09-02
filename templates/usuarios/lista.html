@@ -72,6 +72,7 @@
       <td data-etiqueta="Rol">
         {% if u.rol == 'administrador' %}<span class="chip chip-good">Administrador</span>
         {% elif u.rol == 'operador' %}<span class="chip chip-neutral">Operador</span>
+        {% elif u.rol == 'practicante' %}<span class="chip chip-neutral">Practicante</span>
         {% else %}<span class="chip chip-warn">Contabilidad</span>{% endif %}
       </td>
       <td data-etiqueta="Acceso">
@@ -120,6 +121,14 @@
     <div>
       <dt><span class="chip chip-warn">Contabilidad</span></dt>
       <dd>Consulta e imprime todo, pero no puede modificar nada.</dd>
+    </div>
+    <div>
+      <dt><span class="chip chip-neutral">Practicante</span></dt>
+      <dd>
+        Solo el catálogo: captura, edita y elimina productos de las dos
+        bodegas. No mueve inventario, no ve reportes ni la valorización, y no
+        usa la carga masiva.
+      </dd>
     </div>
   </dl>
 </div>

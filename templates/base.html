@@ -34,21 +34,30 @@
           consultar. Antes "Reportes" colgaba de un rótulo "REPORTES", y la
           palabra repetida hacía dudar de cuál de las dos era el enlace.
         {% endcomment %}
-        <a href="{% url 'resumen' %}" class="{% if request.resolver_match.url_name == 'resumen' %}active{% endif %}">Resumen</a>
-        <a href="{% url 'indice_reportes' %}" class="{% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">Reportes</a>
+        {% comment %}
+          El practicante solo carga el catálogo: no ve el resumen (que enseña
+          la valorización de las dos bodegas), ni reportes, ni movimientos.
+        {% endcomment %}
+        {% if not user.es_practicante %}
+          <a href="{% url 'resumen' %}" class="{% if request.resolver_match.url_name == 'resumen' %}active{% endif %}">Resumen</a>
+          <a href="{% url 'indice_reportes' %}" class="{% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">Reportes</a>
+        {% endif %}
 
         <p class="app-sidebar-grupo">Catálogos</p>
         <a href="{% url 'catalogo_articulos' %}" class="{% if 'articulo' in request.resolver_match.url_name %}active{% endif %}">Bodega 1 y 2</a>
         <a href="{% url 'catalogo_activos' %}" class="{% if 'activo' in request.resolver_match.url_name %}active{% endif %}">Bodega Técnica</a>
 
-        <p class="app-sidebar-grupo">Movimientos</p>
-        <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|devolucion_demo' %}active{% endif %}">Entradas y salidas</a>
-        <a href="{% url 'prestamos_tecnica' %}" class="{% if request.resolver_match.url_name in 'prestamos_tecnica|prestamo_nuevo|prestamo_regreso' %}active{% endif %}">Préstamos de herramienta</a>
+        {% if not user.es_practicante %}
+          <p class="app-sidebar-grupo">Movimientos</p>
+          <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|devolucion_demo' %}active{% endif %}">Entradas y salidas</a>
+          <a href="{% url 'prestamos_tecnica' %}" class="{% if request.resolver_match.url_name in 'prestamos_tecnica|prestamo_nuevo|prestamo_regreso' %}active{% endif %}">Préstamos de herramienta</a>
+        {% endif %}
 
         {% if user.es_administrador %}
           <p class="app-sidebar-grupo">Administración</p>
           <a href="{% url 'lista_usuarios' %}" class="{% if 'usuario' in request.resolver_match.url_name %}active{% endif %}">Usuarios</a>
           <a href="{% url 'lista_categorias' %}" class="{% if 'categoria' in request.resolver_match.url_name %}active{% endif %}">Categorías</a>
+          <a href="{% url 'lista_proveedores' %}" class="{% if 'proveedor' in request.resolver_match.url_name %}active{% endif %}">Proveedores</a>
         {% endif %}
       </div>
     </nav>

@@ -19,6 +19,10 @@ class Usuario(AbstractUser):
         ADMINISTRADOR = 'administrador', 'Administrador'
         OPERADOR = 'operador', 'Operador de bodega'
         CONTABILIDAD = 'contabilidad', 'Contabilidad'
+        # Carga el catálogo y nada más: ni movimientos, ni reportes, ni
+        # valorización. Existe porque los practicantes se encargan de dejar
+        # los productos bien capturados, uno por uno.
+        PRACTICANTE = 'practicante', 'Practicante'
 
     rol = models.CharField(max_length=20, choices=Rol.choices, default=Rol.OPERADOR)
 
@@ -35,9 +39,26 @@ class Usuario(AbstractUser):
         return self.rol == self.Rol.CONTABILIDAD
 
     @property
+    def es_practicante(self):
+        return self.rol == self.Rol.PRACTICANTE
+
+    @property
     def puede_editar(self):
-        """Contabilidad nunca puede crear/editar/eliminar (RF-04)."""
-        return self.rol != self.Rol.CONTABILIDAD
+        """
+        Quién puede MOVER inventario: registrar entradas, salidas, préstamos
+        y devoluciones.
+
+        Antes esto era "cualquiera menos contabilidad" y alcanzaba, porque
+        editar el catálogo y mover inventario iban siempre de la mano. Con el
+        practicante dejaron de ir juntos: él captura productos pero no saca
+        nada de la bodega, así que son dos permisos distintos (RF-04).
+        """
+        return self.rol in (self.Rol.ADMINISTRADOR, self.Rol.OPERADOR)
+
+    @property
+    def puede_editar_catalogo(self):
+        """Quién puede crear, editar y eliminar productos del catálogo."""
+        return self.rol in (self.Rol.ADMINISTRADOR, self.Rol.PRACTICANTE)
 
     def save(self, *args, **kwargs):
         """

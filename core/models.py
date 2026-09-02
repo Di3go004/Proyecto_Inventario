@@ -52,7 +52,21 @@ class Proveedor(models.Model):
     muchas filas de los Excel actuales (KEERDA, BRECKNELL, LOCOSC...).
     """
 
+    class Origen(models.TextChoices):
+        LOCAL = 'local', 'Local'
+        EXTRANJERO = 'extranjero', 'Extranjero'
+
     nombre = models.CharField(max_length=150, unique=True)
+
+    # Vacío = todavía nadie lo clasificó. Se deja así a propósito en vez de
+    # asumir "local": los proveedores que entran por la carga masiva o al
+    # escribirlos en el formulario de un producto no pasan por nadie que lo
+    # sepa, y guardar una suposición como si fuera un dato es peor que
+    # admitir que falta. La lista los muestra aparte para poder repasarlos.
+    origen = models.CharField(
+        max_length=12, choices=Origen.choices, blank=True, verbose_name='Origen',
+    )
+
     contacto = models.CharField(max_length=150, blank=True)
     telefono = models.CharField(max_length=50, blank=True)
 
@@ -63,3 +77,15 @@ class Proveedor(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def es_extranjero(self):
+        """
+        Importar tarda semanas o meses. Sirve para saber, al ver qué reponer,
+        qué hay que pedir con mucha más anticipación.
+        """
+        return self.origen == self.Origen.EXTRANJERO
+
+    @property
+    def sin_clasificar(self):
+        return not self.origen

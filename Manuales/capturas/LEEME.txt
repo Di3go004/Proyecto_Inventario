@@ -1,0 +1,22 @@
+Capturas del manual del practicante.
+
+Guarda aquí las imágenes con estos nombres exactos, y aparecen solas en
+MANUAL_PRACTICANTE.md, que está en la carpeta de arriba:
+
+  01-login.png            Pantalla de inicio de sesión
+  02-catalogo.png         Catálogo de Bodega 1 y 2, con la barra lateral
+  03-articulo-nuevo.png   Formulario de nuevo artículo, vacío
+  04-articulo-lleno.png   El mismo formulario lleno, antes de guardar
+  05-activo-nuevo.png     Formulario de nuevo activo (Bodega Técnica)
+  06-editar.png           Una fila del catálogo con Editar y Eliminar
+  07-eliminar.png         Pantalla de confirmación de eliminación
+  08-filtros.png          Buscador con el panel de filtros abierto
+
+Todas se toman entrando con un usuario de rol Practicante, para que se vea
+lo mismo que va a ver quien lea el manual.
+
+PENDIENTE (31/08/2026): volver a tomar 03-articulo-nuevo.png y
+04-articulo-lleno.png. El campo "Número de serie" cambió de texto: ahora
+muestra "Vacío = S/S (sin serial)" dentro de la caja y, debajo, "Si el
+equipo no trae placa, dejalo vacío: aparecerá como S/S". Las capturas
+actuales todavía dicen "Identificador único adicional, si aplica".

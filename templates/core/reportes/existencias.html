@@ -110,7 +110,8 @@
 <table class="tabla-responsiva">
   <thead>
     <tr>
-      <th>Código</th><th>Producto</th><th class="columna-secundaria">Bodega</th>
+      <th>Código</th><th class="columna-secundaria">N.º de serial</th>
+      <th>Producto</th><th class="columna-secundaria">Bodega</th>
       <th>Existencia</th><th>Precio</th><th>Valor total</th><th>Nivel</th>
     </tr>
   </thead>
@@ -118,6 +119,7 @@
     {% for a in pagina %}
     <tr data-href="{% url 'articulo_detalle' a.pk %}">
       <td data-etiqueta="Código" class="code truncate">{{ a.codigo_interno }}</td>
+      <td data-etiqueta="N.º de serial" class="code columna-secundaria">{{ a.serial }}</td>
       <td data-etiqueta="Producto" class="truncate celda-principal">{{ a.nombre_producto }}</td>
       <td data-etiqueta="Bodega" class="columna-secundaria">{{ a.bodega.nombre }}</td>
       <td data-etiqueta="Existencia" class="num">{{ a.stock_actual }}</td>

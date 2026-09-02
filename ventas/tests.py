@@ -157,6 +157,30 @@ class NivelAlertaTests(BaseVentas):
         articulo.refresh_from_db()
         return articulo.nivel_alerta
 
+    def test_los_umbrales_en_desorden_se_rechazan_con_un_mensaje_legible(self):
+        """
+        Lo lee quien está capturando el catálogo, así que no puede salir el
+        nombre técnico de la restricción. Antes aparecía dos veces —lo validaba
+        el formulario y la base— y la segunda decía
+        'No se cumple la restricción "chk_critico_lte_alerta"'.
+        """
+        from ventas.forms import ArticuloForm
+        from ventas.models import UMBRALES_EN_ORDEN
+
+        form = ArticuloForm({
+            'nombre_producto': 'Báscula', 'modelo': 'B-1', 'bodega': self.bodega.pk,
+            'precio': '100', 'stock_optimo': 20, 'stock_alerta': 5, 'stock_critico': 30,
+            'codigo_interno': '', 'numero_serie': '', 'marca': '', 'capacidad': '',
+            'proveedor': '', 'imagen_url': '', 'activo': 'on',
+        })
+
+        self.assertFalse(form.is_valid())
+        mensajes = form.non_field_errors()
+        self.assertEqual(
+            list(mensajes), [UMBRALES_EN_ORDEN],
+            f'tiene que salir una sola vez y legible; salió: {list(mensajes)}',
+        )
+
     def test_umbrales(self):
         self.assertEqual(self.nivel_con_stock(0), 'critico')
         self.assertEqual(self.nivel_con_stock(2), 'critico')

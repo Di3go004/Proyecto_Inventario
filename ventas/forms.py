@@ -4,7 +4,7 @@ from django.utils import timezone
 from core.forms import CampoProveedor, solo_el_nombre
 from core.models import Proveedor
 
-from .models import Articulo, MovimientoVenta
+from .models import SIN_SERIAL, Articulo, MovimientoVenta, limpiar_serial
 
 
 class ArticuloForm(forms.ModelForm):
@@ -28,23 +28,23 @@ class ArticuloForm(forms.ModelForm):
             'codigo_interno': forms.TextInput(attrs={
                 'placeholder': 'Vacío = se genera solo (SE-MODELO-CAPACIDAD)',
             }),
+            'numero_serie': forms.TextInput(attrs={
+                'placeholder': f'Vacío = {SIN_SERIAL} (sin serial)',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         solo_el_nombre(self.fields['categoria'])
 
-    def clean(self):
-        datos = super().clean()
-        optimo = datos.get('stock_optimo')
-        alerta = datos.get('stock_alerta')
-        critico = datos.get('stock_critico')
-        if None not in (optimo, alerta, critico):
-            if not (critico <= alerta <= optimo):
-                raise forms.ValidationError(
-                    'Los umbrales deben cumplir: crítico ≤ alerta ≤ óptimo.'
-                )
-        return datos
+    # El orden de los umbrales no se valida acá: lo hace la restricción de la
+    # base de datos, que Django comprueba al validar el formulario y ya trae
+    # su propio mensaje (ver UMBRALES_EN_ORDEN en models.py). Estaba escrito
+    # en los dos lados y el error salía repetido en pantalla.
+
+    def clean_numero_serie(self):
+        """Ver limpiar_serial: escribir "S/S" es decir que no tiene."""
+        return limpiar_serial(self.cleaned_data.get('numero_serie'))
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get('imagen')

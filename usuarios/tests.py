@@ -6,6 +6,8 @@ contabilidad de verdad no pueda modificar nada, que el operador no toque el
 catálogo, y que sin sesión no se entre a ningún lado.
 """
 
+import re
+
 from django.test import TestCase
 from django.urls import reverse
 
@@ -13,6 +15,10 @@ from core.models import Bodega
 from tecnica.models import Activo
 from usuarios.models import Usuario
 from ventas.models import Articulo
+
+# Códigos ANSI de color, para poder leer la salida de un comando venga
+# coloreada o no.
+ESCAPES_DE_COLOR = re.compile(chr(27) + r'\[[0-9;]*m')
 
 
 class BasePermisos(TestCase):
@@ -193,11 +199,35 @@ class CambiarClaveTests(BasePermisos):
         call_command('cambiar_clave', *args, stdout=salida, **opciones)
         return salida.getvalue()
 
+    def clave_impresa(self, salida):
+        """
+        Saca del texto del comando la contraseña que imprimió.
+
+        Se busca por la FORMA de la contraseña, no por la sangría. Antes se
+        tomaba "la primera línea que empieza con cuatro espacios", y eso
+        ataba la prueba al formato exacto del mensaje: cualquier cambio de
+        estilo —o un código de color delante— la rompía con un StopIteration
+        pelado, que no dice qué salió mal ni deja ver la salida real.
+        """
+        from usuarios.claves import ALFABETO, LARGO_POR_DEFECTO
+
+        # Se quitan los códigos de color por si el comando corre con ellos.
+        limpio = re.sub(ESCAPES_DE_COLOR, "", salida)
+        patron = re.compile("^[" + re.escape(ALFABETO) + "]{" + str(LARGO_POR_DEFECTO) + ",}$")
+        candidatas = [l.strip() for l in limpio.splitlines() if patron.match(l.strip())]
+
+        self.assertEqual(
+            len(candidatas), 1,
+            "El comando tiene que imprimir la contraseña generada exactamente "
+            "una vez. Esto fue lo que imprimió: " + repr(salida),
+        )
+        return candidatas[0]
+
     def test_la_clave_generada_sirve_para_entrar(self):
         salida = self.ejecutar(self.operador.username, generar=True)
 
         # El comando la imprime una sola vez; es la única copia que queda.
-        generada = next(l.strip() for l in salida.splitlines() if l.startswith('    '))
+        generada = self.clave_impresa(salida)
         self.operador.refresh_from_db()
         self.assertTrue(self.operador.check_password(generada))
         self.assertGreaterEqual(len(generada), 16)

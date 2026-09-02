@@ -55,6 +55,8 @@ def leer_filas(ruta, hoja, fila_encabezado, mapeo):
     "nombre_producto" se omiten (secciones en blanco entre bloques, comunes
     en estos archivos).
     """
+    from .models import limpiar_serial
+
     libro = xl.abrir_libro(ruta)
     try:
         ws = libro[hoja]
@@ -77,7 +79,7 @@ def leer_filas(ruta, hoja, fila_encabezado, mapeo):
                 'capacidad': xl.valor_texto(obtener('capacidad')),
                 'precio': xl.valor_decimal(obtener('precio')),
                 'proveedor': xl.valor_texto(obtener('proveedor')),
-                'numero_serie': xl.valor_texto(obtener('numero_serie')) or None,
+                'numero_serie': limpiar_serial(xl.valor_texto(obtener('numero_serie'))),
                 'stock_inicial': xl.valor_entero(obtener('stock_inicial')),
             }
     finally:

@@ -524,14 +524,27 @@ Después del `merge`, solo hace falta más si el cambio tocó ciertas cosas:
 
 ### Empezar otra fase
 
-Cuando `feature/fase5` ya esté en `main` y quieras arrancar la siguiente:
+Cuando `feature/fase5` ya esté en `main` y quieras arrancar la siguiente,
+desde la carpeta de desarrollo:
 
 ```powershell
 cd ...\Proyecto_Inventario_dev
-git checkout main
-git pull
-git checkout -b feature/fase6
+git fetch origin
+git checkout -b feature/fase6 origin/main
 ```
+
+**No** hagas `git checkout main` aquí para actualizarte antes: `main` está
+sacada en la carpeta de la empresa y git no deja tener la misma rama en dos
+carpetas a la vez. Te va a responder:
+
+```
+fatal: 'main' is already used by worktree at ...\Proyecto_Inventario
+```
+
+No es un error tuyo ni algo que haya que arreglar — es la red de seguridad que
+impide que la carpeta de la empresa y la de pruebas terminen en la misma rama.
+Por eso se arranca desde `origin/main`, que es la copia de GitHub y no está
+amarrada a ninguna carpeta.
 
 ### Refrescar los datos de prueba
 

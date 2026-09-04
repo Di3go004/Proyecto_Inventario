@@ -12,7 +12,12 @@ services:
       # Atado a 127.0.0.1 a propósito: la base solo se alcanza desde la PC
       # servidor (para pgAdmin, respaldos o depurar), no desde el resto de la
       # red. Django le habla por la red interna de Docker, no por este puerto.
-      - "127.0.0.1:5432:5432"
+      #
+      # El puerto sale del .env, que no se versiona y es distinto en cada
+      # carpeta. Sin nada configurado queda el de siempre, así que la PC de
+      # la empresa no cambia. Ver PUESTA_EN_MARCHA.md, "Trabajar sin tocar
+      # lo que está en uso".
+      - "127.0.0.1:${PUERTO_DB:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -26,7 +31,8 @@ services:
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      # Igual que arriba: 8000 salvo que el .env de esta carpeta diga otro.
+      - "${PUERTO_WEB:-8000}:8000"
     env_file:
       - .env
     depends_on:

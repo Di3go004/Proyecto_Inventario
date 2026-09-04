@@ -193,9 +193,20 @@ que deshacer una cantidad que nunca debió entrar.
 
 ### El estado
 
-**Buen estado** o **Mal estado**, según cómo esté la herramienta. Si algo ya no
-sirve, **no lo captures como Mal estado y ya** — avisale al encargado, porque
-darlo de baja es otra cosa que él tiene que registrar.
+Son tres, y van de mejor a peor:
+
+| Estado | Cuándo se usa |
+|---|---|
+| **Buen estado** | Sirve bien, no hay nada que decir |
+| **Próximo a reemplazo** | Todavía sirve y se sigue prestando, pero está gastada y hay que ir comprando la de repuesto |
+| **Mal estado** | Ya no sirve |
+
+**Próximo a reemplazo** es el que más ayuda al encargado: es el aviso de que
+hay que comprar *antes* de quedarse sin la herramienta. Si la ves gastada,
+usalo — no esperes a que se termine de arruinar.
+
+Si algo ya no sirve, **no lo captures como Mal estado y ya** — avisale al
+encargado, porque darlo de baja es otra cosa que él tiene que registrar.
 
 ---
 

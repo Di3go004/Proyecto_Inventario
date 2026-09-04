@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load tecnica_extras %}
 {% load navegacion %}
 {% block title %}Bodega Técnica{% endblock %}
 {% block content %}
@@ -98,8 +99,7 @@
       </td>
       <td data-etiqueta="Estado">
         {% if a.agotado %}<span class="chip chip-critical">Agotado</span>
-        {% elif a.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
+        {% else %}<span class="chip {{ a.estado|clase_estado }}">{{ a.get_estado_display }}</span>{% endif %}
       </td>
       <td data-etiqueta="Disponibilidad">
         {% if a.agotado %}—

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load tecnica_extras %}
 {% block title %}{{ activo.nombre_producto }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -63,9 +64,7 @@
     <div>
       <dt>Estado</dt>
       <dd>
-        {% if activo.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-        {% elif activo.estado == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
-        {% else %}<span class="chip chip-critical">De baja</span>{% endif %}
+        <span class="chip {{ activo.estado|clase_estado }}">{{ activo.get_estado_display }}</span>
       </dd>
     </div>
     <div>
@@ -104,11 +103,10 @@
             <tr>
               <td data-etiqueta="Solicitante" class="celda-principal">{{ p.solicitante }}</td>
               <td data-etiqueta="Salida">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
-              <td data-etiqueta="Estado al salir">{% if p.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>{% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}</td>
+              <td data-etiqueta="Estado al salir"><span class="chip {{ p.estado_al_salir|clase_estado }}">{{ p.get_estado_al_salir_display }}</span></td>
               <td data-etiqueta="Regreso">{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
               <td data-etiqueta="Estado al regresar">
-                {% if p.estado_al_regresar == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-                {% elif p.estado_al_regresar == 'mal_estado' %}<span class="chip chip-warn">Mal estado</span>
+                {% if p.estado_al_regresar %}<span class="chip {{ p.estado_al_regresar|clase_estado }}">{{ p.get_estado_al_regresar_display }}</span>
                 {% else %}—{% endif %}
               </td>
             </tr>

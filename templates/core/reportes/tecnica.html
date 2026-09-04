@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load tecnica_extras %}
 {% load navegacion %}
 {% block title %}Inventario de Bodega Técnica{% endblock %}
 {% block content %}
@@ -84,8 +85,7 @@
       <td data-etiqueta="Categoría" class="truncate columna-secundaria">{{ a.categoria.nombre|default:"—" }}</td>
       <td data-etiqueta="Estado">
         {% if a.agotado %}<span class="chip chip-critical">Agotado</span>
-        {% elif a.estado == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
+        {% else %}<span class="chip {{ a.estado|clase_estado }}">{{ a.get_estado_display }}</span>{% endif %}
       </td>
       <td data-etiqueta="Existencia" class="num">{{ a.existencia }}</td>
       <td data-etiqueta="Afuera" class="num">{{ a.cantidad_afuera|default:"—" }}</td>

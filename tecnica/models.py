@@ -24,7 +24,15 @@ class Activo(models.Model):
     """
 
     class Estado(models.TextChoices):
+        # Van en orden de desgaste, no alfabético: así se leen como una escala
+        # en el desplegable y en los reportes.
+        #
+        # "Próximo a reemplazo" es el aviso: la herramienta todavía sirve y se
+        # sigue prestando, pero hay que ir comprando la de repuesto. Antes solo
+        # había bueno y malo, y no había dónde anotar eso: quedaba en la cabeza
+        # de quien la usó.
         BUEN_ESTADO = 'buen_estado', 'Buen estado'
+        PROXIMO_A_REEMPLAZO = 'proximo_a_reemplazo', 'Próximo a reemplazo'
         MAL_ESTADO = 'mal_estado', 'Mal estado'
 
     codigo_interno = models.CharField(max_length=50, unique=True)
@@ -61,7 +69,7 @@ class Activo(models.Model):
     # Igual que en Articulo: se puede subir el archivo o pegar un link externo.
     imagen = models.ImageField(upload_to='activos/', blank=True, null=True)
     imagen_url = models.CharField(max_length=300, blank=True, verbose_name='URL de imagen (alternativa)')
-    estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.BUEN_ESTADO)
+    estado = models.CharField(max_length=30, choices=Estado.choices, default=Estado.BUEN_ESTADO)
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -273,14 +281,15 @@ class PrestamoActivo(models.Model):
     # digita después, así que la fecha real de salida la pone el operador.
     fecha_salida = models.DateTimeField(default=timezone.now)
     entregado_por = models.CharField(max_length=150, blank=True)
-    estado_al_salir = models.CharField(
-        max_length=20,
-        choices=[(Activo.Estado.BUEN_ESTADO, 'Buen estado'), (Activo.Estado.MAL_ESTADO, 'Mal estado')],
-    )
+    # Los choices salen de Activo.Estado en vez de repetirse aquí: escritos a
+    # mano, agregar un estado nuevo se olvidaba de este campo y la herramienta
+    # no podía salir con él. La opción vacía la quita el formulario, que
+    # propone "Buen estado" (ver tecnica/forms.py).
+    estado_al_salir = models.CharField(max_length=30, choices=Activo.Estado.choices)
 
     fecha_regreso = models.DateTimeField(null=True, blank=True)
     recibido_por = models.CharField(max_length=150, blank=True)
-    estado_al_regresar = models.CharField(max_length=20, choices=Activo.Estado.choices, blank=True)
+    estado_al_regresar = models.CharField(max_length=30, choices=Activo.Estado.choices, blank=True)
 
     observacion = models.TextField(blank=True)
     usuario = models.ForeignKey(

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load tecnica_extras %}
 {% block title %}Registrar regreso de herramienta{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -37,8 +38,7 @@
     <div>
       <dt>Estado al salir</dt>
       <dd>
-        {% if prestamo.estado_al_salir == 'buen_estado' %}<span class="chip chip-good">Buen estado</span>
-        {% else %}<span class="chip chip-warn">Mal estado</span>{% endif %}
+        <span class="chip {{ prestamo.estado_al_salir|clase_estado }}">{{ prestamo.get_estado_al_salir_display }}</span>
       </dd>
     </div>
   </dl>

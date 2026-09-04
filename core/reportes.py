@@ -89,6 +89,7 @@ def valorizacion_tecnica():
         'unidades': resumen['unidades'] or 0,
         'valor': resumen['valor'] or Decimal('0'),
         'buen_estado': por_estado.get(Activo.Estado.BUEN_ESTADO, 0),
+        'proximo_a_reemplazo': por_estado.get(Activo.Estado.PROXIMO_A_REEMPLAZO, 0),
         'mal_estado': por_estado.get(Activo.Estado.MAL_ESTADO, 0),
         'agotados': activos.filter(existencia=0).count(),
     }

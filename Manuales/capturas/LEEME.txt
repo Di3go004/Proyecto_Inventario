@@ -15,6 +15,11 @@ MANUAL_PRACTICANTE.md, que está en la carpeta de arriba:
 Todas se toman entrando con un usuario de rol Practicante, para que se vea
 lo mismo que va a ver quien lea el manual.
 
+PENDIENTE: volver a tomar 05-activo-nuevo.png. El campo "Cantidad en
+bodega" ahora sale bloqueado y en 0 al crear, con la ayuda "Arranca en 0.
+La cantidad entra con un ingreso (FO-SE-013)...". La captura actual lo
+muestra abierto para escribir.
+
 PENDIENTE (31/08/2026): volver a tomar 03-articulo-nuevo.png y
 04-articulo-lleno.png. El campo "Número de serie" cambió de texto: ahora
 muestra "Vacío = S/S (sin serial)" dentro de la caja y, debajo, "Si el

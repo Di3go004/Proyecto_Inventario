@@ -33,7 +33,21 @@ class ActivoForm(forms.ModelForm):
         self.usuario = usuario
         self.existencia_anterior = self.instance.existencia if self.instance.pk else 0
 
-        if self.instance.pk and not self.instance.es_consumible:
+        if not self.instance.pk:
+            # Un activo nace en 0, igual que un artículo de Bodega 1 y 2: la
+            # cantidad entra con un ingreso (FO-SE-013), no escribiéndola en
+            # el catálogo. Antes este campo se podía llenar al crear, y por
+            # ahí entraron 218 cantidades sin boleta que las respaldara.
+            #
+            # La marca de consumible NO es una excepción a esto: solo permite
+            # corregir la cantidad DESPUÉS, sobre un activo que ya existe.
+            self.fields['existencia'].disabled = True
+            self.fields['existencia'].help_text = (
+                'Arranca en 0. La cantidad entra con un ingreso (FO-SE-013). '
+                'Si es algo que se gasta, marcá "Es consumible" y vas a poder '
+                'escribirla al editarlo.'
+            )
+        elif not self.instance.es_consumible:
             # En herramienta y equipo la existencia solo se mueve con un
             # ingreso (FO-SE-013) o con una baja: escribirla a mano acá
             # dejaría el historial diciendo otra cosa que el catálogo.
@@ -44,8 +58,6 @@ class ActivoForm(forms.ModelForm):
             )
         else:
             self.fields['existencia'].help_text = (
-                'Cuántas unidades hay. Al crearlo queda como saldo inicial.'
-                if not self.instance.pk else
                 'Es consumible: se puede corregir aquí y queda como ajuste en el historial.'
             )
 

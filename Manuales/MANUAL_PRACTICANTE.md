@@ -163,24 +163,33 @@ Acá el código **no** se genera solo: lo asigna la empresa. Usá el que ya teng
 la herramienta en el listado (`SE-TE001`, `SE-EP012`…). Si no sabés cuál va,
 preguntale al encargado antes de inventar uno.
 
-### Diferencia 2 — la cantidad
+### Diferencia 2 — un activo nace en **0**
 
-El campo **Cantidad en bodega** es cuántas unidades hay. Contá las que están
-físicamente y escribí ese número.
+El campo **Cantidad en bodega** aparece bloqueado y con un `0`. **Es a
+propósito, no está fallando.** Igual que en Bodega 1 y 2, la cantidad no se
+escribe en el catálogo: entra con un ingreso.
 
-Ejemplo: si hay 43 abrazaderas de 1/2", el producto es *abrazadera de 1/2"* y
-la cantidad es **43** — no se capturan 43 productos distintos.
+Lo que sí seguís haciendo igual: **un producto, no uno por unidad.** Si hay 43
+abrazaderas de 1/2", capturás *una* abrazadera de 1/2" — no 43 productos.
 
 ### Diferencia 3 — el interruptor de consumible
 
 Marcá **Es consumible** en las cosas que se gastan: bombillos, flejes, pintura,
-brocas, cinta.
+brocas, tornillos, abrazaderas, cinta.
 
-- **Marcado**: después se puede corregir la cantidad escribiéndola directamente
-- **Sin marcar**: la cantidad solo cambia con un ingreso o una baja, y eso lo
-  hace el encargado
+Es lo que decide **cómo entra la cantidad**:
 
-Ante la duda, dejalo **sin marcar** y preguntá.
+- **Marcado**: guardás, volvés a entrar con **Editar** y ahí sí escribís
+  cuántas hay. Son dos pasos, pero es todo tuyo.
+- **Sin marcar**: la cantidad solo entra con un ingreso (FO-SE-013) o cambia
+  con una baja, y eso **lo hace el encargado** — vos dejás el activo en 0.
+
+Ante la duda, dejalo **sin marcar** y preguntá: es más fácil marcarlo después
+que deshacer una cantidad que nunca debió entrar.
+
+> **La regla de fondo:** toda cantidad que entra a bodega tiene que tener algo
+> que la respalde — una boleta, o alguien que la contó y la corrigió a mano
+> quedando registrado. Por eso el campo está bloqueado al crear.
 
 ### El estado
 

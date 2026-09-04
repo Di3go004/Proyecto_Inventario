@@ -106,6 +106,16 @@ select {
 }
 input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--brand-primary); }
 
+/* Un campo bloqueado tiene que verse bloqueado. Se usa donde el dato no se
+   escribe sino que se deriva de otra cosa — la cantidad en Bodega Técnica, que
+   sale de los movimientos. Sin esto el campo se ve igual que uno editable, y
+   quien lo intenta llenar no entiende por qué no pasa nada. La ayuda de abajo
+   dice qué hacer en su lugar. */
+input:disabled, textarea:disabled, select:disabled {
+  background: var(--surface-alt); color: var(--text-muted);
+  border-style: dashed; cursor: not-allowed;
+}
+
 /* ---------- Layout con navegación (catálogo, movimientos, etc.) ---------- */
 /* .app-body es flex:1 dentro de un body en columna (topbar + esto), así
    siempre llena el alto restante de la pantalla — y como es grid sin

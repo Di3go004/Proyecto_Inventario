@@ -277,10 +277,16 @@ class ConsumiblesTests(BaseExistencia):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(activo.existencia, 10)
 
-    def test_al_crearlo_la_cantidad_entra_como_saldo_inicial(self):
+    def test_al_crearlo_arranca_en_cero_aunque_manden_cantidad(self):
         """
-        La herramienta se agrega al catálogo con lo que hay, y eso queda como
-        movimiento para que la existencia siga siendo derivada.
+        Antes el alta aceptaba una cantidad inicial y la guardaba como un
+        movimiento de "saldo inicial". Eso dejaba entrar existencia a Bodega
+        Técnica sin ninguna boleta detrás: en la lista de movimientos salían
+        como "Ajuste", sin folio ni solicitante, y así entraron 218.
+
+        Ahora un activo nace en 0 igual que un artículo de Bodega 1 y 2: la
+        cantidad entra con un ingreso (FO-SE-013), o escribiéndola al editar
+        si es consumible. Ver tecnica/test_alta_en_cero.py.
         """
         self.client.post(reverse('activo_nuevo'), {
             'codigo_interno': 'SE-NUEVO', 'nombre_producto': 'Juego de llaves',
@@ -289,5 +295,5 @@ class ConsumiblesTests(BaseExistencia):
         })
 
         activo = Activo.objects.get(codigo_interno='SE-NUEVO')
-        self.assertEqual(activo.existencia, 6)
-        self.assertEqual(activo.calcular_existencia_desde_movimientos(), 6)
+        self.assertEqual(activo.existencia, 0)
+        self.assertEqual(activo.movimientos.count(), 0)

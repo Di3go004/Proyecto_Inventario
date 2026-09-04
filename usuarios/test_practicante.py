@@ -237,10 +237,10 @@ class TrabajoDelPracticanteTests(BasePracticante):
             'codigo_interno': 'SE-NUEVO', 'nombre_producto': 'Llave de tubo',
             'marca': '', 'modelo': '', 'bodega': self.tecnica.pk, 'proveedor': '',
             'precio': '300', 'imagen_url': '', 'estado': Activo.Estado.BUEN_ESTADO,
-            'existencia': 2,
         })
         nuevo = Activo.objects.get(codigo_interno='SE-NUEVO')
-        self.assertEqual(nuevo.existencia, 2)
+        # Nace en 0: la cantidad entra con un ingreso, no al darlo de alta.
+        self.assertEqual(nuevo.existencia, 0)
 
         self.client.post(reverse('activo_eliminar', args=[nuevo.pk]))
         self.assertFalse(Activo.objects.filter(pk=nuevo.pk).exists())

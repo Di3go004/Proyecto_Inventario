@@ -463,6 +463,117 @@ confirmación escrita antes de hacerlo.
 
 ---
 
+## Trabajar sin tocar lo que está en uso
+
+Docker monta **la carpeta**, no la rama (`- .:/app` en `docker-compose.yml`).
+Por eso corre siempre lo que esté sacado en el disco: si en la carpeta de la
+empresa cambiás de rama, el sistema que usa el personal cambia con vos, a
+medio terminar. Por eso hay **dos carpetas**, cada una con su rama:
+
+| Carpeta | Rama | Puerto | Quién entra |
+|---|---|---|---|
+| `Proyecto_Inventario` | `main` | 8000 | **El personal**, desde toda la red |
+| `Proyecto_Inventario_dev` | `feature/faseN` | 8001 | Solo vos, solo desde esta PC |
+
+No son dos copias sueltas: son el **mismo repositorio** (`git worktree`), así
+que las ramas y los commits se ven desde las dos. Lo que no comparten es la
+base de datos — cada una tiene la suya, y por eso podés borrar, importar y
+romper en la de pruebas sin que el personal se entere.
+
+> ⚠️ **La carpeta de la empresa se queda en `main` y no se cambia de rama.**
+> Es la única regla que importa de todo esto.
+
+### Cómo se logró
+
+Lo hacen tres variables del `.env` de la carpeta de desarrollo — y como el
+`.env` no se versiona, cada carpeta tiene el suyo:
+
+```
+COMPOSE_PROJECT_NAME=inventario_dev   # contenedores y volumen aparte
+PUERTO_WEB=127.0.0.1:8001             # solo esta PC, no la red
+PUERTO_DB=5433
+```
+
+La carpeta de la empresa **no tiene ninguna de las tres**, y sin ellas quedan
+los valores de siempre (proyecto por el nombre de la carpeta, puertos 8000 y
+5432). Es decir: no hubo que cambiarle nada.
+
+### El día a día
+
+Trabajás en `Proyecto_Inventario_dev` y probás en <http://localhost:8001>.
+Cuando algo ya está listo y probado:
+
+```powershell
+# 1. En la carpeta de desarrollo: guardar y subir
+cd ...\Proyecto_Inventario_dev
+git add -A
+git commit -m "lo que se hizo"
+git push origin feature/fase5
+
+# 2. En la carpeta de la empresa: traerlo a main
+cd ...\Proyecto_Inventario
+git merge feature/fase5
+git push origin main
+```
+
+Después del `merge`, solo hace falta más si el cambio tocó ciertas cosas:
+
+- **Migraciones nuevas** → `docker compose exec web python manage.py migrate`
+- **`requirements.txt` o `docker-compose.yml`** → `docker compose up -d --build`
+- **Solo código o plantillas** → nada: `runserver` recarga solo
+
+### Empezar otra fase
+
+Cuando `feature/fase5` ya esté en `main` y quieras arrancar la siguiente:
+
+```powershell
+cd ...\Proyecto_Inventario_dev
+git checkout main
+git pull
+git checkout -b feature/fase6
+```
+
+### Refrescar los datos de prueba
+
+La base de desarrollo es una **foto** de la real del día que se creó; no se
+actualiza sola. Para volver a copiarla se usan los mismos dos scripts de
+siempre, sin nada especial:
+
+```powershell
+# 1. En la carpeta de la empresa: generar un respaldo
+cd ...\Proyecto_Inventario
+.\scripts
+espaldo.ps1
+
+# 2. En la carpeta de desarrollo: restaurar ESE archivo
+cd ...\Proyecto_Inventario_dev
+.\scripts
+estaurar.ps1 -Archivo ..\Proyecto_Inventario
+espaldosodega_<fecha>.dump
+```
+
+Funciona porque cada script lee el `.env` de **su** carpeta: corrido desde
+`_dev` apunta a la base de pruebas, no a la real. Y `respaldo.ps1` solo lee,
+así que el paso 1 **nunca** toca los datos del personal.
+
+El paso 2 pide escribir `RESTAURAR` en mayúsculas antes de hacer nada, y
+antes de eso dice a qué base va a entrar. Leé esa línea: debe decir
+`inventario_dev-db-1`.
+
+> Es el mismo comando que en la carpeta de la empresa reemplazaría los datos
+> reales del personal — **fijate siempre en qué carpeta estás.**
+
+### Si algún día querés quitar la carpeta de desarrollo
+
+```powershell
+cd ...\Proyecto_Inventario_dev
+docker compose down -v          # borra su base de pruebas
+cd ...\Proyecto_Inventario
+git worktree remove ..\Proyecto_Inventario_dev
+```
+
+---
+
 ## Para leer después
 
 - [PLAN.md](PLAN.md) — cómo funciona el sistema por dentro y por qué se

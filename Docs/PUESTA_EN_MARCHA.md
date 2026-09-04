@@ -546,6 +546,29 @@ impide que la carpeta de la empresa y la de pruebas terminen en la misma rama.
 Por eso se arranca desde `origin/main`, que es la copia de GitHub y no está
 amarrada a ninguna carpeta.
 
+### Entrar en los dos al mismo tiempo
+
+Si abrímos los dos como `localhost:8000` y `localhost:8001`, al entrar en uno
+**se cierra la sesión del otro** (en realidad de los dos). No es una falla del
+sistema: las cookies del navegador se reparten por **host**, y el puerto no
+cuenta. Para el navegador los dos son el mismo sitio, `localhost`, así que
+comparten una sola cookie de sesión y la segunda pisa a la primera.
+
+La solución no cuesta nada: usar **un nombre distinto para cada uno**.
+
+| | Dirección |
+|---|---|
+| Empresa | <http://localhost:8000> |
+| Pruebas | <http://127.0.0.1:8001> |
+
+`localhost` y `127.0.0.1` llevan a la misma máquina, pero para el navegador son
+dos sitios distintos, así que cada uno guarda su propia sesión y se puede estar
+dentro de los dos a la vez. No hay que configurar nada: `DJANGO_ALLOWED_HOSTS`
+de la carpeta de la empresa ya acepta las dos formas.
+
+Sirve igual usar una ventana de incógnito para uno de los dos, o dos navegadores
+distintos.
+
 ### Refrescar los datos de prueba
 
 La base de desarrollo es una **foto** de la real del día que se creó; no se

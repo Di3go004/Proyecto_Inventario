@@ -35,11 +35,18 @@
           palabra repetida hacía dudar de cuál de las dos era el enlace.
         {% endcomment %}
         {% comment %}
-          El practicante solo carga el catálogo: no ve el resumen (que enseña
-          la valorización de las dos bodegas), ni reportes, ni movimientos.
+          El practicante solo carga el catálogo: no ve el resumen, ni reportes,
+          ni movimientos.
+
+          Reportes va aparte porque son dos permisos distintos: el operador sí
+          entra al Resumen —ahí ve qué reponer y qué hay prestado— pero no a
+          los reportes, que enseñan cuánto vale el inventario. Ver
+          Usuario.puede_ver_reportes.
         {% endcomment %}
         {% if not user.es_practicante %}
           <a href="{% url 'resumen' %}" class="{% if request.resolver_match.url_name == 'resumen' %}active{% endif %}">Resumen</a>
+        {% endif %}
+        {% if user.puede_ver_reportes %}
           <a href="{% url 'indice_reportes' %}" class="{% if 'reporte' in request.resolver_match.url_name %}active{% endif %}">Reportes</a>
         {% endif %}
 

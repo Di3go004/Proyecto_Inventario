@@ -60,6 +60,22 @@ class Usuario(AbstractUser):
         """Quién puede crear, editar y eliminar productos del catálogo."""
         return self.rol in (self.Rol.ADMINISTRADOR, self.Rol.PRACTICANTE)
 
+    @property
+    def puede_ver_reportes(self):
+        """
+        Quién ve los reportes y, con ellos, cuánto vale el inventario.
+
+        El operador mueve bodega —registra entradas, salidas y préstamos—
+        pero no necesita la valorización para eso, y es información de la
+        empresa que no le toca. Para contabilidad, en cambio, es la razón de
+        ser de su acceso: consulta e imprime, no modifica (RF-04).
+
+        Manda también sobre las tarjetas de valorización del Resumen: es el
+        mismo dato, y no tendría sentido cerrarle el reporte y enseñárselo en
+        la portada.
+        """
+        return self.rol in (self.Rol.ADMINISTRADOR, self.Rol.CONTABILIDAD)
+
     def save(self, *args, **kwargs):
         """
         El rol de la aplicación manda sobre el permiso de Django: solo el

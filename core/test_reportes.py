@@ -112,13 +112,27 @@ class AccesoTests(BaseReportes):
     RUTAS = ['indice_reportes', 'reporte_existencias', 'reporte_alertas',
              'reporte_movimientos', 'reporte_prestamos']
 
-    def test_los_tres_roles_pueden_verlos(self):
+    def test_los_ven_administrador_y_contabilidad(self):
         """RF-04: para contabilidad los reportes son la razón de su acceso."""
-        for usuario in (self.admin, self.operador, self.contable):
+        for usuario in (self.admin, self.contable):
             self.client.force_login(usuario)
             for nombre in self.RUTAS:
                 with self.subTest(rol=usuario.rol, pantalla=nombre):
                     self.assertEqual(self.client.get(reverse(nombre)).status_code, 200)
+
+    def test_el_operador_no(self):
+        """
+        Antes los veían los tres roles. El operador mueve bodega —entradas,
+        salidas, préstamos— y para eso no necesita saber cuánto vale el
+        inventario, que es información de la empresa que no le toca.
+
+        Lo que sí necesita —qué reponer y qué está prestado— lo sigue viendo
+        en el Resumen. Ver usuarios/test_operador.py.
+        """
+        self.client.force_login(self.operador)
+        for nombre in self.RUTAS:
+            with self.subTest(pantalla=nombre):
+                self.assertEqual(self.client.get(reverse(nombre)).status_code, 403)
 
     def test_contabilidad_tambien_puede_descargar(self):
         self.client.force_login(self.contable)

@@ -10,7 +10,7 @@ from core import exportar, reportes
 from core.forms import CategoriaForm, ProveedorForm
 from core.models import Bodega, Categoria, Proveedor
 from core.paginacion import paginar
-from usuarios.decorators import rol_excluido, rol_requerido
+from usuarios.decorators import rol_requerido
 from usuarios.models import Usuario
 from ventas.models import Articulo, MovimientoVenta
 from tecnica.models import Activo, PrestamoActivo
@@ -63,6 +63,9 @@ def resumen(request):
 
     contexto = {
         'total_articulos': articulos.count(),
+        # Reemplaza a la valorización para quien no puede verla: sigue siendo
+        # un dato útil del tamaño de la bodega, sin decir cuánto vale.
+        'total_activos': Activo.objects.count(),
         # Solo las más urgentes: esta pantalla es un resumen y se abre al
         # entrar. Listarlas todas eran 185 filas de Ventas más 252 de Técnica
         # recién cargado el inventario, con la pantalla tardando un segundo en
@@ -82,8 +85,13 @@ def resumen(request):
 # ---------------------------------------------------------------------------
 # Fase 5 — Reportes (RF-14)
 #
-# Los ven los 3 roles. Para contabilidad son la razón de ser de su acceso:
-# consulta e imprime, no modifica (RF-04).
+# Solo administrador y contabilidad. Para contabilidad son la razón de ser
+# de su acceso: consulta e imprime, no modifica (RF-04). El operador mueve
+# bodega pero no necesita la valorización para eso, y es información de la
+# empresa que no le toca (ver Usuario.puede_ver_reportes).
+#
+# Van con lista de PERMITIDOS y no de bloqueados a propósito: así un rol
+# nuevo nace sin acceso, en vez de entrar por descuido.
 # ---------------------------------------------------------------------------
 
 def _excel(nombre, titulo, encabezados, filas, subtitulo='', formatos=None,
@@ -106,7 +114,7 @@ def _bodegas_de_venta():
     return Bodega.objects.filter(tipo=Bodega.Tipo.VENTA)
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.CONTABILIDAD)
 def indice_reportes(request):
     """Portada de reportes, con un dato de cada uno para saber si vale la pena abrirlo."""
     _filas, _detalle, totales = reportes.existencias()
@@ -128,7 +136,7 @@ def indice_reportes(request):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.CONTABILIDAD)
 def reporte_existencias(request):
     """RF-14: existencias y valorización por bodega."""
     bodega_id = request.GET.get('bodega', '').strip()
@@ -165,7 +173,7 @@ def reporte_existencias(request):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.CONTABILIDAD)
 def reporte_tecnica(request):
     """
     RF-12/RF-14: el inventario de Bodega Técnica, con existencia y valor.
@@ -214,7 +222,7 @@ def reporte_tecnica(request):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.CONTABILIDAD)
 def reporte_alertas(request):
     """RF-11/RF-14: qué hay que reponer, lo más urgente primero."""
     bodega_id = request.GET.get('bodega', '').strip()
@@ -263,7 +271,7 @@ def reporte_alertas(request):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.CONTABILIDAD)
 def reporte_movimientos(request):
     """RF-05/RF-14: qué entró y qué salió en un período."""
     desde = parse_date(request.GET.get('desde', '') or '')
@@ -303,7 +311,7 @@ def reporte_movimientos(request):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.CONTABILIDAD)
 def reporte_prestamos(request):
     """RF-06/RF-07/RF-14: todo lo que está fuera de bodega ahora mismo."""
     filas = reportes.prestamos_abiertos()

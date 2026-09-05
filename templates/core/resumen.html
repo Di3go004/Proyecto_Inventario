@@ -14,14 +14,27 @@
     <div class="kpi-label">Artículos activos (Ventas)</div>
     <div class="kpi-value">{{ total_articulos }}</div>
   </div>
-  <div class="kpi-tile">
-    <div class="kpi-label">Valorización Bodega 1+2</div>
-    <div class="kpi-value">Q {{ valorizacion_ventas|floatformat:2 }}</div>
-  </div>
-  <div class="kpi-tile">
-    <div class="kpi-label">Valorización Bodega Técnica</div>
-    <div class="kpi-value">Q {{ valorizacion_tecnica|floatformat:2 }}</div>
-  </div>
+  {% comment %}
+    Cuánto vale el inventario es información de la empresa: la ven el
+    administrador y contabilidad, no el operador. Para él va en su lugar el
+    tamaño de Bodega Técnica, que le sirve igual y no dice cuánto vale. Ver
+    Usuario.puede_ver_reportes.
+  {% endcomment %}
+  {% if user.puede_ver_reportes %}
+    <div class="kpi-tile">
+      <div class="kpi-label">Valorización Bodega 1+2</div>
+      <div class="kpi-value">Q {{ valorizacion_ventas|floatformat:2 }}</div>
+    </div>
+    <div class="kpi-tile">
+      <div class="kpi-label">Valorización Bodega Técnica</div>
+      <div class="kpi-value">Q {{ valorizacion_tecnica|floatformat:2 }}</div>
+    </div>
+  {% else %}
+    <div class="kpi-tile">
+      <div class="kpi-label">Activos en Bodega Técnica</div>
+      <div class="kpi-value">{{ total_activos }}</div>
+    </div>
+  {% endif %}
   <div class="kpi-tile">
     <div class="kpi-label">Préstamos / demos abiertos</div>
     <div class="kpi-value">{{ prestamos_demo_abiertos }}</div>
@@ -53,7 +66,7 @@
         </li>
         {% endfor %}
       </ul>
-      {% if alertas_total > alertas|length %}
+      {% if user.puede_ver_reportes and alertas_total > alertas|length %}
         <p class="panel-pie">
           <a href="{% url 'reporte_alertas' %}">Ver las {{ alertas_total }} →</a>
         </p>
@@ -78,7 +91,7 @@
         </li>
         {% endfor %}
       </ul>
-      {% if alertas_tecnica_total > alertas_tecnica|length %}
+      {% if user.puede_ver_reportes and alertas_tecnica_total > alertas_tecnica|length %}
         <p class="panel-pie">
           <a href="{% url 'reporte_alertas' %}">Ver las {{ alertas_tecnica_total }} →</a>
         </p>

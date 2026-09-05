@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load chips %}
 {% block title %}Resumen{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -27,44 +28,83 @@
   </div>
 </div>
 
+{% comment %}
+  Las dos bodegas van lado a lado y no en una sola lista: llevan catálogos
+  distintos, así que cada fila enlaza a un lugar distinto y mezclarlas
+  obligaría a etiquetar cada línea con su bodega.
+
+  Cada panel muestra solo las más urgentes. El resto está en el reporte de
+  alertas, a un clic: recién cargado el inventario esto serían 437 filas, y
+  una pantalla que tarda en abrir para decir lo mismo deja de ser un resumen.
+{% endcomment %}
 <div class="panel-row">
   <div class="panel">
-    <h2>Alertas de stock</h2>
+    <h2>Alertas de stock — Bodega 1 y 2</h2>
     {% if alertas %}
       <ul>
         {% for a in alertas %}
         <li>
-          <a href="{% url 'catalogo_articulos' %}?q={{ a.codigo_interno|urlencode }}" title="Ver bodega y stock de {{ a.codigo_interno }}">
+          <a href="{% url 'articulo_detalle' a.pk %}" title="Ver {{ a.codigo_interno }}">
             <span class="truncate" style="flex:1;">
               <span class="code">{{ a.codigo_interno }}</span> {{ a.nombre_producto }}
             </span>
-            <span class="chip {% if a.nivel_alerta == 'critico' %}chip-critical{% else %}chip-warn{% endif %}">{{ a.stock_actual }} uds</span>
+            <span class="chip {{ a.nivel_alerta|clase_nivel }}">{{ a.stock_actual }} uds</span>
           </a>
         </li>
         {% endfor %}
       </ul>
+      {% if alertas_total > alertas|length %}
+        <p class="panel-pie">
+          <a href="{% url 'reporte_alertas' %}">Ver las {{ alertas_total }} →</a>
+        </p>
+      {% endif %}
     {% else %}
       <p class="empty">Sin artículos en alerta todavía (o sin datos cargados).</p>
     {% endif %}
   </div>
 
   <div class="panel">
-    <h2>Activos técnicos prestados</h2>
-    {% if activos_prestados %}
+    <h2>Alertas de stock — Bodega Técnica</h2>
+    {% if alertas_tecnica %}
       <ul>
-        {% for p in activos_prestados %}
+        {% for a in alertas_tecnica %}
         <li>
-          <span class="row">
-            <span class="truncate" style="flex:1;" title="{{ p.activo.nombre_producto }}">{{ p.activo.nombre_producto }}</span>
-            <span style="color:var(--text-muted); flex:none;">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
-          </span>
+          <a href="{% url 'activo_detalle' a.pk %}" title="Ver {{ a.codigo_interno }}">
+            <span class="truncate" style="flex:1;">
+              <span class="code">{{ a.codigo_interno }}</span> {{ a.nombre_producto }}
+            </span>
+            <span class="chip {{ a.nivel_alerta|clase_nivel }}">{{ a.existencia }} uds</span>
+          </a>
         </li>
         {% endfor %}
       </ul>
+      {% if alertas_tecnica_total > alertas_tecnica|length %}
+        <p class="panel-pie">
+          <a href="{% url 'reporte_alertas' %}">Ver las {{ alertas_tecnica_total }} →</a>
+        </p>
+      {% endif %}
     {% else %}
-      <p class="empty">Sin préstamos abiertos todavía (o sin datos cargados).</p>
+      <p class="empty">Sin herramienta en alerta todavía (o sin datos cargados).</p>
     {% endif %}
   </div>
+</div>
+
+<div class="panel" style="margin-top:16px;">
+  <h2>Activos técnicos prestados</h2>
+  {% if activos_prestados %}
+    <ul>
+      {% for p in activos_prestados %}
+      <li>
+        <span class="row">
+          <span class="truncate" style="flex:1;" title="{{ p.activo.nombre_producto }}">{{ p.activo.nombre_producto }}</span>
+          <span style="color:var(--text-muted); flex:none;">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty">Sin préstamos abiertos todavía (o sin datos cargados).</p>
+  {% endif %}
 </div>
 
 {% comment %}

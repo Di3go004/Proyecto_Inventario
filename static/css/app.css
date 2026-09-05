@@ -286,6 +286,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
 .panel ul { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
 .panel li { border-bottom: 1px solid var(--border); }
 .panel li:last-child { border-bottom: none; }
+/* El enlace al reporte, cuando el panel muestra solo las primeras.
+   Va separado de la lista para que no parezca una alerta más. */
+.panel-pie { margin: 0; padding: 10px 14px; border-top: 1px solid var(--border);
+             font-size: .86rem; text-align: right; }
 /* El padding vive en la fila interna (link o span), no en el <li>, para que
    si la fila es clicable, todo el rectángulo responda al clic/hover, no
    solo el texto. */

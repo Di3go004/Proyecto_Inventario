@@ -16,6 +16,10 @@ from ventas.models import Articulo, MovimientoVenta
 from tecnica.models import Activo, PrestamoActivo
 
 
+# Cuántas alertas caben en el Resumen antes de que deje de ser un resumen.
+ALERTAS_EN_EL_RESUMEN = 10
+
+
 @login_required
 def resumen(request):
     """
@@ -31,7 +35,13 @@ def resumen(request):
         return redirect('catalogo_articulos')
 
     articulos = Articulo.objects.filter(activo=True)
-    alertas = [a for a in articulos if a.nivel_alerta in ('alerta', 'critico')]
+
+    # Se reusan las mismas funciones del reporte de alertas en vez de filtrar
+    # aparte: así las dos pantallas no pueden discrepar sobre qué está en
+    # alerta, y además vienen ya ordenadas por urgencia — que importa mucho
+    # ahora que solo se muestran las primeras.
+    alertas = reportes.alertas_de_stock()
+    alertas_tecnica = reportes.alertas_tecnica()
 
     valorizacion_ventas = articulos.aggregate(
         total=Sum(F('precio') * F('stock_actual'))
@@ -53,7 +63,14 @@ def resumen(request):
 
     contexto = {
         'total_articulos': articulos.count(),
-        'alertas': alertas,
+        # Solo las más urgentes: esta pantalla es un resumen y se abre al
+        # entrar. Listarlas todas eran 185 filas de Ventas más 252 de Técnica
+        # recién cargado el inventario, con la pantalla tardando un segundo en
+        # abrir para decir lo mismo. El resto está a un clic, en el reporte.
+        'alertas': alertas[:ALERTAS_EN_EL_RESUMEN],
+        'alertas_total': len(alertas),
+        'alertas_tecnica': alertas_tecnica[:ALERTAS_EN_EL_RESUMEN],
+        'alertas_tecnica_total': len(alertas_tecnica),
         'valorizacion_ventas': valorizacion_ventas,
         'valorizacion_tecnica': valorizacion_tecnica,
         'prestamos_demo_abiertos': prestamos_demo_abiertos,

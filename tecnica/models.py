@@ -5,7 +5,7 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
-from core.models import Bodega, Categoria, Proveedor
+from core.models import UMBRALES_EN_ORDEN, Bodega, Categoria, Proveedor
 
 
 class Activo(models.Model):
@@ -69,6 +69,15 @@ class Activo(models.Model):
     # Igual que en Articulo: se puede subir el archivo o pegar un link externo.
     imagen = models.ImageField(upload_to='activos/', blank=True, null=True)
     imagen_url = models.CharField(max_length=300, blank=True, verbose_name='URL de imagen (alternativa)')
+    # Mismos umbrales y mismos valores por defecto que Bodega 1 y 2 (RF-11).
+    # Se comparan contra la existencia y no contra lo disponible: la
+    # herramienta prestada sigue siendo de la bodega y va a volver, así que
+    # prestarla no significa que haya que comprar más. Es la misma regla por
+    # la que un préstamo no mueve la existencia.
+    stock_optimo = models.PositiveIntegerField(default=20)
+    stock_alerta = models.PositiveIntegerField(default=5)
+    stock_critico = models.PositiveIntegerField(default=2)
+
     estado = models.CharField(max_length=30, choices=Estado.choices, default=Estado.BUEN_ESTADO)
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -78,6 +87,21 @@ class Activo(models.Model):
         verbose_name = 'Activo'
         verbose_name_plural = 'Activos'
         ordering = ['nombre_producto']
+        # Iguales a las de Articulo: el orden lo garantiza la base, no solo
+        # el formulario, para que no entre por otra puerta (admin, consola,
+        # carga masiva) una combinación que no tiene sentido.
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(stock_critico__lte=models.F('stock_alerta')),
+                name='chk_activo_critico_lte_alerta',
+                violation_error_message=UMBRALES_EN_ORDEN,
+            ),
+            models.CheckConstraint(
+                check=models.Q(stock_alerta__lte=models.F('stock_optimo')),
+                name='chk_activo_alerta_lte_optimo',
+                violation_error_message=UMBRALES_EN_ORDEN,
+            ),
+        ]
 
     def __str__(self):
         return f"{self.codigo_interno} — {self.nombre_producto}"
@@ -115,6 +139,23 @@ class Activo(models.Model):
         """Se dio de baja todo. Reemplaza al estado "De baja" que había antes,
         cuando cada registro era una sola unidad física."""
         return self.existencia == 0
+
+    @property
+    def nivel_alerta(self):
+        """
+        Para pintar el chip de reposición, igual que en Bodega 1 y 2 (RF-11).
+
+        Mira la **existencia**, no lo disponible: si tres de cuatro taladros
+        están prestados no hay que comprar taladros, van a volver. La alerta
+        solo debe sonar cuando de verdad se está acabando.
+        """
+        if self.existencia <= self.stock_critico:
+            return 'critico'
+        if self.existencia <= self.stock_alerta:
+            return 'alerta'
+        if self.existencia >= self.stock_optimo:
+            return 'optimo'
+        return 'normal'
 
     @property
     def valor_en_bodega(self):

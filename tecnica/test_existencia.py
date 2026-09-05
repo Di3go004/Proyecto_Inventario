@@ -219,6 +219,7 @@ class ConsumiblesTests(BaseExistencia):
             'precio': activo.precio,
             'estado': Activo.Estado.BUEN_ESTADO,
             'imagen_url': '',
+            'stock_critico': 2, 'stock_alerta': 5, 'stock_optimo': 20,
         }
         datos.update(extra)
         return datos
@@ -292,6 +293,7 @@ class ConsumiblesTests(BaseExistencia):
             'codigo_interno': 'SE-NUEVO', 'nombre_producto': 'Juego de llaves',
             'marca': '', 'modelo': '', 'bodega': self.bodega.pk, 'precio': 300,
             'estado': Activo.Estado.BUEN_ESTADO, 'imagen_url': '', 'existencia': 6,
+            'stock_critico': 2, 'stock_alerta': 5, 'stock_optimo': 20,
         })
 
         activo = Activo.objects.get(codigo_interno='SE-NUEVO')

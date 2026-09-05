@@ -37,20 +37,21 @@ def _ancho_sugerido(columna):
     return min(max(mayor + 3, 10), 55)
 
 
-def libro(titulo, encabezados, filas, subtitulo='', formatos=None, nombre_hoja=None):
-    """
-    Arma un .xlsx de una sola hoja y devuelve sus bytes.
+def _nombre_de_hoja(texto):
+    r"""Excel no admite : \ / ? * [ ] en el nombre de la hoja, ni más de 31."""
+    return texto[:31].replace('/', '-').replace(':', '-')
 
-    `formatos` mapea el índice de columna (0-based) a un formato de número de
-    Excel, para que los montos salgan como moneda y las fechas como fecha en
-    vez de como texto.
+
+def _escribir_hoja(hoja, titulo, encabezados, filas, subtitulo='', formatos=None):
+    """
+    Vuelca una tabla en una hoja ya creada, con el encabezado de la empresa,
+    los formatos, el panel fijo y el filtro.
+
+    Está separado de `libro` para que un reporte pueda llevar más de una hoja
+    sin repetir nada: las alertas de Bodega Técnica van en su propia hoja
+    porque un activo tiene otras columnas que un artículo.
     """
     formatos = formatos or {}
-
-    documento = Workbook()
-    hoja = documento.active
-    # Excel no admite : \ / ? * [ ] en el nombre de la hoja, ni más de 31.
-    hoja.title = (nombre_hoja or titulo)[:31].replace('/', '-').replace(':', '-')
 
     # Se escribe por número de fila y no con append(): appendear una fila
     # vacía adelanta el cursor interno de openpyxl pero no crea celdas, así
@@ -89,6 +90,33 @@ def libro(titulo, encabezados, filas, subtitulo='', formatos=None, nombre_hoja=N
         hoja.auto_filter.ref = (
             f'A{FILA_ENCABEZADO}:'
             f'{get_column_letter(len(encabezados))}{FILA_ENCABEZADO + len(filas)}'
+        )
+
+
+def libro(titulo, encabezados, filas, subtitulo='', formatos=None, nombre_hoja=None,
+          hojas_extra=None):
+    """
+    Arma un .xlsx y devuelve sus bytes.
+
+    `formatos` mapea el índice de columna (0-based) a un formato de número de
+    Excel, para que los montos salgan como moneda y las fechas como fecha en
+    vez de como texto.
+
+    `hojas_extra` son tuplas (nombre, encabezados, filas[, formatos]) para los
+    reportes que llevan más de una tabla y no se pueden juntar en una sola
+    porque no comparten columnas.
+    """
+    documento = Workbook()
+    hoja = documento.active
+    hoja.title = _nombre_de_hoja(nombre_hoja or titulo)
+    _escribir_hoja(hoja, titulo, encabezados, filas, subtitulo, formatos)
+
+    for extra in (hojas_extra or []):
+        nombre, sus_encabezados, sus_filas = extra[0], extra[1], extra[2]
+        sus_formatos = extra[3] if len(extra) > 3 else None
+        _escribir_hoja(
+            documento.create_sheet(_nombre_de_hoja(nombre)),
+            nombre, sus_encabezados, sus_filas, formatos=sus_formatos,
         )
 
     memoria = io.BytesIO()

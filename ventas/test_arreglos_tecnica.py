@@ -232,6 +232,7 @@ class ProveedorEscribibleTests(TestCase):
             'codigo_interno': 'SE-P1', 'nombre_producto': 'Taladro', 'marca': '', 'modelo': '',
             'bodega': tecnica.pk, 'precio': '900', 'imagen_url': '',
             'estado': Activo.Estado.BUEN_ESTADO, 'existencia': 1, 'proveedor': 'TRUPER',
+            'stock_critico': 2, 'stock_alerta': 5, 'stock_optimo': 20,
         })
 
         self.assertEqual(Activo.objects.get(codigo_interno='SE-P1').proveedor.nombre, 'TRUPER')

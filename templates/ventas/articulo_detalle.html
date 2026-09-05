@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load chips %}
 {% block title %}{{ articulo.nombre_producto }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -58,10 +59,7 @@
       <dt>Stock actual</dt>
       <dd>
         <span class="num" style="text-align:left; font-size:1.1rem; font-weight:700;">{{ articulo.stock_actual }}</span>
-        {% if articulo.nivel_alerta == 'critico' %}<span class="chip chip-critical">Crítico</span>
-        {% elif articulo.nivel_alerta == 'alerta' %}<span class="chip chip-warn">Alerta</span>
-        {% elif articulo.nivel_alerta == 'optimo' %}<span class="chip chip-good">Óptimo</span>
-        {% else %}<span class="chip chip-neutral">Normal</span>{% endif %}
+        <span class="chip {{ articulo.nivel_alerta|clase_nivel }}">{{ articulo.nivel_alerta|texto_nivel }}</span>
       </dd>
     </div>
     <div>

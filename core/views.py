@@ -69,9 +69,12 @@ def resumen(request):
 # consulta e imprime, no modifica (RF-04).
 # ---------------------------------------------------------------------------
 
-def _excel(nombre, titulo, encabezados, filas, subtitulo='', formatos=None):
+def _excel(nombre, titulo, encabezados, filas, subtitulo='', formatos=None,
+           hojas_extra=None):
     """Empaqueta un reporte como descarga de Excel."""
-    contenido = exportar.libro(titulo, encabezados, filas, subtitulo, formatos)
+    contenido = exportar.libro(
+        titulo, encabezados, filas, subtitulo, formatos, hojas_extra=hojas_extra,
+    )
     respuesta = HttpResponse(
         contenido,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -199,6 +202,7 @@ def reporte_alertas(request):
     """RF-11/RF-14: qué hay que reponer, lo más urgente primero."""
     bodega_id = request.GET.get('bodega', '').strip()
     articulos = reportes.alertas_de_stock(bodega_id or None)
+    activos = reportes.alertas_tecnica()
 
     if request.GET.get('formato') == 'excel':
         return _excel(
@@ -214,6 +218,18 @@ def reporte_alertas(request):
                 for a in articulos
             ],
             subtitulo=f'{len(articulos)} artículo(s) en alerta o crítico',
+            hojas_extra=[(
+                'Bodega Tecnica',
+                ['Nivel', 'Código', 'Producto', 'Categoría', 'Existencia',
+                 'Prestadas', 'Crítico', 'Alerta', 'Óptimo', 'Consumible', 'Proveedor'],
+                [
+                    [a.nivel_alerta.capitalize(), a.codigo_interno, a.nombre_producto,
+                     str(a.categoria or ''), a.existencia, a.cantidad_afuera,
+                     a.stock_critico, a.stock_alerta, a.stock_optimo,
+                     'Sí' if a.es_consumible else 'No', str(a.proveedor or '')]
+                    for a in activos
+                ],
+            )],
         )
 
     return render(request, 'core/reportes/alertas.html', {
@@ -222,6 +238,11 @@ def reporte_alertas(request):
         'criticos': len([a for a in articulos if a.nivel_alerta == 'critico']),
         'bodegas': _bodegas_de_venta(),
         'bodega_id': bodega_id,
+        # Bodega Técnica va en su propia sección: un activo tiene otra forma
+        # (prestadas, consumible) y no tiene bodega que elegir, así que el
+        # filtro de arriba no le aplica.
+        'activos': activos,
+        'activos_criticos': len([a for a in activos if a.nivel_alerta == 'critico']),
     })
 
 

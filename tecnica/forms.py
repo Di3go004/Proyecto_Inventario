@@ -16,7 +16,7 @@ class ActivoForm(forms.ModelForm):
         fields = [
             'codigo_interno', 'nombre_producto', 'marca', 'modelo',
             'categoria', 'bodega', 'proveedor', 'precio', 'imagen', 'imagen_url', 'estado',
-            'es_consumible',
+            'es_consumible', 'stock_optimo', 'stock_alerta', 'stock_critico',
         ]
 
     # No es campo del modelo (Activo.existencia se calcula desde los

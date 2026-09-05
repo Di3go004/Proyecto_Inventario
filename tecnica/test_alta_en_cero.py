@@ -36,6 +36,7 @@ class BaseAlta(TestCase):
             'marca': '', 'modelo': 'T-900', 'bodega': self.bodega.pk,
             'categoria': '', 'proveedor': '', 'precio': '100',
             'estado': Activo.Estado.BUEN_ESTADO, 'imagen_url': '',
+            'stock_critico': 2, 'stock_alerta': 5, 'stock_optimo': 20,
         }
         datos.update(extra)
         return datos

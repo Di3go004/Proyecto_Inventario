@@ -144,6 +144,28 @@ def alertas_de_stock(bodega_id=None, incluir_normales=False):
     return encontrados
 
 
+def alertas_tecnica(incluir_normales=False):
+    """
+    Lo mismo que alertas_de_stock pero para Bodega Técnica (RF-11).
+
+    Va aparte y no mezclado con Bodega 1 y 2 porque un activo tiene otra
+    forma: lleva cuántas unidades están prestadas y si es consumible, y no
+    tiene bodega que elegir. Juntarlos obligaría a una tabla con columnas
+    vacías en la mitad de las filas.
+
+    El nivel sale de Activo.nivel_alerta, que mira la existencia y no lo
+    disponible: la herramienta prestada va a volver.
+    """
+    activos = Activo.objects.select_related('categoria', 'proveedor').prefetch_related('prestamos')
+
+    interesan = ('critico', 'alerta') if not incluir_normales else ('critico', 'alerta', 'normal')
+    urgencia = {'critico': 0, 'alerta': 1, 'normal': 2, 'optimo': 3}
+
+    encontrados = [a for a in activos if a.nivel_alerta in interesan]
+    encontrados.sort(key=lambda a: (urgencia[a.nivel_alerta], a.existencia, a.nombre_producto))
+    return encontrados
+
+
 def movimientos_del_periodo(desde=None, hasta=None, bodega_id=None):
     """
     RF-05/RF-14: qué entró y qué salió en un rango de fechas, con el total

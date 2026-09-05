@@ -237,6 +237,7 @@ class TrabajoDelPracticanteTests(BasePracticante):
             'codigo_interno': 'SE-NUEVO', 'nombre_producto': 'Llave de tubo',
             'marca': '', 'modelo': '', 'bodega': self.tecnica.pk, 'proveedor': '',
             'precio': '300', 'imagen_url': '', 'estado': Activo.Estado.BUEN_ESTADO,
+            'stock_critico': 2, 'stock_alerta': 5, 'stock_optimo': 20,
         })
         nuevo = Activo.objects.get(codigo_interno='SE-NUEVO')
         # Nace en 0: la cantidad entra con un ingreso, no al darlo de alta.

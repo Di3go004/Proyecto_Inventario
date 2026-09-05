@@ -100,6 +100,7 @@ class SeVeEnLasPantallasTests(BaseReemplazo):
             'marca': '', 'modelo': 'B-1', 'bodega': self.bodega.pk,
             'categoria': '', 'proveedor': '', 'precio': '10',
             'estado': REEMPLAZO, 'imagen_url': '',
+            'stock_critico': 2, 'stock_alerta': 5, 'stock_optimo': 20,
         })
 
         self.assertEqual(Activo.objects.get(codigo_interno='SE-TE501').estado, REEMPLAZO)

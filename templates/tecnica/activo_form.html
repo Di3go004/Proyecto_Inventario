@@ -10,6 +10,14 @@
 
 <form method="post" enctype="multipart/form-data" class="card">
   {% csrf_token %}
+  {% comment %}
+    Los errores que no son de un campo suelto —el orden de los umbrales, por
+    ejemplo— no se pintaban en ninguna parte: el formulario volvía igual y sin
+    decir por qué.
+  {% endcomment %}
+  {% if form.non_field_errors %}
+    <div class="field span-2"><ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
   <div class="form-grid">
     <div class="field">
       <label for="{{ form.codigo_interno.id_for_label }}">Código interno</label>
@@ -66,6 +74,29 @@
       <label for="{{ form.es_consumible.id_for_label }}">{{ form.es_consumible.label }}</label>
       <span class="hint">{{ form.es_consumible.help_text }}</span>
     </div>
+    <div class="field">
+      <label for="{{ form.stock_optimo.id_for_label }}">Stock óptimo</label>
+      {{ form.stock_optimo }}
+      <span class="hint">Cuánto se considera bien surtido.</span>
+    </div>
+    <div class="field">
+      <label for="{{ form.stock_alerta.id_for_label }}">Stock de alerta</label>
+      {{ form.stock_alerta }}
+      <span class="hint">Por debajo de esto avisa en amarillo.</span>
+    </div>
+    <div class="field">
+      <label for="{{ form.stock_critico.id_for_label }}">Stock crítico</label>
+      {{ form.stock_critico }}
+      <span class="hint">Por debajo de esto avisa en rojo.</span>
+    </div>
+    <div class="field span-2" style="align-self:end;">
+      <span class="hint">
+        Se comparan contra la <strong>existencia</strong>, no contra lo disponible:
+        la herramienta prestada sigue siendo de la bodega y va a volver, así que
+        prestarla no dispara la alerta de reposición.
+      </span>
+    </div>
+
     <div class="field span-2">
       <label for="{{ form.imagen.id_for_label }}">Foto del activo</label>
       {% if modo == 'editar' and activo.imagen %}

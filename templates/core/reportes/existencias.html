@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load chips %}
 {% load navegacion %}
 {% block title %}Existencias y valorización{% endblock %}
 {% block content %}
@@ -130,10 +131,7 @@
       <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
       <td data-etiqueta="Valor total" class="num">Q {{ a.valor_en_bodega|floatformat:2 }}</td>
       <td data-etiqueta="Nivel">
-        {% if a.nivel_alerta == 'critico' %}<span class="chip chip-critical">Crítico</span>
-        {% elif a.nivel_alerta == 'alerta' %}<span class="chip chip-warn">Alerta</span>
-        {% elif a.nivel_alerta == 'optimo' %}<span class="chip chip-good">Óptimo</span>
-        {% else %}<span class="chip chip-neutral">Normal</span>{% endif %}
+        <span class="chip {{ a.nivel_alerta|clase_nivel }}">{{ a.nivel_alerta|texto_nivel }}</span>
       </td>
     </tr>
     {% empty %}

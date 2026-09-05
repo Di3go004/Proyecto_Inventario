@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load chips %}
 {% load tecnica_extras %}
 {% load navegacion %}
 {% block title %}Bodega Técnica{% endblock %}
@@ -79,7 +80,7 @@
   <thead>
     <tr>
       <th></th><th>Código</th><th>Producto</th><th class="columna-secundaria">Marca / Modelo</th><th>Precio</th>
-      <th>Existencia</th><th>Estado</th><th>Disponibilidad</th>
+      <th>Existencia</th><th>Nivel</th><th>Estado</th><th>Disponibilidad</th>
       {% if user.puede_editar_catalogo %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
@@ -96,6 +97,9 @@
       <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
       <td data-etiqueta="Existencia" class="num">
         {{ a.existencia }}{% if a.es_consumible %} <span class="chip chip-neutral">Consumible</span>{% endif %}
+      </td>
+      <td data-etiqueta="Nivel">
+        <span class="chip {{ a.nivel_alerta|clase_nivel }}">{{ a.nivel_alerta|texto_nivel }}</span>
       </td>
       <td data-etiqueta="Estado">
         {% if a.agotado %}<span class="chip chip-critical">Agotado</span>

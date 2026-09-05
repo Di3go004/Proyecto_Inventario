@@ -1,5 +1,10 @@
 from django.db import models
 
+# Lo dicen la restricción de la base y el formulario, en las dos bodegas:
+# un solo texto para que el operador lea siempre lo mismo. Vive acá y no
+# en ventas porque Bodega Técnica también lleva umbrales.
+UMBRALES_EN_ORDEN = 'Los umbrales deben cumplir: crítico ≤ alerta ≤ óptimo.'
+
 
 class Bodega(models.Model):
     """

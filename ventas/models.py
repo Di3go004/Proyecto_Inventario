@@ -7,12 +7,7 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
-from core.models import Bodega, Categoria, Proveedor
-
-
-# Lo dicen la restricción de la base y el formulario: un solo texto para
-# que el operador lea siempre lo mismo.
-UMBRALES_EN_ORDEN = 'Los umbrales deben cumplir: crítico ≤ alerta ≤ óptimo.'
+from core.models import UMBRALES_EN_ORDEN, Bodega, Categoria, Proveedor
 
 # Cómo se escribe "no tiene número de serie". Es la abreviatura que ya usan
 # en la empresa, así que se pone tal cual en pantalla y en los reportes en

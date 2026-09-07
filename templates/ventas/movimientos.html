@@ -113,7 +113,13 @@
       </td>
       <td data-etiqueta="Bodega" class="columna-secundaria">{{ m.producto.bodega.nombre }}</td>
       <td data-etiqueta="Cantidad" class="num">{% if m.signo == 1 %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
-      <td data-etiqueta="Solicitado por" class="truncate columna-secundaria">{{ m.solicitado_por|default:"—" }}</td>
+      <td data-etiqueta="Solicitado por" class="truncate columna-secundaria">
+        {% if m.solicitado_por %}{{ m.solicitado_por }}
+        {% elif m.registrado_por %}
+          <span class="etiqueta-dato">Registrado por</span>
+          {{ m.registrado_por.get_full_name|default:m.registrado_por.username }}
+        {% else %}—{% endif %}
+      </td>
       <td data-etiqueta="Estado">
         {% if m.esta_afuera %}
           <span class="chip chip-warn">Afuera</span>

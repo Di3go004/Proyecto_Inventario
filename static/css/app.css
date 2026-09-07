@@ -248,6 +248,12 @@ tbody tr[data-href] { cursor: pointer; }
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
 .field label { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
 .field .hint { font-size: .74rem; color: var(--text-muted); font-weight: 400; }
+/* Etiqueta chica dentro de una celda, para cuando el dato necesita decir
+   qué es. Se usa en el historial: la columna "Solicitado por" queda vacía
+   en las bajas y ajustes, y ahí se muestra quién lo digitó — con la
+   etiqueta puesta para que no se confunda con lo que pidió alguien. */
+.etiqueta-dato { display: block; font-size: .72rem; color: var(--text-muted);
+                 text-transform: uppercase; letter-spacing: .02em; }
 .field .errorlist { list-style: none; margin: 2px 0 0; padding: 0; color: var(--state-critical-fg); font-size: .78rem; }
 .form-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
 

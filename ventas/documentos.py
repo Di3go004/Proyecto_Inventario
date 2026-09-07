@@ -174,6 +174,25 @@ class FilaHistorial:
     def solicitado_por(self):
         return self.movimiento.solicitado_por
 
+    @property
+    def registrado_por(self):
+        """
+        Quién digitó el movimiento, **solo** en las filas que no traen boleta.
+
+        "Solicitado por" sale del papel: es quién pidió el movimiento. Una baja
+        o un ajuste de Bodega Técnica no llevan boleta, así que esa columna
+        salía vacía y en la lista no quedaba rastro de quién los hizo — que es
+        justo lo que hay que poder responder de una baja de inventario.
+
+        Devuelve None donde sí hay boleta: ahí el dato que importa es el del
+        papel. Si se mostraran los dos en la misma columna, esta significaría
+        una cosa en unas filas y otra en otras, que es lo que hace imposible
+        auditarla después. Por eso en pantalla va con su propia etiqueta.
+        """
+        if self.solicitado_por:
+            return None
+        return self.movimiento.usuario
+
 
 ETIQUETAS_TECNICA = {
     MovimientoActivo.Tipo.INGRESO: ('Ingreso', 'chip-good', 1),

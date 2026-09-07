@@ -1,4 +1,5 @@
 from django import forms
+from django.core.files.uploadedfile import UploadedFile
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -65,8 +66,17 @@ class ActivoForm(forms.ModelForm):
             self.initial.setdefault('existencia', self.existencia_anterior)
 
     def clean_imagen(self):
+        """
+        El límite es sobre lo que se **sube**, no sobre lo que ya estaba.
+
+        Al editar sin cambiar la foto, acá llega el archivo que ya tenía
+        guardado el registro, y preguntarle el tamaño va al disco. Si ese
+        archivo no está —se borró, se restauró la base sin la carpeta media, o
+        se copió la base a otra máquina— la pantalla reventaba con un error de
+        servidor al guardar, sin poder editar nada más de ese registro.
+        """
         imagen = self.cleaned_data.get('imagen')
-        if imagen and imagen.size > 5 * 1024 * 1024:
+        if isinstance(imagen, UploadedFile) and imagen.size > 5 * 1024 * 1024:
             raise forms.ValidationError('La imagen no puede pesar más de 5 MB.')
         return imagen
 

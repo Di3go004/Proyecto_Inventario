@@ -1,0 +1,76 @@
+Capturas del manual del administrador.
+
+Guarda aqui las imagenes con estos nombres exactos y apareceran solas en
+MANUAL_ADMINISTRADOR.md, que esta en la carpeta de arriba.
+
+Todas se toman entrando con un usuario de rol ADMINISTRADOR, para que se vea
+lo mismo que va a ver quien lea el manual. Conviene tomarlas con la ventana
+del navegador ancha (1600 px o mas): abajo de 1450 px el sistema esconde
+algunas columnas para que la tabla entre sin scroll, y en el manual se veria
+incompleta.
+
+  01-login.png              Pantalla de inicio de sesion
+  02-resumen.png            Resumen general completo: las cuatro tarjetas y
+                            los tres paneles (las dos alertas y los prestados)
+  03-navegacion.png         La barra lateral del administrador, con todas las
+                            secciones visibles (Resumen, Reportes, los dos
+                            catalogos, los dos de movimientos y los tres de
+                            administracion)
+
+  -- Bodega 1 y 2 --
+  04-catalogo-ventas.png    Catalogo de Bodega 1 y 2 con varios productos
+  05-filtros.png            El panel "Filtros" abierto, con dos o tres
+                            filtros aplicados a la vez
+  06-articulo-nuevo.png     Formulario de nuevo articulo, vacio
+  07-articulo-ficha.png     Ficha de un articulo: foto, datos y nivel
+  08-kardex.png             Kardex de un articulo con varios movimientos
+
+  -- Bodega Tecnica --
+  09-catalogo-tecnica.png   Catalogo de Bodega Tecnica. Si se puede, que se
+                            vean los tres estados y algun consumible
+  10-activo-nuevo.png       Formulario de nuevo activo. Tiene que verse la
+                            "Cantidad en bodega" bloqueada y en 0, el
+                            interruptor "Es consumible" y el estado
+  11-dar-de-baja.png        Pantalla de dar de baja, con cantidad y motivo
+
+  -- Entradas y salidas --
+  12-movimientos.png        Lista de entradas y salidas con varios registros
+  13-ingreso.png            Formulario de ingreso con la cabecera llena y por
+                            lo menos dos lineas de producto
+  14-documento.png          Detalle de un folio, donde se ve el boton de PDF
+  15-boleta-pdf.png         El PDF ya generado (captura del visor, o foto
+                            junto a la boleta de papel para comparar)
+  16-devolucion-demo.png    Registrar el regreso de un equipo que salio en
+                            prestamo o demo
+
+  -- Prestamos de herramienta --
+  17-prestamos.png          Lista de prestamos: uno abierto y uno ya cerrado
+  18-prestamo-salida.png    Formulario de salida de herramienta
+  19-prestamo-regreso.png   Formulario de regreso, donde se ve el estado al
+                            salir y el estado al volver
+
+  -- Reportes --
+  20-reportes-indice.png    El indice de reportes con sus tarjetas
+  21-reporte-existencias.png  Reporte de existencias: la tabla por bodega,
+                            el bloque de Bodega Tecnica y el detalle
+  22-reporte-alertas.png    Reporte de alertas. Tiene que verse la seccion
+                            aparte de Bodega Tecnica
+
+  -- Administracion --
+  23-usuarios.png           Lista de usuarios con sus roles
+  24-usuario-nuevo.png      Formulario de nuevo usuario, con el desplegable
+                            de rol abierto para que se vean los cuatro
+  25-usuario-clave.png      La pantalla que muestra la contrasena generada
+                            OJO: tapa o recorta la contrasena antes de
+                            guardar la imagen. El manual se comparte.
+  26-categorias.png         Lista de categorias con el conteo de productos
+  27-proveedores.png        Lista de proveedores, con el filtro de origen y
+                            el aviso de cuantos estan sin clasificar
+
+  -- Carga masiva --
+  28-carga-subir.png        Paso 1: subir el archivo y elegir la hoja
+  29-carga-mapear.png       Paso 2: el mapeo de columnas con la vista previa
+
+ANTES DE GUARDAR CADA CAPTURA: revisa que no salgan datos que no quieras
+compartir (precios reales, nombres de clientes, contrasenas). El manual se le
+entrega a gente que quiza no deberia verlos.

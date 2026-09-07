@@ -317,8 +317,15 @@ documento:
 | Boleta de ingreso a bodega | Número adicional, cuando la boleta física lo incluya |
 | Observación | Información complementaria |
 
-Posteriormente se agregarán las líneas de detalle, indicando producto,
-cantidad y precio. Se podrán registrar tantas líneas como contenga la boleta.
+Posteriormente se agregarán las líneas de detalle, indicando únicamente el
+producto y la cantidad. Se podrán registrar tantas líneas como contenga la
+boleta.
+
+**Nota importante:** el precio no se captura en el movimiento. Cada producto
+tiene un único precio, el de su ficha en el catálogo, y es el que el sistema
+utiliza para valorizar el inventario. Al modificarlo desde el catálogo, la
+valorización se recalcula con el nuevo valor, incluido lo que ya se
+encontraba en existencia.
 
 <!-- CAPTURA: formulario de ingreso con la cabecera llena y dos líneas -->
 ![Registrar ingreso](capturas-admin/13-ingreso.png)

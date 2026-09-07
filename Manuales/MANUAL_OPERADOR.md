@@ -218,11 +218,20 @@ día en que se captura.
 
 #### 2.5.2. Líneas de detalle
 
-Para cada producto de la boleta se deberá indicar el **producto**, la
-**cantidad** y el **precio**. El producto se localiza escribiendo su código o
-su nombre; el sistema presenta las coincidencias para seleccionar la correcta.
+Para cada producto de la boleta se deberá indicar únicamente el **producto** y
+la **cantidad**. El producto se localiza escribiendo parte de su código o de su
+nombre; el sistema presenta las coincidencias para seleccionar la correcta, y
+debajo de la línea muestra su bodega, su existencia actual y su marca, para
+confirmar que se eligió el correcto.
 
-Se podrán agregar tantas líneas como contenga la boleta física.
+Se podrán agregar tantas líneas como contenga la boleta física, ya sea con la
+opción **+ Agregar línea** o presionando Enter sobre el campo de cantidad.
+
+**Nota importante:** el precio **no se captura en el movimiento**. Cada
+producto tiene un único precio, registrado en su ficha del catálogo, y es el
+que el sistema utiliza. Si el precio de un producto cambió, deberá reportarse
+al encargado para que lo actualice en el catálogo; no se corrige desde esta
+pantalla.
 
 <!-- CAPTURA: líneas de detalle con dos productos capturados -->
 ![Líneas de un ingreso](capturas-operador/11-ingreso-lineas.png)

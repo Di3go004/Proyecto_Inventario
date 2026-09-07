@@ -136,9 +136,25 @@ class Activo(models.Model):
 
     @property
     def agotado(self):
-        """Se dio de baja todo. Reemplaza al estado "De baja" que había antes,
-        cuando cada registro era una sola unidad física."""
+        """Sin existencia. Reemplaza al estado "De baja" que había antes,
+        cuando cada registro era una sola unidad física.
+
+        Ojo: estar en 0 no significa que se haya dado de baja. Ver
+        `sin_movimientos` para distinguir los dos casos.
+        """
         return self.existencia == 0
+
+    @property
+    def sin_movimientos(self):
+        """
+        Nunca le ha entrado ni salido nada.
+
+        Sirve para no decirle al usuario algo que no pasó: un activo en 0
+        puede estarlo porque se dio de baja todo, o porque todavía nadie le
+        registró el ingreso. Se veían iguales en pantalla y el aviso afirmaba
+        lo primero en los dos casos.
+        """
+        return not self.movimientos.exists()
 
     @property
     def nivel_alerta(self):

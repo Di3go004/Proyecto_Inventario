@@ -25,11 +25,24 @@
   </div>
 </div>
 
+{% comment %}
+  Estar en 0 tiene dos causas distintas y el aviso decía siempre la misma:
+  afirmaba que se dio de baja todo incluso en activos que nunca han tenido un
+  solo movimiento. Recién cargado el catálogo eso era mentira en todos.
+{% endcomment %}
 {% if activo.agotado %}
-  <p class="aviso-prestado">
-    Se dio de baja todo: no queda existencia de esta herramienta. Su historial
-    se conserva.
-  </p>
+  {% if activo.sin_movimientos %}
+    <p class="aviso-prestado">
+      Todavía no tiene existencia. La cantidad entra con un
+      <strong>ingreso</strong> (FO-SE-013){% if activo.es_consumible %}, o
+      escribiéndola en <strong>Editar</strong> porque es consumible{% endif %}.
+    </p>
+  {% else %}
+    <p class="aviso-prestado">
+      Se dio de baja todo: no queda existencia de esta herramienta. Su historial
+      se conserva.
+    </p>
+  {% endif %}
 {% elif prestamo_abierto %}
   <p class="aviso-prestado">
     Hay <strong>{{ activo.cantidad_afuera }}</strong> unidad(es) afuera
@@ -63,6 +76,13 @@
       <dd class="num" style="text-align:left;">Q {{ activo.precio|floatformat:2 }}</dd>
     </div>
     <div>
+      <dt>Existencia</dt>
+      <dd>
+        <strong>{{ activo.existencia }}</strong>
+        {% if activo.es_consumible %}<span class="chip chip-neutral">Consumible</span>{% endif %}
+      </dd>
+    </div>
+    <div>
       <dt>Estado</dt>
       <dd>
         <span class="chip {{ activo.estado|clase_estado }}">{{ activo.get_estado_display }}</span>
@@ -81,7 +101,10 @@
     <div>
       <dt>Disponibilidad</dt>
       <dd>
-        {% if activo.esta_prestado %}<span class="chip chip-warn">Prestado</span>
+        {% if activo.agotado %}<span class="chip chip-critical">Agotado</span>
+        {% elif activo.cantidad_afuera %}
+          <span class="chip chip-warn">{{ activo.cantidad_afuera }} afuera</span>
+          <span class="chip chip-good">{{ activo.disponibles }} libre(s)</span>
         {% else %}<span class="chip chip-good">Disponible</span>{% endif %}
       </dd>
     </div>

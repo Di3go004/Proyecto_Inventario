@@ -1,0 +1,72 @@
+Capturas del instructivo del Operador de Bodega (IT-006).
+
+Guarda aqui las imagenes con estos nombres exactos y apareceran solas en
+MANUAL_OPERADOR.md, que esta en la carpeta de arriba.
+
+IMPORTANTE: TODAS se toman iniciando sesion con un usuario de perfil OPERADOR
+DE BODEGA, nunca con el de administrador. Con el perfil equivocado las
+imagenes mostrarian el menu de Reportes, las tarjetas de valorizacion y los
+botones de editar catalogo, que es justamente lo que este documento no debe
+enseñar.
+
+Para comprobar que estas con el perfil correcto: el menu lateral debe tener
+CINCO opciones y ninguna mas —Resumen, Bodega 1 y 2, Bodega Tecnica, Entradas
+y salidas, Prestamos de herramienta— y el Resumen NO debe mostrar ninguna
+tarjeta que diga "Valorizacion".
+
+Tomalas con la ventana del navegador a 1600 px de ancho o mas: abajo de
+1450 px el sistema esconde columnas secundarias para que la tabla entre sin
+scroll, y en el manual se verian incompletas.
+
+  01-login.png              Pantalla de inicio de sesion
+  02-resumen.png            Resumen completo visto por el operador. Deben
+                            verse las TRES tarjetas (Articulos activos,
+                            Activos en Bodega Tecnica, Prestamos/demos) y los
+                            tres paneles de abajo
+  03-navegacion.png         El menu lateral del operador, con sus cinco
+                            opciones
+
+  -- Consulta de catalogos --
+  04-catalogo-ventas.png    Catalogo de Bodega 1 y 2. Ojo: sin los botones de
+                            "+ Nuevo articulo" ni "Carga masiva", que el
+                            operador no tiene
+  05-articulo-ficha.png     Ficha de un articulo, donde se ve la existencia y
+                            el enlace "Ver kardex completo"
+  06-kardex.png             Kardex de un articulo con varios movimientos
+  07-catalogo-tecnica.png   Catalogo de Bodega Tecnica. Si se puede, que se
+                            vean los tres estados y alguna herramienta con
+                            unidades prestadas
+  08-activo-ficha.png       Ficha de un activo CON existencia, para que se
+                            vean los botones "Registrar salida" y "Dar de
+                            baja"
+
+  -- Entradas y salidas --
+  09-movimientos.png        Pantalla de Entradas y salidas con varios
+                            movimientos registrados
+  10-ingreso.png            El encabezado del formulario de ingreso, lleno
+                            (folio, fecha, tipo, solicitado por, factura)
+  11-ingreso-lineas.png     Las lineas de detalle, con dos productos ya
+                            capturados
+  12-documento.png          Detalle de un folio, donde se ve el boton
+                            "Imprimir boleta (PDF)"
+  13-boleta-pdf.png         La boleta ya en PDF. Sirve una foto de la
+                            pantalla junto a la boleta de papel, para que se
+                            note que coinciden
+  14-salida.png             El encabezado del formulario de salida, donde se
+                            ven los tres campos extra: Entregado por, Cliente
+                            y Envio / recibo
+  15-devolucion-demo.png    Formulario de devolucion de un equipo que salio
+                            en prestamo o demo
+
+  -- Prestamos de herramienta --
+  16-prestamos.png          Lista de prestamos: uno abierto y uno ya cerrado
+  17-prestamo-salida.png    Formulario de salida de herramienta
+  18-prestamo-regreso.png   Formulario de regreso, donde se ve el estado con
+                            el que salio y el estado al regresar
+
+  -- Bodega Tecnica --
+  19-dar-de-baja.png        Pantalla de dar de baja, con la cantidad y el
+                            motivo
+
+ANTES DE GUARDAR CADA CAPTURA: revisa que no salgan datos que no quieras
+compartir, sobre todo nombres de clientes en las boletas de salida.

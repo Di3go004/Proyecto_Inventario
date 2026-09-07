@@ -39,8 +39,13 @@ conservando los mismos formatos físicos de registro: **FO-SE-013** para
 ingresos, **FO-SE-012** para salidas y **FO-SE-066** para préstamos de
 herramienta.
 
-Este instructivo aplica únicamente al perfil de Administrador. Los perfiles de
-Operador de Bodega, Contabilidad y Practicante cuentan con su propio documento.
+Este instructivo aplica únicamente al perfil de Administrador y su
+distribución es restringida: describe funciones —valorización del inventario,
+reportes, administración de usuarios y mantenimiento del sistema— que
+corresponden exclusivamente a dicho perfil.
+
+El perfil de Operador de Bodega cuenta con su propio documento (IT-006), que
+comprende únicamente el registro de movimientos.
 
 ---
 

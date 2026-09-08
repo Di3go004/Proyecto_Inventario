@@ -72,6 +72,51 @@ Sirven para el arranque y para el momento más convincente de la demostración.
 
 ---
 
+## Datos que podés usar
+
+Todos salen de medir el sistema y los archivos reales. No hace falta soltarlos
+todos —eso aburre—, pero tener dos o tres a mano cambia el tono de la
+conversación.
+
+### De dónde venimos
+
+| | |
+|---|---|
+| Hojas de Excel que se mantienen a mano | **35** (23 del FO-SE-053 + 12 del FO-SE-065) |
+| Columnas por hoja | **49** en Bodega 1 y 2 · **37** en Bodega Técnica |
+| Celdas en juego | más de **1.6 millones** |
+| Peso de los dos archivos | **64 MB** |
+| Personas que pueden tenerlo abierto a la vez | **una** |
+
+> «Cada mes se copia la hoja del mes anterior y se vuelve a empezar. Son
+> 35 hojas y más de un millón y medio de celdas que alguien mantiene a mano.»
+
+### A dónde llegamos
+
+| | |
+|---|---|
+| Productos administrados | **437** (185 de venta + 252 de herramienta) |
+| Pantallas y acciones | **46** |
+| Reportes, todos exportables a Excel | **5** |
+| Perfiles de usuario | **4**, cada uno con lo suyo |
+| Personas a la vez | las que hagan falta |
+| Tiempo en valorizar el inventario completo | **29 milésimas de segundo** |
+| Pruebas automáticas que se corren en cada cambio | **557** |
+
+> «Valorizar los 437 productos le toma al sistema tres centésimas de segundo.
+> Hoy ese número se saca sumando a mano.»
+
+### Sobre las 557 pruebas
+
+Vale la pena mencionarlo una sola vez, sin insistir:
+
+> «El sistema tiene 557 pruebas automáticas que se corren cada vez que se le
+> cambia algo. Si un cambio rompe una regla —por ejemplo, que la existencia
+> deje de cuadrar con el historial— se detecta antes de que llegue a la
+> computadora que ustedes usan.»
+
+---
+
 ## El arco de la presentación
 
 | # | Bloque | Minutos |
@@ -344,6 +389,93 @@ Este es el bloque más importante. **Tené la boleta de papel en la mano.**
   capturas.
 - **Hay respaldo automático de la base** *(o: está pendiente programarlo, según
   cómo esté ese día)*.
+
+---
+
+## Tres flujos concretos, por si piden ejemplos
+
+Son las tres historias que mejor explican para qué sirve. Usá la que encaje con
+lo que estén preguntando.
+
+### Flujo 1 — «Se nos acabaron los conectores otra vez»
+
+> «Hoy eso se descubre cuando alguien va a la bodega y ya no hay.
+>
+> Con el sistema, el conector aparece en rojo en la pantalla de inicio **antes**
+> de acabarse, porque cada producto tiene un mínimo definido. Compras entra al
+> reporte de alertas, lo descarga a Excel, hace el pedido. Cuando llega, se
+> registra el ingreso con su boleta y el producto **desaparece solo** de la
+> lista de alertas.
+>
+> Nadie tuvo que revisar producto por producto.»
+
+**Para mostrarlo:** Resumen → panel de alertas → *Ver las N* → reporte.
+
+### Flujo 2 — «¿Por qué esta báscula dice que hay 12 si yo conté 10?»
+
+> «Hoy no hay forma de contestarlo: habría que revisar las columnas de cada
+> semana del mes en el Excel, y aun así no dice quién las llenó.
+>
+> Acá se abre el kardex del producto y está todo: entró 20 el 3 de agosto con
+> la boleta A-4471, salieron 8 el 12 con la boleta B-0210 para tal cliente, y
+> cada línea dice quién la registró.
+>
+> Si de verdad faltan dos, el sistema no lo esconde: se ve exactamente dónde se
+> separó lo que dice el papel de lo que hay en la bodega.»
+
+**Para mostrarlo:** Bodega 1 y 2 → un producto → *Ver kardex completo*.
+
+### Flujo 3 — «El rotomartillo se dañó y no había repuesto»
+
+> «Cuando una herramienta regresa de un trabajo, quien la recibe anota en qué
+> estado volvió. Si volvió gastada, la marca como **próxima a reemplazo**.
+>
+> Ese aviso llega a compras **antes** de que la herramienta se termine de
+> arruinar, no después. Y si el proveedor es del extranjero, el reporte lo
+> marca, porque ese pedido no llega en dos días.
+>
+> Es la diferencia entre comprar con tiempo y comprar de emergencia.»
+
+**Para mostrarlo:** el bloque 5 de esta guía ya lo hace.
+
+---
+
+## Ventajas, ordenadas por lo que le importa a cada quien
+
+Si en la reunión hay gente distinta, esto ayuda a dirigir el argumento.
+
+### A gerencia
+
+- **Cuánto vale el inventario, al instante** y por bodega, sin sumar nada
+- **Cada movimiento tiene responsable.** Se sabe quién registró qué y cuándo
+- **No hay licencias que pagar.** Todo lo que usa es software libre y corre en
+  una computadora que ya existe
+- **La información no se va con la persona.** Queda en el sistema, no en el
+  archivo de alguien
+
+### A contabilidad
+
+- Los cinco reportes **se descargan a Excel** con los montos como números, no
+  como texto: se suman y se ordenan sin reformatear
+- **El precio de cada compra queda guardado en su movimiento.** Si el producto
+  sube de precio después, la boleta vieja sigue diciendo lo que decía
+- **Consulta e imprime sin poder modificar nada**, que es exactamente su rol
+
+### A bodega
+
+- **Se sigue llenando la boleta de papel**, y el sistema la imprime en el mismo
+  formato para firmarla
+- **La existencia se calcula sola.** No hay que llevar la cuenta a mano ni
+  copiar hojas cada mes
+- **Avisa qué reponer** sin tener que revisar producto por producto
+- **Funciona desde el celular o la tableta**, parado en la bodega
+
+### A quien administra el sistema
+
+- **Respaldos con un comando**, con la fecha en el nombre
+- **Funciona sin internet.** Vive en la red de la oficina
+- **Los accesos se dan y se quitan el mismo día**, y el historial de esa
+  persona se conserva
 
 ---
 

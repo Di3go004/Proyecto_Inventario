@@ -317,15 +317,25 @@ documento:
 | Boleta de ingreso a bodega | Número adicional, cuando la boleta física lo incluya |
 | Observación | Información complementaria |
 
-Posteriormente se agregarán las líneas de detalle, indicando únicamente el
-producto y la cantidad. Se podrán registrar tantas líneas como contenga la
+Posteriormente se agregarán las líneas de detalle, indicando el producto, la
+cantidad y el precio. Se podrán registrar tantas líneas como contenga la
 boleta.
 
-**Nota importante:** el precio no se captura en el movimiento. Cada producto
-tiene un único precio, el de su ficha en el catálogo, y es el que el sistema
-utiliza para valorizar el inventario. Al modificarlo desde el catálogo, la
-valorización se recalcula con el nuevo valor, incluido lo que ya se
-encontraba en existencia.
+**Nota importante:** el sistema propone el precio del catálogo y permite
+corregirlo con el de la factura. **El precio capturado queda guardado en el
+movimiento**, de modo que la boleta impresa conserva el precio con el que se
+registró: reimprimir un FO-SE-013 después de un cambio de precio devuelve el
+mismo documento que se firmó.
+
+**Nota importante:** el precio del movimiento y el del catálogo son datos
+distintos. El del movimiento es histórico y no cambia; el del catálogo es el
+vigente y es el que se utiliza para valorizar el inventario. Registrar un
+ingreso a otro precio **no** actualiza el catálogo: cuando un precio cambie de
+forma permanente, deberá modificarse en la ficha del producto (apartado
+2.4.2), y la valorización se recalculará con el nuevo valor.
+
+La boleta de salida (FO-SE-012) no lleva columna de precio, conforme al
+formato físico.
 
 <!-- CAPTURA: formulario de ingreso con la cabecera llena y dos líneas -->
 ![Registrar ingreso](capturas-admin/13-ingreso.png)

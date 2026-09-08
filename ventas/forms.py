@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
@@ -250,12 +252,14 @@ def leer_lineas(post, incluir_tecnica=False):
     identificadores = post.getlist('linea_articulo')
     cantidades = post.getlist('linea_cantidad')
     textos = post.getlist('linea_texto')
+    precios = post.getlist('linea_precio')
 
     lineas = []
     for indice, identificador in enumerate(identificadores[:LIMITE_LINEAS]):
         identificador = (identificador or '').strip()
         cantidad_texto = (cantidades[indice] if indice < len(cantidades) else '').strip()
         texto = (textos[indice] if indice < len(textos) else '').strip()
+        precio_texto = (precios[indice] if indice < len(precios) else '').strip()
 
         # Fila completamente vacía: se ignora en silencio (siempre queda una
         # de más al final para poder seguir agregando).
@@ -266,6 +270,7 @@ def leer_lineas(post, incluir_tecnica=False):
             'texto': texto, 'articulo_id': identificador,
             'cantidad_texto': cantidad_texto, 'articulo': None,
             'es_tecnica': False, 'cantidad': None, 'error': '',
+            'precio_texto': precio_texto, 'precio': None,
         }
 
         producto, es_tecnica = _resolver_producto(identificador, texto, incluir_tecnica)
@@ -290,6 +295,23 @@ def leer_lineas(post, incluir_tecnica=False):
                     linea['error'] = 'La cantidad tiene que ser mayor que cero.'
                 else:
                     linea['cantidad'] = cantidad
+
+        if not linea['error'] and linea['articulo'] is not None:
+            # Vacío significa "el que trae el catálogo": es el caso normal, y
+            # así no hay que reescribir un precio que no cambió.
+            if not precio_texto:
+                linea['precio'] = linea['articulo'].precio
+                linea['precio_texto'] = f"{linea['articulo'].precio:.2f}"
+            else:
+                try:
+                    precio = Decimal(precio_texto.replace(',', ''))
+                except (InvalidOperation, ValueError):
+                    linea['error'] = 'El precio debe ser un número.'
+                else:
+                    if precio < 0:
+                        linea['error'] = 'El precio no puede ser negativo.'
+                    else:
+                        linea['precio'] = precio
 
         lineas.append(linea)
 

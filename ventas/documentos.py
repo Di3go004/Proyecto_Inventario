@@ -39,8 +39,17 @@ class LineaDocumento:
         return self.movimiento.pk
 
     @property
+    def precio_unitario(self):
+        """
+        El precio al que ocurrió este movimiento, no el que el producto tenga
+        hoy. Es lo que imprime la boleta: reimprimirla después de un cambio de
+        precio tiene que dar el mismo documento que se firmó.
+        """
+        return self.movimiento.precio_unitario
+
+    @property
     def subtotal(self):
-        return self.producto.precio * self.cantidad
+        return self.precio_unitario * self.cantidad
 
     @property
     def proveedor_efectivo(self):

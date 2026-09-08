@@ -46,6 +46,7 @@
             <th style="width:44px;">#</th>
             <th>Producto</th>
             <th style="width:150px;">Cantidad</th>
+            {% if es_ingreso %}<th style="width:130px;">Precio</th>{% endif %}
             <th style="width:90px;"><span class="visualmente-oculto">Quitar</span></th>
           </tr>
         </thead>
@@ -70,6 +71,20 @@
                      value="{{ linea.cantidad_texto }}" aria-label="Cantidad">
               <span class="linea-aviso"></span>
             </td>
+            {% comment %}
+              El precio se guarda pegado al movimiento, no se toma del catálogo
+              al imprimir: así reimprimir esta boleta después de un cambio de
+              precio da el mismo documento que se firmó. Se propone el del
+              catálogo, que es el caso normal; se corrige cuando la factura
+              trae otro.
+            {% endcomment %}
+            {% if es_ingreso %}
+            <td>
+              <input type="number" min="0" step="0.01" class="linea-precio" name="linea_precio"
+                     value="{{ linea.precio_texto }}" aria-label="Precio unitario"
+                     placeholder="{{ linea.articulo.precio|default:'0.00' }}">
+            </td>
+            {% endif %}
             <td><button type="button" class="btn btn-sm btn-danger quitar-linea">Quitar</button></td>
           </tr>
           {% endfor %}
@@ -126,6 +141,12 @@
       <input type="number" min="1" step="1" class="linea-cantidad" name="linea_cantidad" value="" aria-label="Cantidad">
       <span class="linea-aviso"></span>
     </td>
+    {% if es_ingreso %}
+    <td>
+      <input type="number" min="0" step="0.01" class="linea-precio" name="linea_precio" value=""
+             aria-label="Precio unitario" placeholder="0.00">
+    </td>
+    {% endif %}
     <td><button type="button" class="btn btn-sm btn-danger quitar-linea">Quitar</button></td>
   </tr>
 </template>

@@ -254,6 +254,25 @@ class MovimientoActivo(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='movimientos_tecnica',
     )
 
+    # El precio al que ocurrió ESTE movimiento, no el que el producto tenga hoy.
+    #
+    # Antes la boleta impresa sacaba el precio del catálogo, así que reimprimir
+    # un FO-SE-013 después de un cambio de precio producía un documento distinto
+    # al que se firmó y se archivó. Un documento que se contradice a sí mismo es
+    # justo lo que no puede pasar en un sistema de gestión.
+    #
+    # En el ingreso se captura, porque es el precio de la factura del proveedor.
+    # En los demás movimientos lo copia save() del catálogo.
+    # Vacío (NULL) significa "nadie lo capturó", y es distinto de un precio de
+    # cero, que sí existe: muestras, garantías, reposiciones sin costo. Con 0
+    # como "sin capturar" no se podía registrar ninguno de esos casos, porque
+    # save() lo confundía con un olvido y lo pisaba con el del catálogo.
+    #
+    # Después de guardar nunca queda en NULL: save() lo rellena al crear.
+    precio_unitario = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+    )
+
     # Del FO-SE-013, solo en los ingresos:
     solicitado_por = models.CharField(max_length=150, blank=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
@@ -300,6 +319,15 @@ class MovimientoActivo(models.Model):
         en Bodega 1 y 2: si un movimiento se edita o se borra, vuelve a
         cuadrar sola en vez de quedar desincronizada.
         """
+        # Si nadie capturó un precio, se copia el del catálogo al crear. Va acá
+        # y no en cada pantalla porque los movimientos nacen en cinco lugares
+        # distintos —ingreso, salida, baja, ajuste y las dos cargas masivas— y
+        # basta que uno se olvide para que ese movimiento quede en Q 0.00 para
+        # siempre. Solo al crear: después el precio es historia y no se toca
+        # aunque el catálogo cambie, que es justamente el punto.
+        if not self.pk and self.precio_unitario is None and self.activo_id:
+            self.precio_unitario = self.activo.precio
+
         with transaction.atomic():
             super().save(*args, **kwargs)
             activo = Activo.objects.select_for_update().get(pk=self.activo_id)

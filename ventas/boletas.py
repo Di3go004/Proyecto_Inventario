@@ -132,7 +132,10 @@ def _filas(lineas, es_ingreso):
             [
                 Paragraph(str(linea.cantidad), pdf.CELDA_CHICA_CENTRADA),
                 Paragraph(_descripcion(linea, ancho_descripcion), pdf.CELDA_CHICA),
-                Paragraph(f'Q {linea.producto.precio:,.2f}', pdf.CELDA_CHICA_DERECHA),
+                # El precio del MOVIMIENTO, no el del catálogo: reimprimir esta
+                # boleta después de un cambio de precio tenía que dar el mismo
+                # documento que se firmó.
+                Paragraph(f'Q {linea.precio_unitario:,.2f}', pdf.CELDA_CHICA_DERECHA),
                 # El proveedor sale del artículo: ya está en el catálogo, así
                 # que pedirlo otra vez al registrar el ingreso era escribir
                 # dos veces el mismo dato. Si el movimiento trae uno propio

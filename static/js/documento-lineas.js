@@ -88,6 +88,11 @@
       fila.dataset.stock = item.stock;
       var info = fila.querySelector('.linea-info');
       if (info) info.textContent = resumen(item);
+      // Se propone el precio del catalogo, que es el caso normal. Queda
+      // editable: si la factura del proveedor trae otro, ese manda, y es el
+      // que se guarda pegado al movimiento.
+      var precio = fila.querySelector('.linea-precio');
+      if (precio && !precio.value && item.precio) precio.value = item.precio;
       revisarCantidad(fila);
     });
 
@@ -97,6 +102,8 @@
       delete fila.dataset.stock;
       var info = fila.querySelector('.linea-info');
       if (info) info.textContent = '';
+      var precioVacio = fila.querySelector('.linea-precio');
+      if (precioVacio) precioVacio.value = '';
       var aviso = fila.querySelector('.linea-aviso');
       if (aviso) aviso.textContent = '';
       fila.classList.remove('linea-sin-stock');

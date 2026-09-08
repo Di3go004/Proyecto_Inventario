@@ -336,6 +336,8 @@ def api_buscar_articulos(request):
             # sin verlo en pantalla parece que el sistema no lo está tomando.
             'proveedor': articulo.proveedor.nombre if articulo.proveedor else '',
             'stock': articulo.stock_actual,
+            # Para proponerlo en la columna de precio del ingreso.
+            'precio': f'{articulo.precio:.2f}',
             'nivel': articulo.nivel_alerta,
         }
         for articulo in encontrados
@@ -361,6 +363,7 @@ def api_buscar_articulos(request):
                 'bodega': activo.bodega.nombre,
                 'proveedor': activo.proveedor.nombre if activo.proveedor else '',
                 'stock': activo.existencia,
+                'precio': f'{activo.precio:.2f}',
                 'nivel': 'neutral',
             }
             for activo in activos
@@ -386,12 +389,20 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
     herramienta juntos. Cada línea se guarda en la tabla que le toca.
     """
     for linea in lineas:
+        # El precio queda pegado al movimiento. Si la línea no trajo uno —una
+        # salida, donde la boleta FO-SE-012 no lleva columna de precio— se copia
+        # el del catálogo en este momento, para que el historial no quede en 0.
+        precio = linea.get('precio')
+        if precio is None:
+            precio = linea['articulo'].precio
+
         if linea['es_tecnica']:
             MovimientoActivo.objects.create(
                 folio=folio,
                 tipo=MovimientoActivo.Tipo.INGRESO,
                 activo=linea['articulo'],
                 cantidad=linea['cantidad'],
+                precio_unitario=precio,
                 usuario=usuario,
                 **{campo: cabecera[campo] for campo in CABECERA_TECNICA if campo in cabecera},
             )
@@ -402,6 +413,7 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
                 tipo_transaccion=tipo_transaccion,
                 articulo=linea['articulo'],
                 cantidad=linea['cantidad'],
+                precio_unitario=precio,
                 usuario=usuario,
                 **cabecera,
             )

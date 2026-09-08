@@ -178,7 +178,7 @@ class SeCapturaEnElIngresoTests(BasePrecio):
         datos = {
             'folio': 'ING-00010', 'fecha': '2026-09-08T10:00',
             'tipo_transaccion': MovimientoVenta.TipoTransaccion.VENTA,
-            'solicitado_por': 'Diego González', 'no_factura': 'F-1', 'no_boleta': '',
+            'solicitado_por': 'Diego González', 'no_factura': 'F-1',
             'observacion': '',
             'linea_texto': [self.articulo.codigo_interno],
             'linea_articulo': [str(self.articulo.pk)],

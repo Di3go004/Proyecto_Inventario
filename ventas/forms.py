@@ -99,8 +99,8 @@ class DocumentoMovimientoForm(forms.Form):
     SOLO_SALIDA = ('entregado_por', 'cliente_nombre', 'envio_recibo')
 
     folio = forms.CharField(
-        max_length=30, required=False, label='Folio de la boleta',
-        help_text='El número que trae la boleta de papel. Se propone el '
+        max_length=30, required=False, label='Número de boleta',
+        help_text='El que trae impreso el talonario de papel. Se propone el '
                   'siguiente de la serie; cámbialo si el talonario va en otro.',
     )
     fecha = forms.DateTimeField(label='Fecha del movimiento', widget=EntradaFechaHora())
@@ -109,7 +109,6 @@ class DocumentoMovimientoForm(forms.Form):
     entregado_por = forms.CharField(max_length=150, required=False, label='Entregado por')
     cliente_nombre = forms.CharField(max_length=150, required=False, label='Cliente')
     no_factura = forms.CharField(max_length=50, required=False, label='No. de factura')
-    no_boleta = forms.CharField(max_length=50, required=False, label='No. de boleta')
     envio_recibo = forms.CharField(max_length=100, required=False, label='Envío / recibo')
     observacion = forms.CharField(
         required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
@@ -132,11 +131,6 @@ class DocumentoMovimientoForm(forms.Form):
         if es_ingreso:
             for nombre in self.SOLO_SALIDA:
                 del self.fields[nombre]
-
-        if es_ingreso:
-            self.fields['no_boleta'].label = 'Boleta de ingreso a bodega'
-        else:
-            self.fields['no_boleta'].label = 'Boleta de salida'
 
         if not self.is_bound:
             # Por defecto "ahora", que es el caso normal; el operador solo la

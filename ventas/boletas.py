@@ -273,7 +273,7 @@ def boleta_documento(folio):
     """
     lineas = documentos.lineas_del_documento(folio)
     if not lineas:
-        raise MovimientoVenta.DoesNotExist(f'No hay ningún documento con folio {folio}.')
+        raise MovimientoVenta.DoesNotExist(f'No hay ninguna boleta con el número {folio}.')
 
     cabecera = lineas[0].movimiento
     es_ingreso = documentos.es_ingreso(lineas)

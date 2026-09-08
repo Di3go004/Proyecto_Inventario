@@ -277,7 +277,6 @@ class MovimientoActivo(models.Model):
     solicitado_por = models.CharField(max_length=150, blank=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     no_factura = models.CharField(max_length=50, blank=True)
-    no_boleta = models.CharField(max_length=50, blank=True)
 
     # Solo en las bajas:
     motivo = models.CharField(max_length=20, choices=Motivo.choices, blank=True)

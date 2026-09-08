@@ -47,7 +47,7 @@ class BaseMovimientos(TestCase):
             'fecha': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             'tipo_transaccion': MovimientoVenta.TipoTransaccion.VENTA,
             'solicitado_por': 'Ivan Leiva',
-            'no_factura': '', 'no_boleta': '', 'observacion': '',
+            'no_factura': '', 'observacion': '',
         }
         datos.update(extra)
         return datos

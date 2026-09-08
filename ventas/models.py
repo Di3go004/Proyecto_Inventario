@@ -304,7 +304,6 @@ class MovimientoVenta(models.Model):
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
 
     no_factura = models.CharField(max_length=50, blank=True)
-    no_boleta = models.CharField(max_length=50, blank=True)
     envio_recibo = models.CharField(max_length=100, blank=True)
     observacion = models.TextField(blank=True)
 

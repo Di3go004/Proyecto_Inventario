@@ -285,7 +285,7 @@ def reporte_movimientos(request):
         return _excel(
             'movimientos',
             'Movimientos de Bodega 1 y 2',
-            ['Fecha', 'Folio', 'Dirección', 'Tipo', 'Código', 'Producto',
+            ['Fecha', 'Boleta', 'Dirección', 'Tipo', 'Código', 'Producto',
              'Bodega', 'Cantidad', 'Solicitado por', 'Cliente / Proveedor',
              'No. factura', 'Registrado por'],
             [

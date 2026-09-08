@@ -20,7 +20,7 @@
 <form method="get" class="buscador">
   <div class="buscador-principal">
     <input class="search-input" type="text" name="q" value="{{ q }}"
-           placeholder="Buscar por folio, producto, cliente o factura…" aria-label="Buscar">
+           placeholder="Buscar por número de boleta, producto, cliente o factura…" aria-label="Buscar">
     <button type="submit" class="btn btn-primary">Buscar</button>
   </div>
 
@@ -88,7 +88,7 @@
 <table class="tabla-responsiva">
   <thead>
     <tr>
-      <th>Fecha</th><th>Folio</th><th>Movimiento</th><th>Producto</th>
+      <th>Fecha</th><th>Boleta</th><th>Movimiento</th><th>Producto</th>
       <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
       <th class="columna-secundaria">Solicitado por</th><th>Estado</th>
       {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
@@ -97,12 +97,12 @@
   <tbody>
     {% for m in movimientos %}
     {% comment %}
-      Los saldos iniciales que entraron por carga masiva no tienen folio: no
+      Los saldos iniciales que entraron por carga masiva no tienen boleta: no
       vienen de una boleta, así que no hay documento que abrir.
     {% endcomment %}
     <tr {% if m.folio %}data-href="{% url 'documento_detalle' m.folio %}"{% endif %}>
       <td data-etiqueta="Fecha" class="num" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
-      <td data-etiqueta="Folio" class="code">{{ m.folio|default:"—" }}</td>
+      <td data-etiqueta="Boleta" class="code">{{ m.folio|default:"—" }}</td>
       <td data-etiqueta="Movimiento">
         <span class="chip {{ m.tono }}">{{ m.etiqueta }}</span>
         <span class="etiqueta-transaccion">{{ m.transaccion }}</span>

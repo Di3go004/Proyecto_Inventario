@@ -47,7 +47,7 @@ class BaseIngreso(TestCase):
             'fecha': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             'tipo_transaccion': MovimientoVenta.TipoTransaccion.VENTA,
             'solicitado_por': 'Marisol Pérez',
-            'no_factura': '', 'no_boleta': '', 'observacion': '',
+            'no_factura': '', 'observacion': '',
             'linea_articulo': [ident for ident, _c in lineas],
             'linea_cantidad': [str(c) for _i, c in lineas],
             'linea_texto': ['' for _l in lineas],

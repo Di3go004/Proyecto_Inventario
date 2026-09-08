@@ -154,8 +154,8 @@ presentan sus datos, su existencia y su nivel de reposición.
 ![Ficha de un artículo](capturas-operador/05-articulo-ficha.png)
 
 Desde la ficha, el enlace **Ver kardex completo** presenta la totalidad de los
-movimientos del producto —cada entrada y cada salida— con su fecha, folio y el
-usuario que los registró.
+movimientos del producto —cada entrada y cada salida— con su fecha, número de
+boleta y el usuario que los registró.
 
 **Nota importante:** el kardex es la herramienta a utilizar cuando la
 existencia que muestra el sistema no coincide con el conteo físico. Permite
@@ -196,15 +196,14 @@ superior de la boleta, y a continuación las líneas de detalle.
 
 | Campo | Contenido |
 |---|---|
-| Folio de la boleta | El número impreso en la boleta física |
+| Número de boleta | El que trae impreso el talonario de papel |
 | Fecha del movimiento | Se presenta la fecha y hora actuales |
 | Tipo de movimiento | Venta, Préstamo/Demo, Repuestos o Materiales/Otro |
 | Solicitado por | Persona que solicitó el ingreso |
 | No. de factura | Número de factura del proveedor |
-| Boleta de ingreso a bodega | Número adicional, cuando la boleta física lo incluya |
 | Observación | Información complementaria |
 
-**Nota importante:** el folio deberá corresponder **siempre** al número
+**Nota importante:** el número de boleta deberá corresponder **siempre** al que
 impreso en el talonario físico. El sistema propone el siguiente número de la
 serie únicamente como referencia; cuando el talonario vaya en otra numeración,
 el valor propuesto deberá corregirse.
@@ -247,12 +246,12 @@ tenga existencia es que se le registre su ingreso.
 
 #### 2.5.3. Impresión de la boleta
 
-Una vez guardado, desde la pantalla del folio se deberá utilizar la opción
+Una vez guardado, desde la pantalla de la boleta se deberá utilizar la opción
 **Imprimir boleta (PDF)**. El documento se genera en tamaño **media carta**,
 conforme al talonario físico, para su impresión y firma.
 
-<!-- CAPTURA: detalle de un folio, con el botón de PDF -->
-![Detalle de un folio](capturas-operador/12-documento.png)
+<!-- CAPTURA: detalle de una boleta, con el botón de PDF -->
+![Detalle de una boleta](capturas-operador/12-documento.png)
 
 <!-- CAPTURA: la boleta en PDF -->
 ![Boleta en PDF](capturas-operador/13-boleta-pdf.png)
@@ -407,7 +406,7 @@ adquiere una nueva unidad, bastará con registrar su ingreso.
 
 ### 2.12. Consideraciones Generales
 
-1. **El folio se toma siempre del talonario físico.** Es lo que permite
+1. **El número de boleta se toma siempre del talonario físico.** Es lo que permite
    localizar la boleta de papel a partir del registro del sistema.
 2. **Cada movimiento se registra el mismo día en que ocurre.** Un registro
    atrasado produce diferencias entre la bodega física y el sistema.

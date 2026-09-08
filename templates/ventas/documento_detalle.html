@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Documento {{ folio }}{% endblock %}
+{% block title %}Boleta {{ folio }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div class="titles">
     <p class="eyebrow">
       {% if es_ingreso %}Ingreso a bodega · FO-SE-013{% else %}Salida de bodega · FO-SE-012{% endif %}
     </p>
-    <h1 class="page-title">Folio {{ folio }}</h1>
+    <h1 class="page-title">Boleta {{ folio }}</h1>
     <p class="page-sub">
       {% if cabecera.get_tipo_transaccion_display %}{{ cabecera.get_tipo_transaccion_display }} · {% endif %}
       registrado por {{ cabecera.usuario.get_full_name|default:cabecera.usuario.username }}
@@ -70,10 +70,6 @@
     <div>
       <dt>No. de factura</dt>
       <dd class="code">{{ cabecera.no_factura|default:"—" }}</dd>
-    </div>
-    <div>
-      <dt>{% if es_ingreso %}Boleta de ingreso{% else %}Boleta de salida{% endif %}</dt>
-      <dd class="code">{{ cabecera.no_boleta|default:"—" }}</dd>
     </div>
     {% if cabecera.observacion %}
       <div style="grid-column:1/-1;">

@@ -374,7 +374,7 @@ def api_buscar_articulos(request):
 
 # Campos de la cabecera del FO-SE-013 que Bodega Técnica también guarda. El
 # resto (tipo de transacción, cliente, envío) es de la boleta de venta.
-CABECERA_TECNICA = ('fecha', 'solicitado_por', 'no_factura', 'no_boleta', 'observacion')
+CABECERA_TECNICA = ('fecha', 'solicitado_por', 'no_factura', 'observacion')
 
 
 def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento, usuario):
@@ -461,7 +461,7 @@ def _registrar_documento(request, tipo_documento):
             else:
                 messages.success(
                     request,
-                    f"{'Ingreso' if es_ingreso else 'Salida'} registrado con folio {folio} "
+                    f"{'Ingreso' if es_ingreso else 'Salida'} registrado con la boleta {folio} "
                     f"({len(lineas)} {'línea' if len(lineas) == 1 else 'líneas'}).",
                 )
                 return redirect('documento_detalle', folio=folio)
@@ -551,7 +551,7 @@ def documento_detalle(request, folio):
     """
     lineas = documentos.lineas_del_documento(folio)
     if not lineas:
-        messages.error(request, f'No existe ningún documento con folio {folio}.')
+        messages.error(request, f'No existe ninguna boleta con el número {folio}.')
         return redirect('movimientos_ventas')
 
     total_unidades, total_quetzales = documentos.totales(lineas)
@@ -580,7 +580,7 @@ def documento_pdf(request, folio):
     try:
         contenido = boletas.boleta_documento(folio)
     except MovimientoVenta.DoesNotExist:
-        raise Http404(f'No existe ningún documento con folio {folio}.')
+        raise Http404(f'No existe ninguna boleta con el número {folio}.')
 
     respuesta = HttpResponse(contenido, content_type='application/pdf')
     # "inline" abre el visor del navegador, que es desde donde se manda a

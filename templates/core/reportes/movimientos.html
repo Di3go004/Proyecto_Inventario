@@ -54,7 +54,7 @@
     <div class="kpi-value">{{ resumen.movimientos }}</div>
   </div>
   <div class="kpi-tile">
-    <div class="kpi-label">Documentos (folios)</div>
+    <div class="kpi-label">Boletas</div>
     <div class="kpi-value">{{ resumen.documentos }}</div>
   </div>
 </div>
@@ -92,7 +92,7 @@
 <table class="tabla-responsiva">
   <thead>
     <tr>
-      <th>Fecha</th><th>Folio</th><th>Movimiento</th><th>Producto</th>
+      <th>Fecha</th><th>Boleta</th><th>Movimiento</th><th>Producto</th>
       <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
       <th class="columna-secundaria">Registrado por</th>
     </tr>
@@ -101,7 +101,7 @@
     {% for m in pagina %}
     <tr {% if m.folio %}data-href="{% url 'documento_detalle' m.folio %}"{% endif %}>
       <td data-etiqueta="Fecha" class="num" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
-      <td data-etiqueta="Folio" class="code">{{ m.folio|default:"—" }}</td>
+      <td data-etiqueta="Boleta" class="code">{{ m.folio|default:"—" }}</td>
       <td data-etiqueta="Movimiento">
         {% if m.tipo_documento == 'ingreso' %}<span class="chip chip-good">Ingreso</span>
         {% else %}<span class="chip chip-critical">Salida</span>{% endif %}

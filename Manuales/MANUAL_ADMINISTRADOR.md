@@ -209,7 +209,8 @@ donde se presentan su imagen, sus datos, su nivel de reposición y el enlace
 ![Ficha de un artículo](capturas-admin/07-articulo-ficha.png)
 
 El kardex presenta la totalidad de los movimientos del producto —cada entrada
-y cada salida— con su fecha, folio y el usuario que los registró. Constituye
+y cada salida— con su fecha, número de boleta y el usuario que los registró.
+Constituye
 el respaldo de la existencia que muestra el sistema.
 
 <!-- CAPTURA: kardex de un artículo con varios movimientos -->
@@ -297,7 +298,7 @@ devolución se encuentra pendiente.
 ### 2.6. Registro de Entradas y Salidas (FO-SE-013 y FO-SE-012)
 
 Corresponde al registro digital de las boletas físicas. Cada boleta constituye
-un folio que puede contener varias líneas de producto.
+un número que puede amparar varias líneas de producto.
 
 <!-- CAPTURA: lista de entradas y salidas con varios movimientos -->
 ![Entradas y salidas](capturas-admin/12-movimientos.png)
@@ -309,12 +310,11 @@ documento:
 
 | Campo | Contenido |
 |---|---|
-| Folio de la boleta | El número impreso en la boleta física. El sistema propone el siguiente de la serie, el cual deberá corregirse cuando no corresponda |
+| Número de boleta | El que trae impreso el talonario de papel. El sistema propone el siguiente de la serie, el cual deberá corregirse cuando no corresponda |
 | Fecha del movimiento | Se presenta la fecha actual; se deberá modificar cuando se digite una boleta de fecha anterior |
 | Tipo de movimiento | Venta, Préstamo/Demo, Repuestos o Materiales/Otro |
 | Solicitado por | Persona que solicitó el movimiento |
 | No. de factura | Número de factura del proveedor |
-| Boleta de ingreso a bodega | Número adicional, cuando la boleta física lo incluya |
 | Observación | Información complementaria |
 
 Posteriormente se agregarán las líneas de detalle, indicando el producto, la
@@ -340,8 +340,10 @@ formato físico.
 <!-- CAPTURA: formulario de ingreso con la cabecera llena y dos líneas -->
 ![Registrar ingreso](capturas-admin/13-ingreso.png)
 
-**Nota importante:** el folio se captura manualmente y deberá corresponder
-siempre al número impreso en el talonario físico.
+**Nota importante:** el número de boleta se captura manualmente y deberá
+corresponder siempre al que trae impreso el talonario físico. Es el único
+número que identifica el documento: es el que aparece impreso en el PDF y el
+que permite localizar la boleta de papel a partir del registro del sistema.
 
 #### 2.6.2. Registro de una salida
 
@@ -350,12 +352,12 @@ campos adicionales: **Entregado por**, **Cliente** y **Envío / recibo**.
 
 #### 2.6.3. Impresión de la boleta
 
-Desde la pantalla del folio se deberá utilizar la opción **Imprimir boleta
+Desde la pantalla de la boleta se deberá utilizar la opción **Imprimir boleta
 (PDF)**. El documento se genera en tamaño **media carta**, conforme al
 talonario físico, para su impresión y firma.
 
-<!-- CAPTURA: pantalla del detalle de un folio con el botón de PDF -->
-![Detalle de un folio](capturas-admin/14-documento.png)
+<!-- CAPTURA: pantalla del detalle de una boleta con el botón de PDF -->
+![Detalle de una boleta](capturas-admin/14-documento.png)
 
 <!-- CAPTURA: el PDF generado, para comparar con la boleta de papel -->
 ![Boleta en PDF](capturas-admin/15-boleta-pdf.png)

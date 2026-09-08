@@ -88,13 +88,13 @@
       <div class="table-wrap" style="box-shadow:none; max-height:none;">
         <table class="tabla-responsiva">
           <thead>
-            <tr><th>Fecha</th><th>Folio</th><th>Movimiento</th><th>Cantidad</th><th>Registrado por</th></tr>
+            <tr><th>Fecha</th><th>Boleta</th><th>Movimiento</th><th>Cantidad</th><th>Registrado por</th></tr>
           </thead>
           <tbody>
             {% for m in movimientos %}
             <tr>
               <td data-etiqueta="Fecha" class="num celda-principal" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
-              <td data-etiqueta="Folio" class="code">
+              <td data-etiqueta="Boleta" class="code">
                 {% if m.folio %}<a href="{% url 'documento_detalle' m.folio %}">{{ m.folio }}</a>{% else %}—{% endif %}
               </td>
               <td data-etiqueta="Movimiento">

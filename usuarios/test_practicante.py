@@ -93,6 +93,11 @@ class AlcanceCompletoTests(BasePracticante):
         # Sugerencias del buscador: no son una pantalla y solo devuelven lo
         # que ya ve en el catálogo.
         'api_buscar_articulos', 'api_buscar_activos',
+        # El aviso de serial repetido. Es justamente el practicante quien está
+        # capturando los seriales uno por uno en la carga inicial, así que es
+        # a quien más le sirve enterarse en el momento y no al guardar. No
+        # enseña nada que no vea ya en la ficha del producto.
+        'api_seriales_ocupados',
     }
 
     def urls_a_probar(self):

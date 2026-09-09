@@ -45,6 +45,10 @@
     caja.dataset.listo = '1';
 
     var eligiendo = caja.dataset.modo === 'elegir';
+    var urlVerificar = caja.dataset.urlVerificar || '';
+    // Serial → producto que ya lo tiene. Lo llena verificarOcupados().
+    var ocupados = {};
+    var consultaEnCurso = 0;
     var disponibles = leerDisponibles(caja);
     var puestos = limpiar(fuente.value).split(/\r?\n/).map(limpiar).filter(Boolean);
 
@@ -134,6 +138,7 @@
       if (puestos.length !== antes) {
         pintar();
         guardar();
+        verificarOcupados();
       }
       return puestos.length - antes;
     }
@@ -143,6 +148,64 @@
       decir('');
       pintar();
       guardar();
+      avisarDeLosOcupados();
+    }
+
+    /* ------------------------------------------------------------------
+     * ¿Alguno ya está en el sistema?
+     *
+     * La restricción de verdad son el índice único de la base y la
+     * validación del formulario: por acá no entra un repetido de ninguna
+     * manera. Esto es para decirlo **a tiempo**. Antes el aviso salía hasta
+     * al guardar, y con doscientos seriales cargados había que ir a buscar
+     * cuál de todos era.
+     *
+     * Solo aplica al modo libre. En la salida no tiene sentido: ahí los
+     * seriales TIENEN que existir, y eso ya se revisa contra la lista de los
+     * que hay en bodega, sin ir al servidor.
+     * ------------------------------------------------------------------ */
+
+    function duenioDe(serial) {
+      var buscado = serial.toUpperCase();
+      var nombres = Object.keys(ocupados);
+      for (var i = 0; i < nombres.length; i++) {
+        if (nombres[i].toUpperCase() === buscado) return ocupados[nombres[i]];
+      }
+      return null;
+    }
+
+    function verificarOcupados() {
+      if (!urlVerificar || eligiendo || !puestos.length) return;
+
+      var esta = ++consultaEnCurso;
+      fetch(urlVerificar + '?seriales=' + encodeURIComponent(puestos.join('\n')), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+        .then(function (respuesta) { return respuesta.ok ? respuesta.json() : null; })
+        .then(function (datos) {
+          // Si mientras tanto se pidió otra, esta respuesta ya no vale.
+          if (!datos || esta !== consultaEnCurso) return;
+          ocupados = datos.ocupados || {};
+          pintar();
+          avisarDeLosOcupados();
+        })
+        .catch(function () {
+          /* Sin respuesta no se bloquea nada: el formulario lo rechaza igual
+             al guardar, y dejar de poder capturar por una consulta caída
+             sería peor que el aviso tardío. */
+        });
+    }
+
+    function avisarDeLosOcupados() {
+      var repetidos = puestos.filter(duenioDe);
+      // No borra el mensaje si no hay ninguno: este aviso llega del servidor
+      // y le pisaría al de "ya está en la lista", que se puso antes.
+      if (!repetidos.length) return;
+      if (repetidos.length === 1) {
+        decir('"' + repetidos[0] + '" ya está registrado en ' + duenioDe(repetidos[0]) + '.');
+      } else {
+        decir(repetidos.length + ' seriales ya están registrados: ' + repetidos.join(', ') + '.');
+      }
     }
 
     // --- pintado --------------------------------------------------------
@@ -153,6 +216,12 @@
       puestos.forEach(function (serial, indice) {
         var chip = document.createElement('span');
         chip.className = 'serial-chip';
+
+        var duenio = duenioDe(serial);
+        if (duenio) {
+          chip.classList.add('serial-chip-ocupado');
+          chip.title = 'Ya está registrado en ' + duenio;
+        }
 
         var texto = document.createElement('span');
         texto.className = 'serial-chip-texto';
@@ -278,6 +347,7 @@
     };
 
     pintar();
+    verificarOcupados();
   }
 
   function iniciarTodas(raiz) {

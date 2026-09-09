@@ -700,3 +700,10 @@ form.card > .errorlist,
   display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
 }
 .seriales-del-documento .serial-chip { padding: 2px 8px; font-size: .78rem; }
+
+/* Un serial que ya existe en el sistema. El formulario lo rechaza al guardar
+   igual; esto es para verlo antes, sin tener que buscar cuál de doscientos. */
+.serial-chip-ocupado {
+  background: var(--state-critical-bg); color: var(--state-critical-fg);
+  text-decoration: line-through;
+}

@@ -1,3 +1,4 @@
+import re
 import os
 import uuid
 from decimal import Decimal, InvalidOperation
@@ -23,10 +24,15 @@ from .forms import (
     ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, identificador_de, leer_lineas,
 )
 from .models import (
-    Articulo, MovimientoVenta, UnidadArticulo, ingresar_unidades, sacar_unidades,
+    Articulo, MovimientoVenta, ingresar_unidades, limpiar_serial, sacar_unidades,
+    unidades_con_serial,
 )
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
+
+# Tope de la consulta de seriales en vivo: pegar una lista larga no debe
+# convertirse en una consulta sin límite.
+LIMITE_SERIALES_CONSULTADOS = 300
 
 
 @login_required
@@ -736,3 +742,26 @@ def devolucion_demo(request, pk):
     return render(request, 'ventas/devolucion_form.html', {
         'form': form, 'movimiento': movimiento,
     })
+
+
+@login_required
+def api_seriales_ocupados(request):
+    """
+    Cuáles de estos seriales ya están en el sistema, y en qué producto.
+
+    Es para avisar **mientras se escriben**. El formulario los rechaza al
+    guardar de todos modos, pero enterarse hasta ahí es feo: quien está
+    cargando doscientos seriales tendría que buscar cuál de todos era.
+
+    No es la restricción — la restricción es el índice único de la base y la
+    validación del formulario. Esto solo lo dice a tiempo.
+    """
+    crudos = re.split(r'[\r\n,;\t]+', request.GET.get('seriales', ''))
+    seriales = [limpiar_serial(texto) for texto in crudos]
+    seriales = [serial for serial in seriales if serial][:LIMITE_SERIALES_CONSULTADOS]
+
+    ocupados = {
+        unidad.numero_serie: unidad.articulo.nombre_producto
+        for unidad in unidades_con_serial(seriales).select_related('articulo')
+    }
+    return JsonResponse({'ocupados': ocupados})

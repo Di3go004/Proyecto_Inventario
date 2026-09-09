@@ -493,3 +493,83 @@ class LaFichaLlevaALaBoletaTests(BaseUnidadesEnMovimientos):
             respuesta,
             f'data-href="{reverse("documento_detalle", args=["ING-00080"])}"',
         )
+
+
+class ElSerialRepetidoSeAvisaATiempoTests(BaseUnidadesEnMovimientos):
+    """
+    La restricción son el índice único y la validación del formulario. Lo que
+    faltaba era decirlo **mientras se escribe**: con doscientos seriales
+    cargados, enterarse al guardar obliga a buscar cuál de todos era.
+    """
+
+    def consultar(self, texto):
+        return self.client.get(
+            reverse('api_seriales_ocupados'), {'seriales': texto},
+        ).json()['ocupados']
+
+    def test_dice_cuales_ya_estan_y_en_que_producto(self):
+        self.con_unidades('A-1001', 'A-1002')
+
+        ocupados = self.consultar('A-1001\nA-9999\nA-1002')
+
+        self.assertEqual(
+            ocupados, {'A-1001': 'INDICADOR SE7581P', 'A-1002': 'INDICADOR SE7581P'},
+        )
+
+    def test_uno_libre_no_sale(self):
+        self.con_unidades('A-1001')
+
+        self.assertEqual(self.consultar('A-9999'), {})
+
+    def test_acepta_la_lista_pegada_con_comas_o_tabuladores(self):
+        self.con_unidades('A-1001', 'A-1002')
+
+        self.assertEqual(len(self.consultar('A-1001,A-1002')), 2)
+        self.assertEqual(len(self.consultar('A-1001\tA-1002')), 2)
+
+    def test_no_distingue_mayusculas(self):
+        """
+        Un aparato es el mismo se escriba como se escriba. Si acá distinguiera,
+        el aviso diría que "abc-1" está libre teniendo ya "ABC-1".
+        """
+        self.con_unidades('ABC-1')
+
+        self.assertEqual(list(self.consultar('abc-1')), ['ABC-1'])
+
+    def test_hay_que_haber_iniciado_sesion(self):
+        self.client.logout()
+
+        respuesta = self.client.get(reverse('api_seriales_ocupados'), {'seriales': 'A-1'})
+
+        self.assertNotEqual(respuesta.status_code, 200)
+
+
+class LasTresPantallasComparanIgualTests(BaseUnidadesEnMovimientos):
+    """
+    El alta comparaba sin distinguir mayúsculas y el ingreso sí. Con "ABC-1"
+    ya registrado, el alta rechazaba "abc-1" pero la boleta de ingreso lo
+    dejaba pasar, y quedaban dos unidades para el mismo aparato físico.
+    """
+
+    def test_el_ingreso_rechaza_el_mismo_serial_en_otras_mayusculas(self):
+        self.con_unidades('ABC-1')
+
+        respuesta = self.ingresar([(self.equipo, 1, 'abc-1')])
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'ya está registrado')
+        self.assertEqual(UnidadArticulo.objects.count(), 1)
+
+    def test_el_alta_del_producto_tambien(self):
+        self.con_unidades('ABC-1')
+
+        respuesta = self.client.post(reverse('articulo_nuevo'), {
+            'codigo_interno': '', 'nombre_producto': 'OTRO EQUIPO', 'marca': '',
+            'modelo': 'X-9', 'capacidad': '', 'bodega': self.bodega.pk,
+            'categoria': '', 'proveedor': '', 'precio': '100', 'imagen_url': '',
+            'stock_optimo': 20, 'stock_alerta': 5, 'stock_critico': 2,
+            'activo': 'on', 'lleva_serie': 'on', 'seriales': 'abc-1',
+        })
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'ya está registrado')

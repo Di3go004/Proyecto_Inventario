@@ -72,6 +72,7 @@
                 con linea_articulo y linea_cantidad.
               {% endcomment %}
               <div class="seriales linea-seriales" data-modo="{% if es_ingreso %}libre{% else %}elegir{% endif %}"
+                   data-url-verificar="{% url 'api_seriales_ocupados' %}"
                    data-disponibles="{{ linea.disponibles_json|default:'[]' }}"{% if not linea.lleva_serie %} hidden{% endif %}>
                 <textarea class="seriales-fuente" name="linea_seriales" rows="2"
                           aria-label="Números de serie de esta línea">{{ linea.seriales_texto }}</textarea>
@@ -153,6 +154,7 @@
       </div>
       <span class="linea-info"></span>
       <div class="seriales linea-seriales" data-modo="{% if es_ingreso %}libre{% else %}elegir{% endif %}"
+           data-url-verificar="{% url 'api_seriales_ocupados' %}"
            data-disponibles="[]" hidden>
         <textarea class="seriales-fuente" name="linea_seriales" rows="2"
                   aria-label="Números de serie de esta línea"></textarea>

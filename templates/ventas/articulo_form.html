@@ -30,7 +30,7 @@
     {% if form.seriales %}
     <div class="field span-2" id="campo-seriales">
       <label for="{{ form.seriales.id_for_label }}">{{ form.seriales.label }}</label>
-      <div class="seriales" data-modo="libre">{{ form.seriales }}</div>
+      <div class="seriales" data-modo="libre" data-url-verificar="{% url 'api_seriales_ocupados' %}">{{ form.seriales }}</div>
       <span class="hint">
         Solo si el producto lleva serie. {{ form.seriales.help_text }}
         Cada uno cuenta como una unidad en existencia.

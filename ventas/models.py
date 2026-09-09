@@ -3,6 +3,7 @@ import re
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models import functions  # noqa: F401  (models.functions.Upper)
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -657,3 +658,23 @@ def sacar_unidades(movimiento, unidades):
         MovimientoUnidad(movimiento=movimiento, unidad=unidad)
         for unidad in unidades
     ])
+
+
+def unidades_con_serial(seriales):
+    """
+    Las unidades que ya tienen alguno de esos seriales, sin importar cómo se
+    escribieron las mayúsculas.
+
+    Va en un solo lugar porque los seriales se comparan en tres pantallas —el
+    alta del producto, la boleta de ingreso y el aviso mientras se escriben—
+    y bastaba que una comparara distinto para que el mismo aparato entrara dos
+    veces con otra escritura. El alta comparaba sin distinguir mayúsculas y el
+    ingreso sí: "abc-1" pasaba teniendo ya "ABC-1".
+    """
+    if not seriales:
+        return UnidadArticulo.objects.none()
+    return (
+        UnidadArticulo.objects
+        .annotate(serial_mayus=models.functions.Upper('numero_serie'))
+        .filter(serial_mayus__in=[serial.upper() for serial in seriales])
+    )

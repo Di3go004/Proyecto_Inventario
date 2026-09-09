@@ -23,4 +23,5 @@ urlpatterns = [
 
     # RF-13 — sugerencias del buscador (lo consume static/js/autocompletar.js)
     path('api/ventas/articulos/', views.api_buscar_articulos, name='api_buscar_articulos'),
+    path('api/ventas/seriales-ocupados/', views.api_seriales_ocupados, name='api_seriales_ocupados'),
 ]

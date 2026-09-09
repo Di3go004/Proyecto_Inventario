@@ -8,7 +8,9 @@ from django.utils import timezone
 from core.forms import CampoProveedor, solo_el_nombre
 from core.models import Proveedor
 
-from .models import Articulo, MovimientoVenta, UnidadArticulo, limpiar_serial
+from .models import (
+    Articulo, MovimientoVenta, UnidadArticulo, limpiar_serial, unidades_con_serial,
+)
 
 
 class ArticuloForm(forms.ModelForm):
@@ -78,7 +80,7 @@ class ArticuloForm(forms.ModelForm):
                 continue          # líneas vacías, o alguien escribió "S/S"
             if serial.upper() in vistos:
                 raise forms.ValidationError(f'"{serial}" está repetido en la lista.')
-            if UnidadArticulo.objects.filter(numero_serie__iexact=serial).exists():
+            if unidades_con_serial([serial]).exists():
                 raise forms.ValidationError(
                     f'El serial "{serial}" ya está registrado en otro producto.'
                 )
@@ -327,8 +329,7 @@ def _leer_seriales(linea, producto, es_tecnica, es_ingreso, ya_vistos):
         # Un serial identifica un aparato físico: si ya está en el sistema, o
         # se tecleó mal, o ese equipo ya había entrado antes y nunca salió.
         repetido = (
-            UnidadArticulo.objects
-            .filter(numero_serie__in=seriales)
+            unidades_con_serial(seriales)
             .values_list('numero_serie', flat=True)
             .first()
         )

@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import F, ProtectedError, Q
+from django.db.models import ProtectedError, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
@@ -22,7 +22,9 @@ from . import boletas, documentos, importador
 from .forms import (
     ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, identificador_de, leer_lineas,
 )
-from .models import Articulo, MovimientoVenta, UnidadArticulo
+from .models import (
+    Articulo, MovimientoVenta, UnidadArticulo, ingresar_unidades, sacar_unidades,
+)
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
 
@@ -119,10 +121,12 @@ def articulo_detalle(request, pk):
     # Las unidades solo existen en los productos que llevan serie. En los
     # demás la lista sale vacía y la ficha no la pinta.
     unidades = (
-        articulo.unidades
-        .select_related('movimiento_ingreso', 'movimiento_salida')
+        articulo.unidades.con_saldo()
+        # Trae de una vez los movimientos de cada unidad: la ficha pregunta
+        # por ellos tres veces por fila (saldo, con qué entró, con qué salió).
+        .prefetch_related('movimientos')
         # Las que siguen en bodega primero: es lo que se busca al abrir la ficha.
-        .order_by(F('movimiento_salida').asc(nulls_first=True), 'numero_serie')
+        .order_by('-saldo', 'numero_serie')
         if articulo.lleva_serie else []
     )
     return render(request, 'ventas/articulo_detalle.html', {
@@ -152,11 +156,8 @@ def _registrar_unidades_iniciales(articulo, seriales, usuario):
             usuario=usuario,
             observacion='Carga inicial del catálogo.',
         )
-        UnidadArticulo.objects.bulk_create([
-            UnidadArticulo(articulo=articulo, numero_serie=serial,
-                           movimiento_ingreso=movimiento)
-            for serial in seriales
-        ])
+        ingresar_unidades(movimiento, seriales)
+
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def articulo_nuevo(request):
@@ -228,7 +229,12 @@ def articulo_eliminar(request, pk):
 
         nombre = articulo.nombre_producto
         with transaction.atomic():
-            # A esta altura lo único que puede quedar es el ajuste inicial.
+            # A esta altura lo único que puede quedar es el ajuste inicial, y
+            # las unidades que entraron con él: son parte del mismo conteo de
+            # arranque, no historial. Van primero porque el artículo las
+            # protege — sin esto, borrar un producto recién creado con sus
+            # seriales reventaba con un error de servidor.
+            articulo.unidades.all().delete()
             articulo.movimientos.all().delete()
             articulo.delete()
         messages.success(request, f'Artículo "{nombre}" eliminado.')
@@ -394,9 +400,17 @@ def api_buscar_articulos(request):
             # sin verlo en pantalla parece que el sistema no lo está tomando.
             'proveedor': articulo.proveedor.nombre if articulo.proveedor else '',
             'stock': articulo.stock_actual,
-            # Para proponerlo en la columna de precio del ingreso.
+            # Para proponerlo en la columna de precio.
             'precio': f'{articulo.precio:.2f}',
             'nivel': articulo.nivel_alerta,
+            # Con qué se controla este producto. La pantalla lo necesita para
+            # saber si esta línea pide seriales o una cantidad, y en la salida
+            # para ofrecer los que hay en bodega en vez de hacerlos teclear.
+            'lleva_serie': articulo.lleva_serie,
+            'seriales': (
+                list(articulo.unidades.en_bodega().values_list('numero_serie', flat=True))
+                if articulo.lleva_serie else []
+            ),
         }
         for articulo in encontrados
     ]
@@ -465,7 +479,7 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
                 **{campo: cabecera[campo] for campo in CABECERA_TECNICA if campo in cabecera},
             )
         else:
-            MovimientoVenta.objects.create(
+            movimiento = MovimientoVenta.objects.create(
                 folio=folio,
                 tipo_documento=tipo_documento,
                 tipo_transaccion=tipo_transaccion,
@@ -475,6 +489,14 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
                 usuario=usuario,
                 **cabecera,
             )
+            # Las unidades quedan atadas al movimiento que las movió. De ahí
+            # sale cuáles siguen en bodega y qué seriales lleva impresos esta
+            # boleta — no de una marca en la unidad que hubiera que mantener.
+            if linea['lleva_serie']:
+                if tipo_documento == MovimientoVenta.TipoDocumento.INGRESO:
+                    ingresar_unidades(movimiento, linea['seriales'])
+                else:
+                    sacar_unidades(movimiento, linea['unidades'])
 
 
 def _registrar_documento(request, tipo_documento):
@@ -487,7 +509,9 @@ def _registrar_documento(request, tipo_documento):
 
     if request.method == 'POST':
         form = DocumentoMovimientoForm(request.POST, tipo_documento=tipo_documento)
-        lineas = leer_lineas(request.POST, incluir_tecnica=es_ingreso)
+        lineas = leer_lineas(
+            request.POST, incluir_tecnica=es_ingreso, es_ingreso=es_ingreso,
+        )
         formulario_valido = form.is_valid()
 
         lineas_con_error = [linea for linea in lineas if linea['error']]

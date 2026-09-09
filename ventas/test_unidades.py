@@ -195,12 +195,9 @@ class SerialesUnicosTests(BaseUnidades):
     def test_la_base_tambien_lo_impide(self):
         """No solo el formulario: por si entra por otra puerta."""
         articulo = self.crear(lleva_serie='on', seriales='A-1001')
-        movimiento = articulo.movimientos.get()
 
         with self.assertRaises(IntegrityError), transaction.atomic():
-            UnidadArticulo.objects.create(
-                articulo=articulo, numero_serie='A-1001', movimiento_ingreso=movimiento,
-            )
+            UnidadArticulo.objects.create(articulo=articulo, numero_serie='A-1001')
 
 
 class LaFichaListaLasUnidadesTests(BaseUnidades):

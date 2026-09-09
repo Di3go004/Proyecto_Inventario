@@ -65,6 +65,7 @@
       var fila = plantilla.content.firstElementChild.cloneNode(true);
       cuerpo.appendChild(fila);
       window.iniciarAutocompletar(fila);
+      if (window.iniciarSeriales) window.iniciarSeriales(fila.querySelector('.seriales'));
       renumerar();
       var texto = fila.querySelector('.autocompletar-texto');
       if (texto) texto.focus();
@@ -72,6 +73,45 @@
     }
 
     if (boton) boton.addEventListener('click', agregarFila);
+
+    /*
+     * Una línea de un producto que se controla por unidad no pide cantidad:
+     * pide seriales, y la cantidad es cuántos son. Así no existe el caso de
+     * "cantidad 3, dos seriales" — que es como la existencia del producto y
+     * sus unidades terminarían diciendo cosas distintas.
+     */
+    function acomodarSeriales(fila, item) {
+      var caja = fila.querySelector('.linea-seriales');
+      if (!caja) return;
+
+      var lleva = !!(item && item.lleva_serie);
+      var cantidad = fila.querySelector('.linea-cantidad');
+
+      // Se esconde ANTES de vaciarla: al vaciarse avisa del cambio, y el
+      // aviso de una caja escondida no debe tocar la cantidad de la línea.
+      caja.hidden = !lleva;
+
+      if (cantidad) {
+        cantidad.readOnly = lleva;
+        cantidad.title = lleva ? 'Sale de cuántos seriales lleve la línea.' : '';
+      }
+
+      if (!lleva) {
+        if (caja.vaciarSeriales) caja.vaciarSeriales();
+        return;
+      }
+      // En la salida son los que el producto tiene en bodega; en el ingreso
+      // no hay lista previa: son los que vienen llegando.
+      if (caja.actualizarDisponibles) caja.actualizarDisponibles(item.seriales || []);
+    }
+
+    cuerpo.addEventListener('seriales:cambio', function (evento) {
+      var fila = evento.target.closest('tr.linea');
+      if (!fila || evento.target.hidden) return;
+      var cantidad = fila.querySelector('.linea-cantidad');
+      if (cantidad) cantidad.value = evento.detail.cuantos || '';
+      revisarCantidad(fila);
+    });
 
     cuerpo.addEventListener('click', function (evento) {
       var quitar = evento.target.closest('.quitar-linea');
@@ -93,6 +133,7 @@
       // que se guarda pegado al movimiento.
       var precio = fila.querySelector('.linea-precio');
       if (precio && !precio.value && item.precio) precio.value = item.precio;
+      acomodarSeriales(fila, item);
       revisarCantidad(fila);
     });
 
@@ -106,6 +147,7 @@
       if (precioVacio) precioVacio.value = '';
       var aviso = fila.querySelector('.linea-aviso');
       if (aviso) aviso.textContent = '';
+      acomodarSeriales(fila, null);
       fila.classList.remove('linea-sin-stock');
     });
 

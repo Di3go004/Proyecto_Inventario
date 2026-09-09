@@ -194,11 +194,37 @@ class SeCapturaEnElIngresoTests(BasePrecio):
         self.assertContains(respuesta, 'linea_precio')
         self.assertContains(respuesta, 'Precio')
 
-    def test_la_salida_NO_la_ofrece(self):
-        """La boleta FO-SE-012 no lleva columna de precio."""
+    def test_la_salida_TAMBIEN_la_ofrece(self):
+        """
+        Antes no la traía, con el argumento de que el FO-SE-012 de papel no
+        lleva columna de precio. Estaba mal por dos razones: la boleta que
+        imprime el sistema sí la trae, y en una venta el precio es lo que el
+        cliente realmente pagó — que se negocia. Copiar el del catálogo en
+        silencio guardaba para siempre un precio que pudo no ocurrir nunca,
+        y nadie tenía dónde corregirlo.
+        """
         respuesta = self.client.get(reverse('movimiento_salida'))
 
-        self.assertNotContains(respuesta, 'linea_precio')
+        self.assertContains(respuesta, 'linea_precio')
+        self.assertContains(respuesta, 'Precio')
+
+    def test_en_la_salida_tambien_se_puede_corregir(self):
+        """Un descuento al cliente tiene que quedar en el historial."""
+        articulo = self.articulo
+        MovimientoVenta.objects.create(
+            articulo=articulo, tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.REPUESTOS,
+            cantidad=10, usuario=self.admin, folio='ING-00099',
+        )
+
+        self.client.post(reverse('movimiento_salida'), self.datos(
+            folio='SAL-00010', linea_precio=['75.00'],
+        ))
+
+        movimiento = MovimientoVenta.objects.get(folio='SAL-00010')
+        self.assertEqual(movimiento.precio_unitario, Decimal('75.00'))
+        self.assertEqual(movimiento.articulo.precio, Decimal('100.00'),
+                         'el catálogo no se toca')
 
     def test_dejarlo_vacio_toma_el_del_catalogo(self):
         self.client.post(reverse('movimiento_ingreso'), self.datos())

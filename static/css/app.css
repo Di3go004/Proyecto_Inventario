@@ -646,3 +646,53 @@ form.card > .errorlist,
    error del sistema. */
 .sin-dato { color: var(--text-faint); font-style: italic; text-decoration: none; }
 .sin-dato:hover { color: var(--state-warn-fg); text-decoration: underline; }
+
+/* --- Números de serie, uno por uno (ver static/js/seriales.js) ---------- */
+
+.seriales { display: flex; flex-direction: column; gap: 6px; }
+
+.seriales-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.serial-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 4px 3px 9px; border-radius: 999px;
+  background: var(--accent-soft-bg); color: var(--brand-primary);
+  font-family: var(--font-data); font-size: .82rem; line-height: 1.4;
+}
+.serial-chip-quitar {
+  border: 0; background: none; cursor: pointer; padding: 0 4px;
+  color: inherit; font-size: 1rem; line-height: 1; border-radius: 50%;
+}
+.serial-chip-quitar:hover { background: var(--brand-primary); color: var(--on-brand); }
+
+.seriales-cuenta { color: var(--text-faint); font-size: .82rem; }
+
+.seriales-entrada { margin: 0; font-family: var(--font-data); }
+
+.seriales-banca { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.seriales-banca-titulo { color: var(--text-muted); font-size: .78rem; }
+.serial-libre {
+  border: 1px dashed var(--border); background: var(--surface);
+  border-radius: 999px; padding: 2px 9px; cursor: pointer;
+  font-family: var(--font-data); font-size: .8rem; color: var(--text-muted);
+}
+.serial-libre:hover { border-style: solid; border-color: var(--brand-primary); color: var(--brand-primary); }
+
+.seriales-aviso:not(:empty) {
+  color: var(--state-critical-fg); font-weight: 600; font-size: .8rem;
+}
+
+/* El campo entero se apaga mientras el producto no esté marcado como que
+   lleva serie: se ve que existe, y se entiende qué lo enciende. */
+.seriales-apagado { opacity: .45; }
+.seriales-apagado .seriales-entrada,
+.seriales-apagado .serial-chip-quitar,
+.seriales-apagado .serial-libre { pointer-events: none; }
+
+/* En el detalle del documento la columna es angosta: los seriales se apilan. */
+.tabla-lineas .seriales { min-width: 190px; }
+
+.seriales-del-documento {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
+}
+.seriales-del-documento .serial-chip { padding: 2px 8px; font-size: .78rem; }

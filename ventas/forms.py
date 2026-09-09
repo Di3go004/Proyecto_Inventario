@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal, InvalidOperation
 
 from django import forms
@@ -36,8 +37,14 @@ class ArticuloForm(forms.ModelForm):
     # No es campo del modelo: cada línea se convierte en una UnidadArticulo.
     seriales = forms.CharField(
         required=False, label='Números de serie',
-        widget=forms.Textarea(attrs={'rows': 4, 'placeholder': 'Un serial por línea'}),
-        help_text='Uno por línea. Se pueden pegar de una lista.',
+        # El control de uno-por-uno se monta encima de este recuadro y lo
+        # esconde (static/js/seriales.js). Sigue siendo el campo que viaja al
+        # servidor, así que sin JavaScript la pantalla se puede usar igual.
+        widget=forms.Textarea(attrs={
+            'rows': 4, 'placeholder': 'Un serial por línea',
+            'class': 'seriales-fuente',
+        }),
+        help_text='Se agregan uno por uno. También se puede pegar una lista.',
     )
 
     def __init__(self, *args, **kwargs):
@@ -269,10 +276,88 @@ def _resolver_producto(identificador, texto, incluir_tecnica):
     return None, False
 
 
-def leer_lineas(post, incluir_tecnica=False):
+def _leer_seriales(linea, producto, es_tecnica, es_ingreso, ya_vistos):
+    """
+    Los seriales de una línea: cuáles son, y si el producto puede llevarlos.
+
+    En un producto que se controla por unidad **la cantidad no se escribe**:
+    es cuántos seriales trae la línea. Así no existe el caso de "cantidad 3,
+    dos seriales" — el descuadre no queda posible, en vez de quedar validado.
+
+    `ya_vistos` es del documento completo: la misma unidad no puede ir en dos
+    líneas de la misma boleta.
+    """
+    seriales = [limpiar_serial(texto) for texto in linea['seriales_texto'].splitlines()]
+    seriales = [serial for serial in seriales if serial]
+
+    if not linea['lleva_serie']:
+        if seriales:
+            linea['error'] = (
+                f'"{producto.nombre_producto}" no se controla por número de serie.'
+            )
+        return
+
+    # En una salida no se inventan seriales: se eligen de los que este producto
+    # tiene en bodega hoy. Se buscan antes de validar nada para que la pantalla
+    # pueda volver a ofrecerlos si el documento rebota con un error.
+    disponibles = {}
+    if not es_ingreso:
+        disponibles = {
+            unidad.numero_serie.upper(): unidad
+            for unidad in UnidadArticulo.objects.en_bodega().filter(articulo=producto)
+        }
+        linea['disponibles_json'] = json.dumps(
+            sorted(unidad.numero_serie for unidad in disponibles.values())
+        )
+
+    if not seriales:
+        linea['error'] = (
+            f'"{producto.nombre_producto}" se controla por número de serie: '
+            'hay que indicar el de cada unidad.'
+        )
+        return
+
+    for serial in seriales:
+        if serial.upper() in ya_vistos:
+            linea['error'] = f'"{serial}" va repetido en este documento.'
+            return
+        ya_vistos.add(serial.upper())
+
+    if es_ingreso:
+        # Un serial identifica un aparato físico: si ya está en el sistema, o
+        # se tecleó mal, o ese equipo ya había entrado antes y nunca salió.
+        repetido = (
+            UnidadArticulo.objects
+            .filter(numero_serie__in=seriales)
+            .values_list('numero_serie', flat=True)
+            .first()
+        )
+        if repetido:
+            linea['error'] = f'El serial "{repetido}" ya está registrado.'
+            return
+    else:
+        elegidas = []
+        for serial in seriales:
+            unidad = disponibles.get(serial.upper())
+            if unidad is None:
+                linea['error'] = (
+                    f'"{serial}" no está en bodega o no es de '
+                    f'"{producto.nombre_producto}".'
+                )
+                return
+            elegidas.append(unidad)
+        linea['unidades'] = elegidas
+
+    linea['seriales'] = seriales
+    # La cantidad la mandan los seriales, no lo que se haya escrito.
+    linea['cantidad'] = len(seriales)
+    linea['cantidad_texto'] = str(len(seriales))
+
+
+def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
     """
     Interpreta las líneas de producto de un documento (los campos
-    linea_articulo[] / linea_cantidad[] / linea_texto[] del formulario).
+    linea_articulo[] / linea_cantidad[] / linea_seriales[] del formulario).
 
     Devuelve una lista de diccionarios con lo que el usuario escribió más
     el producto resuelto o el error de esa línea, para poder volver a pintar
@@ -286,6 +371,10 @@ def leer_lineas(post, incluir_tecnica=False):
     cantidades = post.getlist('linea_cantidad')
     textos = post.getlist('linea_texto')
     precios = post.getlist('linea_precio')
+    seriales = post.getlist('linea_seriales')
+
+    # Del documento completo: un mismo serial no puede ir en dos líneas.
+    ya_vistos = set()
 
     lineas = []
     for indice, identificador in enumerate(identificadores[:LIMITE_LINEAS]):
@@ -293,6 +382,7 @@ def leer_lineas(post, incluir_tecnica=False):
         cantidad_texto = (cantidades[indice] if indice < len(cantidades) else '').strip()
         texto = (textos[indice] if indice < len(textos) else '').strip()
         precio_texto = (precios[indice] if indice < len(precios) else '').strip()
+        seriales_texto = (seriales[indice] if indice < len(seriales) else '').strip()
 
         # Fila completamente vacía: se ignora en silencio (siempre queda una
         # de más al final para poder seguir agregando).
@@ -304,6 +394,8 @@ def leer_lineas(post, incluir_tecnica=False):
             'cantidad_texto': cantidad_texto, 'articulo': None,
             'es_tecnica': False, 'cantidad': None, 'error': '',
             'precio_texto': precio_texto, 'precio': None,
+            'seriales_texto': seriales_texto, 'seriales': [], 'unidades': [],
+            'lleva_serie': False, 'disponibles_json': '[]',
         }
 
         producto, es_tecnica = _resolver_producto(identificador, texto, incluir_tecnica)
@@ -317,6 +409,7 @@ def leer_lineas(post, incluir_tecnica=False):
             linea['es_tecnica'] = es_tecnica
             linea['articulo_id'] = identificador_de(producto, es_tecnica)
             linea['texto'] = texto or producto.codigo_interno
+            linea['lleva_serie'] = not es_tecnica and getattr(producto, 'lleva_serie', False)
 
         if not linea['error']:
             try:
@@ -328,6 +421,11 @@ def leer_lineas(post, incluir_tecnica=False):
                     linea['error'] = 'La cantidad tiene que ser mayor que cero.'
                 else:
                     linea['cantidad'] = cantidad
+
+        # Va después de la cantidad porque en los productos que llevan serie
+        # la reemplaza: ahí manda cuántos seriales trae la línea.
+        if not linea['error'] and linea['articulo'] is not None:
+            _leer_seriales(linea, producto, es_tecnica, es_ingreso, ya_vistos)
 
         if not linea['error'] and linea['articulo'] is not None:
             # Vacío significa "el que trae el catálogo": es el caso normal, y

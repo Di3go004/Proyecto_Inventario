@@ -36,7 +36,7 @@ lo que está en uso"*.
 Siempre dentro del contenedor, desde la carpeta correspondiente:
 
 ```bash
-docker compose exec -T web python manage.py test          # 390 pruebas
+docker compose exec -T web python manage.py test          # 607 pruebas
 docker compose exec -T web python manage.py migrate
 docker compose exec -T web python manage.py shell -c "..."
 ```
@@ -51,9 +51,19 @@ Después de cambiar el `.env` va `docker compose up -d`, **no** `restart`:
   se ajustan con señales `post_delete`, no sobrescribiendo `delete()`: un
   borrado por queryset no llama al método del modelo.
 - **El folio se escribe a mano.** Viene del talonario físico, no se genera.
-- **`numero_serie` vacío se guarda como NULL**, nunca como texto. `S/S` es solo
-  la forma de mostrarlo (`Articulo.serial` y el filtro `serial`). Guardarlo
-  rompería el índice único y las búsquedas. Ver `ventas/test_serial.py`.
+- **El serial vive en la unidad, no en el producto.** Cuatro indicadores del
+  mismo modelo son un producto del catálogo y cuatro `UnidadArticulo`. El
+  interruptor es `Articulo.lleva_serie`: sin marcar, el producto va por
+  cantidad como siempre y su columna dice `S/S` (`Articulo.serial`). Solo
+  aplica a Bodega 1 y 2.
+- **Dónde está una unidad se deriva de sus movimientos**, igual que la
+  existencia (`SALDO_DE_UNIDAD` / `UnidadQuerySet.en_bodega`). No hay columna
+  de estado que mantener: un demo devuelto vuelve solo, y borrar una salida
+  regresa la unidad. Nunca agregar un campo "está en bodega" — las dos cuentas
+  quedarían pudiendo contradecirse.
+- **Un movimiento de un producto con serie exige sus seriales**, y la cantidad
+  sale de cuántos son (`leer_lineas`). Escribir la cantidad aparte permitiría
+  "cantidad 3, dos seriales". Ver `ventas/test_unidades_en_movimientos.py`.
 - **Bodega Técnica solo recibe ingresos.** Lo único que baja la existencia es
   dar de baja; los préstamos no la mueven porque la herramienta sigue siendo de
   la bodega.

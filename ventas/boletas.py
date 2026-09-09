@@ -19,6 +19,7 @@ tecnica/boletas.py.
 """
 
 import io
+from dataclasses import dataclass
 
 from django.utils import timezone
 from reportlab.lib.pagesizes import letter
@@ -106,10 +107,14 @@ def _recortar(texto, ancho_columna, estilo):
     return texto.rstrip() + '…'
 
 
-def _descripcion(linea, ancho_columna):
+def _descripcion(linea, ancho_columna, serial=''):
     """
     Producto, marca/modelo y código en un solo renglón — la columna del papel
     se llama justamente "DESCRIPCIÓN Y CÓDIGO".
+
+    Cuando el renglón es de una unidad con serial, el serial va al final y es
+    lo último que se recorta: se le descuenta su ancho al resto. Un serial a
+    medias no identifica ningún aparato, que es justo para lo que sirve.
     """
     producto = linea.producto
     # capacidad solo la tienen los artículos de venta; la herramienta no.
@@ -120,39 +125,78 @@ def _descripcion(linea, ancho_columna):
     if detalle:
         partes.append(detalle)
     partes.append(producto.codigo_interno)
-    return _recortar(' · '.join(partes), ancho_columna, pdf.CELDA_CHICA)
+    texto = ' · '.join(partes)
+
+    if not serial:
+        return _recortar(texto, ancho_columna, pdf.CELDA_CHICA)
+
+    sufijo = f' · S/N {serial}'
+    ancho_sufijo = stringWidth(sufijo, pdf.CELDA_CHICA.fontName, pdf.CELDA_CHICA.fontSize)
+    return _recortar(texto, ancho_columna - ancho_sufijo, pdf.CELDA_CHICA) + sufijo
 
 
-def _filas(lineas, es_ingreso):
+@dataclass
+class Renglon:
+    """Una fila de la tabla del papel: la línea, cuántas unidades y cuál."""
+
+    linea: object
+    cantidad: int
+    serial: str
+
+
+def renglones_de(lineas):
+    """
+    Un renglón por unidad en los productos que se controlan por serial.
+
+    Cuatro indicadores del mismo modelo son cuatro aparatos distintos y la
+    boleta tiene que decir cuál es cuál. En un solo renglón de cantidad 4 los
+    seriales no caben en la columna, y recortarlos deja el documento sin el
+    dato por el que se lleva serie. Se reparte antes de paginar para que las
+    hojas sigan saliendo de nueve renglones, como el talonario.
+    """
+    renglones = []
+    for linea in lineas:
+        seriales = linea.seriales
+        if seriales:
+            renglones += [Renglon(linea, 1, serial) for serial in seriales]
+        else:
+            renglones.append(Renglon(linea, linea.cantidad, ''))
+    return renglones
+
+
+def _filas(renglones, es_ingreso):
     _encabezados, anchos = COLUMNAS_INGRESO if es_ingreso else COLUMNAS_SALIDA
     ancho_descripcion = anchos[1]
 
     if es_ingreso:
         return [
             [
-                Paragraph(str(linea.cantidad), pdf.CELDA_CHICA_CENTRADA),
-                Paragraph(_descripcion(linea, ancho_descripcion), pdf.CELDA_CHICA),
+                Paragraph(str(renglon.cantidad), pdf.CELDA_CHICA_CENTRADA),
+                Paragraph(_descripcion(renglon.linea, ancho_descripcion, renglon.serial),
+                          pdf.CELDA_CHICA),
                 # El precio del MOVIMIENTO, no el del catálogo: reimprimir esta
                 # boleta después de un cambio de precio tenía que dar el mismo
                 # documento que se firmó.
-                Paragraph(f'Q {linea.precio_unitario:,.2f}', pdf.CELDA_CHICA_DERECHA),
+                Paragraph(f'Q {renglon.linea.precio_unitario:,.2f}', pdf.CELDA_CHICA_DERECHA),
                 # El proveedor sale del artículo: ya está en el catálogo, así
                 # que pedirlo otra vez al registrar el ingreso era escribir
                 # dos veces el mismo dato. Si el movimiento trae uno propio
                 # (compra puntual a otro proveedor), ese manda.
-                Paragraph(_recortar(str(linea.proveedor_efectivo or ''),
+                Paragraph(_recortar(str(renglon.linea.proveedor_efectivo or ''),
                                     anchos[3], pdf.CELDA_CHICA), pdf.CELDA_CHICA),
-                Paragraph(linea.no_factura or '', pdf.CELDA_CHICA),
+                Paragraph(renglon.linea.no_factura or '', pdf.CELDA_CHICA),
             ]
-            for linea in lineas
+            for renglon in renglones
         ]
     return [
         [
-            Paragraph(str(linea.cantidad), pdf.CELDA_CHICA_CENTRADA),
-            Paragraph(_descripcion(linea, ancho_descripcion), pdf.CELDA_CHICA),
-            Paragraph(_recortar(linea.cliente_nombre or '', anchos[2], pdf.CELDA_CHICA), pdf.CELDA_CHICA),
+            Paragraph(str(renglon.cantidad), pdf.CELDA_CHICA_CENTRADA),
+            Paragraph(_descripcion(renglon.linea, ancho_descripcion, renglon.serial),
+                      pdf.CELDA_CHICA),
+            Paragraph(_recortar(renglon.linea.cliente_nombre or '', anchos[2], pdf.CELDA_CHICA),
+                      pdf.CELDA_CHICA),
         ]
-        for linea in lineas
+        for renglon in renglones
     ]
 
 
@@ -222,7 +266,7 @@ def _pie_de_salida(cabecera):
     ]
 
 
-def _pagina(cabecera, lineas, es_ingreso, numero, total):
+def _pagina(cabecera, renglones, es_ingreso, numero, total):
     titulo = 'INGRESO A BODEGA' if es_ingreso else 'SALIDA DE BODEGA'
     codigo = 'FO-SE-013' if es_ingreso else 'FO-SE-012'
     encabezados, anchos = COLUMNAS_INGRESO if es_ingreso else COLUMNAS_SALIDA
@@ -241,7 +285,7 @@ def _pagina(cabecera, lineas, es_ingreso, numero, total):
         _datos_y_casillas(cabecera, es_ingreso),
         Spacer(1, 2 * mm),
         pdf.tabla_de_detalle(
-            encabezados, _filas(lineas, es_ingreso), anchos,
+            encabezados, _filas(renglones, es_ingreso), anchos,
             FILAS_POR_PAGINA, alto_fila, compacto=True,
         ),
     ]
@@ -260,9 +304,12 @@ def _pagina(cabecera, lineas, es_ingreso, numero, total):
     return elementos
 
 
-def agrupar_en_paginas(lineas):
-    """Reparte las líneas del documento en hojas de FILAS_POR_PAGINA."""
-    return [lineas[i:i + FILAS_POR_PAGINA] for i in range(0, len(lineas), FILAS_POR_PAGINA)]
+def agrupar_en_paginas(renglones):
+    """Reparte los renglones del documento en hojas de FILAS_POR_PAGINA."""
+    return [
+        renglones[i:i + FILAS_POR_PAGINA]
+        for i in range(0, len(renglones), FILAS_POR_PAGINA)
+    ]
 
 
 def boleta_documento(folio):
@@ -278,7 +325,10 @@ def boleta_documento(folio):
     cabecera = lineas[0].movimiento
     es_ingreso = documentos.es_ingreso(lineas)
 
-    grupos = agrupar_en_paginas(lineas)
+    # Se pagina por renglón y no por línea: un producto con seriales ocupa un
+    # renglón por unidad, y si no se reparten antes una hoja se pasaría de
+    # los nueve del talonario.
+    grupos = agrupar_en_paginas(renglones_de(lineas))
     total = len(grupos)
 
     flujo = []

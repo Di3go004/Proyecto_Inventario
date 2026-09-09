@@ -46,7 +46,7 @@
             <th style="width:44px;">#</th>
             <th>Producto</th>
             <th style="width:150px;">Cantidad</th>
-            {% if es_ingreso %}<th style="width:130px;">Precio</th>{% endif %}
+            <th style="width:130px;">Precio</th>
             <th style="width:90px;"><span class="visualmente-oculto">Quitar</span></th>
           </tr>
         </thead>
@@ -64,6 +64,18 @@
                 <input type="hidden" class="autocompletar-valor" name="linea_articulo" value="{{ linea.articulo_id }}">
               </div>
               <span class="linea-info">{% if linea.articulo %}{{ linea.articulo.bodega.nombre }} · existencia {{ linea.articulo.stock_actual }}{% endif %}</span>
+              {% comment %}
+                Los seriales van debajo del producto y no en su propia columna:
+                son de esa línea, y una columna más dejaba la tabla impasable
+                en pantalla angosta. El recuadro viaja siempre —aunque esté
+                escondido— para que las líneas sigan cuadrando por posición
+                con linea_articulo y linea_cantidad.
+              {% endcomment %}
+              <div class="seriales linea-seriales" data-modo="{% if es_ingreso %}libre{% else %}elegir{% endif %}"
+                   data-disponibles="{{ linea.disponibles_json|default:'[]' }}"{% if not linea.lleva_serie %} hidden{% endif %}>
+                <textarea class="seriales-fuente" name="linea_seriales" rows="2"
+                          aria-label="Números de serie de esta línea">{{ linea.seriales_texto }}</textarea>
+              </div>
               {% if linea.error %}<span class="linea-error">{{ linea.error }}</span>{% endif %}
             </td>
             <td>
@@ -77,14 +89,18 @@
               precio da el mismo documento que se firmó. Se propone el del
               catálogo, que es el caso normal; se corrige cuando la factura
               trae otro.
+
+              Va también en la salida, aunque el FO-SE-012 de papel no traiga
+              columna de precio: la boleta que imprime el sistema sí la trae, y
+              en una venta el precio es lo que el cliente realmente pagó, que
+              se negocia. Copiar el del catálogo en silencio guardaba un precio
+              que puede no haber ocurrido nunca.
             {% endcomment %}
-            {% if es_ingreso %}
             <td>
               <input type="number" min="0" step="0.01" class="linea-precio" name="linea_precio"
                      value="{{ linea.precio_texto }}" aria-label="Precio unitario"
                      placeholder="{{ linea.articulo.precio|default:'0.00' }}">
             </td>
-            {% endif %}
             <td><button type="button" class="btn btn-sm btn-danger quitar-linea">Quitar</button></td>
           </tr>
           {% endfor %}
@@ -136,17 +152,20 @@
         <input type="hidden" class="autocompletar-valor" name="linea_articulo" value="">
       </div>
       <span class="linea-info"></span>
+      <div class="seriales linea-seriales" data-modo="{% if es_ingreso %}libre{% else %}elegir{% endif %}"
+           data-disponibles="[]" hidden>
+        <textarea class="seriales-fuente" name="linea_seriales" rows="2"
+                  aria-label="Números de serie de esta línea"></textarea>
+      </div>
     </td>
     <td>
       <input type="number" min="1" step="1" class="linea-cantidad" name="linea_cantidad" value="" aria-label="Cantidad">
       <span class="linea-aviso"></span>
     </td>
-    {% if es_ingreso %}
     <td>
       <input type="number" min="0" step="0.01" class="linea-precio" name="linea_precio" value=""
              aria-label="Precio unitario" placeholder="0.00">
     </td>
-    {% endif %}
     <td><button type="button" class="btn btn-sm btn-danger quitar-linea">Quitar</button></td>
   </tr>
 </template>
@@ -154,5 +173,6 @@
 
 {% block extra_scripts %}
 <script src="{% estatico 'js/autocompletar.js' %}"></script>
+<script src="{% estatico 'js/seriales.js' %}"></script>
 <script src="{% estatico 'js/documento-lineas.js' %}"></script>
 {% endblock %}

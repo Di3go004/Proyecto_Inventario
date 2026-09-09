@@ -81,7 +81,9 @@ class ProveedorEnLaBoletaTests(BaseBoletas):
     """
 
     def _columna_proveedor(self, folio):
-        filas = boletas._filas(documentos.lineas_del_documento(folio), es_ingreso=True)
+        filas = boletas._filas(
+            boletas.renglones_de(documentos.lineas_del_documento(folio)), es_ingreso=True,
+        )
         return [fila[3].text for fila in filas]
 
     def test_hereda_el_proveedor_del_articulo(self):
@@ -244,7 +246,10 @@ class TamanoDeLaHojaTests(BaseBoletas):
         encabezados, anchos = boletas.COLUMNAS_INGRESO
         tabla = pdf.tabla_de_detalle(
             encabezados,
-            boletas._filas(documentos.lineas_del_documento('ING-UNA'), es_ingreso=True),
+            boletas._filas(
+                boletas.renglones_de(documentos.lineas_del_documento('ING-UNA')),
+                es_ingreso=True,
+            ),
             anchos, boletas.FILAS_POR_PAGINA, boletas.ALTO_FILA_INGRESO, compacto=True,
         )
         tabla.wrap(boletas.ANCHO_UTIL, 500)

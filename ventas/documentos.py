@@ -52,6 +52,19 @@ class LineaDocumento:
         return self.precio_unitario * self.cantidad
 
     @property
+    def seriales(self):
+        """
+        Qué aparatos movió esta línea, si el producto se controla por unidad.
+
+        Sale de las unidades atadas a este movimiento, no del catálogo: por eso
+        la boleta de un demo de hace un año sigue diciendo cuáles equipos
+        salieron, aunque después hayan salido otra vez con otro documento.
+        """
+        if self.es_tecnica:
+            return []
+        return [unidad.numero_serie for unidad in self.movimiento.unidades.all()]
+
+    @property
     def proveedor_efectivo(self):
         """
         El del movimiento manda sobre el del catálogo: una compra puntual a
@@ -105,6 +118,8 @@ def lineas_del_documento(folio):
         for movimiento in MovimientoVenta.objects
         .filter(folio=folio)
         .select_related('articulo', 'articulo__bodega', 'articulo__proveedor', 'usuario', 'proveedor')
+        # Los seriales que movió cada línea, de una sola consulta.
+        .prefetch_related('unidades')
     ]
     lineas += [
         _de_tecnica(movimiento)

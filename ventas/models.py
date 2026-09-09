@@ -226,7 +226,7 @@ class Articulo(models.Model):
     @property
     def unidades_en_bodega(self):
         """Cuántas unidades de este producto siguen en bodega."""
-        return self.unidades.filter(movimiento_salida__isnull=True).count()
+        return self.unidades.en_bodega().count()
 
     @property
     def valor_en_bodega(self):
@@ -453,6 +453,44 @@ def _recuadrar_stock_al_borrar(sender, instance, **kwargs):
         articulo.recalcular_stock()
 
 
+# Dónde está una unidad: +1 en bodega, 0 fuera. Es la misma regla que
+# Articulo.calcular_stock_desde_movimientos aplicada a un solo aparato —un
+# ingreso la mete, una salida la saca, y un demo devuelto salió y volvió, o
+# sea neto cero. Escrita una sola vez para que la existencia del producto y
+# el paradero de sus unidades no puedan contradecirse.
+SALDO_DE_UNIDAD = models.Sum(
+    models.Case(
+        models.When(movimientos__tipo_documento='ingreso', then=1),
+        models.When(
+            movimientos__tipo_documento='salida',
+            movimientos__tipo_transaccion='prestamo_demo',
+            movimientos__fecha_devolucion__isnull=False,
+            then=0,
+        ),
+        models.When(movimientos__tipo_documento='salida', then=-1),
+        default=0,
+        output_field=models.IntegerField(),
+    )
+)
+
+
+class UnidadQuerySet(models.QuerySet):
+    """
+    Las unidades se preguntan siempre por su saldo, nunca por una columna de
+    estado: así no hay ninguna que mantener en sincronía.
+    """
+
+    def con_saldo(self):
+        return self.annotate(saldo=SALDO_DE_UNIDAD)
+
+    def en_bodega(self):
+        """Las que se pueden vender o prestar hoy."""
+        return self.con_saldo().filter(saldo__gt=0)
+
+    def fuera(self):
+        return self.con_saldo().filter(saldo__lte=0)
+
+
 class UnidadArticulo(models.Model):
     """
     Un aparato físico, identificado por su número de serie.
@@ -467,6 +505,11 @@ class UnidadArticulo(models.Model):
     proveedor, factura y cliente. Duplicarlos sería tener dos versiones
     del mismo dato.
 
+    **Dónde está la unidad no es un campo, se deriva de sus movimientos**,
+    igual que la existencia del producto (ver
+    Articulo.calcular_stock_desde_movimientos). Es la misma regla aplicada a
+    una sola unidad, y por eso las dos cuentas no pueden discrepar.
+
     Solo aplica a Bodega 1 y 2. La herramienta de Bodega Técnica se lleva
     por cantidad, no por unidad.
     """
@@ -478,35 +521,139 @@ class UnidadArticulo(models.Model):
     # una posición dentro de un producto.
     numero_serie = models.CharField(max_length=100, unique=True)
 
-    # Cómo entró y cómo salió. Mientras la salida sea NULL, la unidad está
-    # en bodega — es la definición, no un campo aparte que haya que mantener
-    # en sincronía.
-    movimiento_ingreso = models.ForeignKey(
-        MovimientoVenta, on_delete=models.PROTECT, related_name='unidades_ingresadas',
-    )
-    movimiento_salida = models.ForeignKey(
-        MovimientoVenta, on_delete=models.PROTECT, related_name='unidades_salidas',
-        null=True, blank=True,
+    # Por qué movimientos pasó esta unidad. Antes eran dos llaves fijas
+    # —movimiento_ingreso y movimiento_salida— y no alcanzaban: un equipo
+    # que sale a demo y regresa vuelve a salir después, y la segunda salida
+    # le pisaba la primera. La boleta del demo se quedaba sin sus seriales,
+    # que es justo lo que no puede pasar con un documento ya firmado.
+    movimientos = models.ManyToManyField(
+        MovimientoVenta, through='MovimientoUnidad', related_name='unidades',
     )
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    objects = UnidadQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'Unidad'
         verbose_name_plural = 'Unidades'
         ordering = ['numero_serie']
-        indexes = [
-            models.Index(fields=['articulo', 'movimiento_salida']),
-        ]
 
     def __str__(self):
         return f'{self.articulo.codigo_interno} · {self.numero_serie}'
 
     @property
     def en_bodega(self):
-        return self.movimiento_salida_id is None
+        """
+        La misma cuenta que SALDO_DE_UNIDAD, pero en Python.
+
+        El nombre `saldo` queda libre a propósito: es como se llama la columna
+        que agrega `con_saldo()`, y una propiedad con ese nombre le impide a
+        Django escribirla al traer las filas.
+        """
+        return sum(movimiento.signo for movimiento in self.movimientos.all()) > 0
+
+    @property
+    def movimiento_ingreso(self):
+        """Con qué documento entró la primera vez."""
+        entradas = [
+            m for m in self.movimientos.all()
+            if m.tipo_documento == MovimientoVenta.TipoDocumento.INGRESO
+        ]
+        return min(entradas, key=lambda m: (m.fecha, m.id)) if entradas else None
+
+    @property
+    def movimiento_salida(self):
+        """
+        El documento que la tiene fuera **ahorita**, o None si está en bodega.
+
+        Un demo devuelto no cuenta: la unidad volvió, y su salida ya no la
+        tiene afuera. Los documentos anteriores siguen guardados y siguen
+        listando sus seriales; lo que esta propiedad contesta es dónde está
+        la unidad hoy.
+        """
+        if self.en_bodega:
+            return None
+        salidas = [
+            m for m in self.movimientos.all()
+            if m.tipo_documento == MovimientoVenta.TipoDocumento.SALIDA
+        ]
+        return max(salidas, key=lambda m: (m.fecha, m.id)) if salidas else None
 
     @property
     def estado(self):
         """Para pintarlo en la ficha del producto."""
         return 'En bodega' if self.en_bodega else 'Fuera de bodega'
+
+
+class MovimientoUnidad(models.Model):
+    """
+    Qué unidades movió cada documento: una fila por serial de la boleta.
+
+    Al borrar el movimiento se borra el vínculo (CASCADE), no la unidad. Es
+    lo mismo que hace el stock: borrar una salida devuelve la existencia, y
+    acá devuelve la unidad a bodega. Si fuera PROTECT las dos cuentas
+    dirían cosas distintas después de un borrado.
+    """
+
+    movimiento = models.ForeignKey(
+        MovimientoVenta, on_delete=models.CASCADE, related_name='pasos_de_unidad',
+    )
+    unidad = models.ForeignKey(
+        UnidadArticulo, on_delete=models.CASCADE, related_name='pasos',
+    )
+
+    class Meta:
+        verbose_name = 'Unidad del movimiento'
+        verbose_name_plural = 'Unidades del movimiento'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['movimiento', 'unidad'], name='unidad_una_vez_por_movimiento',
+            ),
+        ]
+        indexes = [models.Index(fields=['unidad', 'movimiento'])]
+
+    def __str__(self):
+        return f'{self.movimiento.folio} · {self.unidad.numero_serie}'
+
+
+# ---------------------------------------------------------------------------
+# Mover unidades
+#
+# Las dos únicas puertas por las que una unidad entra o sale. Van acá y no en
+# la vista porque los movimientos nacen en varios lugares —la carga inicial
+# del catálogo, la boleta de ingreso, la de salida— y el vínculo con el
+# movimiento es lo que sostiene la regla de que nada se mueve sin respaldo.
+# ---------------------------------------------------------------------------
+
+def ingresar_unidades(movimiento, seriales):
+    """
+    Crea una unidad por serial y la ata al movimiento que la hizo entrar.
+
+    Se llama siempre dentro de la transacción del que registra el documento:
+    o entra la boleta completa con todos sus seriales, o no entra ninguno.
+    """
+    unidades = UnidadArticulo.objects.bulk_create([
+        UnidadArticulo(articulo=movimiento.articulo, numero_serie=serial)
+        for serial in seriales
+    ])
+    MovimientoUnidad.objects.bulk_create([
+        MovimientoUnidad(movimiento=movimiento, unidad=unidad)
+        for unidad in unidades
+    ])
+    return unidades
+
+
+def sacar_unidades(movimiento, unidades):
+    """
+    Ata a este movimiento las unidades que salen con él.
+
+    La unidad no se marca ni se borra: queda registrada en el movimiento, y
+    de ahí se deduce que ya no está en bodega. Si el movimiento se borra o
+    —siendo un demo— se devuelve, la unidad vuelve sola, sin que nadie tenga
+    que acordarse de destildar nada.
+    """
+    MovimientoUnidad.objects.bulk_create([
+        MovimientoUnidad(movimiento=movimiento, unidad=unidad)
+        for unidad in unidades
+    ])

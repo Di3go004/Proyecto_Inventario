@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load estaticos %}
 {% block title %}{% if modo == 'nuevo' %}Nuevo artículo{% else %}Editar artículo{% endif %}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -27,9 +28,9 @@
     </div>
 
     {% if form.seriales %}
-    <div class="field span-2">
+    <div class="field span-2" id="campo-seriales">
       <label for="{{ form.seriales.id_for_label }}">{{ form.seriales.label }}</label>
-      {{ form.seriales }}
+      <div class="seriales" data-modo="libre">{{ form.seriales }}</div>
       <span class="hint">
         Solo si el producto lleva serie. {{ form.seriales.help_text }}
         Cada uno cuenta como una unidad en existencia.
@@ -144,5 +145,36 @@
   modelo.addEventListener('input', actualizarVistaPrevia);
   capacidad.addEventListener('input', actualizarVistaPrevia);
 })();
+</script>
+
+<script src="{% estatico 'js/seriales.js' %}"></script>
+<script>
+/*
+ * Los seriales solo tienen sentido si el producto se controla por unidad, así
+ * que el campo se apaga mientras la casilla esté sin marcar. Apagado y no
+ * escondido a propósito: escondido, quien llena el formulario no se entera de
+ * que existe ni de qué lo enciende.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+  var casilla = document.getElementById('{{ form.lleva_serie.id_for_label }}');
+  var campo = document.getElementById('campo-seriales');
+  if (!casilla || !campo) return;
+
+  var caja = campo.querySelector('.seriales');
+  var fuente = campo.querySelector('.seriales-fuente');
+
+  function refrescar() {
+    var lleva = casilla.checked;
+    campo.classList.toggle('seriales-apagado', !lleva);
+    if (fuente) fuente.disabled = !lleva;
+    // Al desmarcar se vacían: dejarlos escritos manda al servidor seriales de
+    // un producto que ya no los lleva, y el formulario rebota con un error que
+    // desde la pantalla no se ve venir.
+    if (!lleva && caja && caja.vaciarSeriales) caja.vaciarSeriales();
+  }
+
+  casilla.addEventListener('change', refrescar);
+  refrescar();
+});
 </script>
 {% endblock %}

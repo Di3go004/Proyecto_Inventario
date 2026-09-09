@@ -100,9 +100,19 @@
       <tr data-href="{% url 'articulo_detalle' linea.producto.pk %}">
     {% endif %}
       <td class="num" style="text-align:left;">{{ forloop.counter }}</td>
-      <td data-etiqueta="Producto" class="truncate celda-principal" title="{{ linea.producto.nombre_producto }}">
+      <td data-etiqueta="Producto" class="celda-principal" title="{{ linea.producto.nombre_producto }}">
         {{ linea.producto.nombre_producto }}
         <span class="code">{{ linea.producto.codigo_interno }}</span>
+        {% comment %}
+          Qué aparatos movió esta línea. Salen de las unidades atadas a este
+          movimiento, así que la boleta dice siempre los mismos, aunque esos
+          equipos hayan vuelto a salir después con otro documento.
+        {% endcomment %}
+        {% if linea.seriales %}
+          <span class="seriales-del-documento">
+            {% for serial in linea.seriales %}<span class="serial-chip"><span class="serial-chip-texto">{{ serial }}</span></span>{% endfor %}
+          </span>
+        {% endif %}
       </td>
       <td data-etiqueta="Bodega" class="columna-secundaria">{{ linea.producto.bodega.nombre }}</td>
       {% if es_ingreso %}
@@ -122,7 +132,7 @@
         </td>
       {% endif %}
       <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
-      <td data-etiqueta="Precio unitario" class="num">Q {{ linea.producto.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Precio unitario" class="num">Q {{ linea.precio_unitario|floatformat:2 }}</td>
       <td data-etiqueta="Subtotal" class="num">Q {{ linea.subtotal|floatformat:2 }}</td>
       <td data-etiqueta="Estado">
         {% if linea.esta_afuera %}

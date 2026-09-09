@@ -22,7 +22,9 @@ from django.urls import reverse
 
 from core.models import Bodega
 from usuarios.models import Usuario
-from ventas.models import SIN_SERIAL, Articulo, MovimientoVenta, UnidadArticulo
+from ventas.models import (
+    SIN_SERIAL, Articulo, MovimientoVenta, UnidadArticulo, ingresar_unidades,
+)
 
 
 class BaseSerial(TestCase):
@@ -49,10 +51,7 @@ class BaseSerial(TestCase):
             tipo_transaccion=MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL,
             cantidad=len(seriales), usuario=self.admin,
         )
-        for serial in seriales:
-            UnidadArticulo.objects.create(
-                articulo=articulo, numero_serie=serial, movimiento_ingreso=movimiento,
-            )
+        ingresar_unidades(movimiento, seriales)
         articulo.refresh_from_db()
         return movimiento
 

@@ -650,6 +650,10 @@ form.card > .errorlist,
 /* --- Números de serie, uno por uno (ver static/js/seriales.js) ---------- */
 
 .seriales { display: flex; flex-direction: column; gap: 6px; }
+/* El display de arriba le gana al atributo hidden, que es con lo que la línea
+   esconde el campo mientras el producto elegido no lleve serie. Sin esta
+   regla la caja se veía en todos los productos. */
+.seriales[hidden] { display: none; }
 
 .seriales-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 

@@ -427,3 +427,69 @@ class BorrarElArticuloTests(BaseUnidadesEnMovimientos):
         self.client.post(reverse('articulo_eliminar', args=[self.equipo.pk]))
 
         self.assertTrue(Articulo.objects.filter(pk=self.equipo.pk).exists())
+
+
+class LaCajaSoloSaleDondeCorrespondeTests(BaseUnidadesEnMovimientos):
+    """
+    El campo de seriales no debe verse en un producto que no lleva serie: no
+    hay nada que escribir ahí, y verlo hace dudar de si falta llenarlo.
+
+    Se rompió una vez de una forma que ninguna prueba de servidor agarraba: el
+    HTML traía bien el atributo `hidden`, pero la regla de CSS `.seriales
+    { display: flex }` le gana, y la caja se veía en todos los productos.
+    """
+
+    def caja_de_la_linea(self, respuesta):
+        import re
+        html = respuesta.content.decode()
+        return re.findall(r'<div class="seriales linea-seriales"[^>]*>', html)
+
+    def test_una_linea_nueva_arranca_escondida(self):
+        """La plantilla de la que se clonan las líneas del documento."""
+        respuesta = self.client.get(reverse('movimiento_ingreso'))
+
+        cajas = self.caja_de_la_linea(respuesta)
+        self.assertEqual(len(cajas), 1)
+        self.assertIn('hidden', cajas[0])
+
+    def test_al_repintar_un_producto_sin_serie_va_escondida(self):
+        # cantidad 0 hace rebotar el documento y repintar la línea
+        respuesta = self.sacar([(self.repuesto, 0, '')])
+
+        de_la_fila = self.caja_de_la_linea(respuesta)[0]
+        self.assertIn('hidden', de_la_fila)
+
+    def test_al_repintar_un_producto_con_serie_va_visible(self):
+        respuesta = self.sacar([(self.equipo, 0, '')])
+
+        de_la_fila = self.caja_de_la_linea(respuesta)[0]
+        self.assertNotIn('hidden', de_la_fila)
+
+    def test_la_hoja_de_estilo_deja_que_hidden_gane(self):
+        """
+        Guardia de esa regresión. `display: flex` en `.seriales` anula el
+        `hidden` del HTML, y desde el servidor todo se ve correcto.
+        """
+        from pathlib import Path
+
+        from django.conf import settings
+
+        hoja = Path(settings.BASE_DIR) / 'static' / 'css' / 'app.css'
+        self.assertIn('.seriales[hidden]', hoja.read_text(encoding='utf-8'))
+
+
+class LaFichaLlevaALaBoletaTests(BaseUnidadesEnMovimientos):
+    def test_la_fila_entera_del_movimiento_es_el_enlace(self):
+        """
+        Como en el catálogo y en Entradas y salidas: se hace clic en cualquier
+        parte de la fila. Antes solo el número de boleta era enlace y había
+        que apuntarle, que es lo único del sistema que se comportaba así.
+        """
+        self.ingresar([(self.equipo, 1, 'A-1001')], folio='ING-00080')
+
+        respuesta = self.client.get(reverse('articulo_detalle', args=[self.equipo.pk]))
+
+        self.assertContains(
+            respuesta,
+            f'data-href="{reverse("documento_detalle", args=["ING-00080"])}"',
+        )

@@ -20,12 +20,25 @@
       <span class="hint">Estándar: SE-MODELO-CAPACIDAD, se completa solo al escribir esos campos. Puedes cambiarlo a mano si este producto necesita algo distinto.</span>
       {% for e in form.codigo_interno.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
     </div>
-    <div class="field">
-      <label for="{{ form.numero_serie.id_for_label }}">Número de serie</label>
-      {{ form.numero_serie }}
-      <span class="hint">Identificador único adicional. Si el equipo no trae placa, dejalo vacío: aparecerá como <strong>S/S</strong>.</span>
-      {% for e in form.numero_serie.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    <div class="field inline">
+      {{ form.lleva_serie }}
+      <label for="{{ form.lleva_serie.id_for_label }}">{{ form.lleva_serie.label }}</label>
+      <span class="hint">{{ form.lleva_serie.help_text }}</span>
     </div>
+
+    {% if form.seriales %}
+    <div class="field span-2">
+      <label for="{{ form.seriales.id_for_label }}">{{ form.seriales.label }}</label>
+      {{ form.seriales }}
+      <span class="hint">
+        Solo si el producto lleva serie. {{ form.seriales.help_text }}
+        Cada uno cuenta como una unidad en existencia.
+        <strong>Solo se capturan al crear el producto</strong>: después, cada
+        unidad entra por su boleta de ingreso.
+      </span>
+      {% for e in form.seriales.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    {% endif %}
 
     <div class="field span-2">
       <label for="{{ form.nombre_producto.id_for_label }}">Producto</label>

@@ -59,7 +59,21 @@ class Articulo(models.Model):
     """
 
     codigo_interno = models.CharField(max_length=50, unique=True, blank=True)
-    numero_serie = models.CharField(max_length=100, unique=True, null=True, blank=True)
+
+    # Los equipos —indicadores, básculas, balanzas— se controlan por unidad:
+    # cada aparato trae su número de serie y la empresa necesita saber cuál
+    # entró y cuál salió, no solo cuántos hay. Los repuestos no: nadie le pone
+    # serial a cada uno de 500 conectores.
+    #
+    # El serial vivía acá, en el producto, con restricción de único. Eso solo
+    # funciona si cada producto es una sola unidad física: con 4 indicadores
+    # del mismo modelo el campo no daba, porque solo cabía un serial. Ahora
+    # vive en UnidadArticulo, una fila por aparato.
+    lleva_serie = models.BooleanField(
+        default=False, verbose_name='Lleva número de serie',
+        help_text='Equipos que se controlan uno por uno por su serial. Los '
+                  'repuestos y consumibles van sin marcar, por cantidad.',
+    )
     nombre_producto = models.CharField(max_length=200)
     marca = models.CharField(max_length=100, blank=True)
     modelo = models.CharField(max_length=100, blank=True)
@@ -197,14 +211,22 @@ class Articulo(models.Model):
     @property
     def serial(self):
         """
-        El número de serie como se muestra: si no tiene, "S/S".
+        Lo que se muestra en la columna de serial del catálogo.
 
-        No se guarda así en la base a propósito. Guardar el texto haría
-        imposible distinguir un artículo sin serial de uno cuyo serial fuera
-        literalmente "S/S", y rompería las búsquedas por serial. Es una forma
-        de escribirlo, no un dato.
+        En los productos que no llevan serie es "S/S", igual que siempre: la
+        abreviatura que ya usaban en la empresa. En los que sí la llevan no
+        hay *un* serial que mostrar —hay varios—, así que se dice cuántas
+        unidades hay y los seriales se listan en la ficha.
         """
-        return self.numero_serie or SIN_SERIAL
+        if not self.lleva_serie:
+            return SIN_SERIAL
+        cuantas = self.unidades_en_bodega
+        return f'{cuantas} unidad' if cuantas == 1 else f'{cuantas} unidades'
+
+    @property
+    def unidades_en_bodega(self):
+        """Cuántas unidades de este producto siguen en bodega."""
+        return self.unidades.filter(movimiento_salida__isnull=True).count()
 
     @property
     def valor_en_bodega(self):
@@ -429,3 +451,62 @@ def _recuadrar_stock_al_borrar(sender, instance, **kwargs):
     articulo = Articulo.objects.filter(pk=instance.articulo_id).first()
     if articulo:
         articulo.recalcular_stock()
+
+
+class UnidadArticulo(models.Model):
+    """
+    Un aparato físico, identificado por su número de serie.
+
+    Cuatro indicadores del mismo modelo son cuatro unidades: el mismo
+    producto en el catálogo —mismo precio, misma categoría, mismos
+    umbrales— pero cada uno con su serial, y la empresa necesita saber
+    cuál entró y cuál salió.
+
+    De quién se compró y a quién se vendió no se guardan acá: ya los trae
+    el movimiento que la hizo entrar y el que la hizo salir, que llevan
+    proveedor, factura y cliente. Duplicarlos sería tener dos versiones
+    del mismo dato.
+
+    Solo aplica a Bodega 1 y 2. La herramienta de Bodega Técnica se lleva
+    por cantidad, no por unidad.
+    """
+
+    articulo = models.ForeignKey(
+        Articulo, on_delete=models.PROTECT, related_name='unidades',
+    )
+    # Único en todo el sistema: un serial identifica un aparato físico, no
+    # una posición dentro de un producto.
+    numero_serie = models.CharField(max_length=100, unique=True)
+
+    # Cómo entró y cómo salió. Mientras la salida sea NULL, la unidad está
+    # en bodega — es la definición, no un campo aparte que haya que mantener
+    # en sincronía.
+    movimiento_ingreso = models.ForeignKey(
+        MovimientoVenta, on_delete=models.PROTECT, related_name='unidades_ingresadas',
+    )
+    movimiento_salida = models.ForeignKey(
+        MovimientoVenta, on_delete=models.PROTECT, related_name='unidades_salidas',
+        null=True, blank=True,
+    )
+
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Unidad'
+        verbose_name_plural = 'Unidades'
+        ordering = ['numero_serie']
+        indexes = [
+            models.Index(fields=['articulo', 'movimiento_salida']),
+        ]
+
+    def __str__(self):
+        return f'{self.articulo.codigo_interno} · {self.numero_serie}'
+
+    @property
+    def en_bodega(self):
+        return self.movimiento_salida_id is None
+
+    @property
+    def estado(self):
+        """Para pintarlo en la ficha del producto."""
+        return 'En bodega' if self.en_bodega else 'Fuera de bodega'

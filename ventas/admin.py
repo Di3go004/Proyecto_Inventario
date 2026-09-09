@@ -10,7 +10,7 @@ class ArticuloAdmin(admin.ModelAdmin):
         'nivel_alerta', 'precio', 'activo',
     )
     list_filter = ('bodega', 'categoria', 'activo')
-    search_fields = ('codigo_interno', 'numero_serie', 'nombre_producto', 'marca', 'modelo')
+    search_fields = ('codigo_interno', 'nombre_producto', 'marca', 'modelo')
 
     @admin.display(description='Nivel')
     def nivel_alerta(self, obj):

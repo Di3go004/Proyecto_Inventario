@@ -35,7 +35,7 @@
       <dd class="code">{{ articulo.codigo_interno }}</dd>
     </div>
     <div>
-      <dt>Número de serial</dt>
+      <dt>{% if articulo.lleva_serie %}Unidades en bodega{% else %}Número de serial{% endif %}</dt>
       <dd class="code">{{ articulo.serial }}</dd>
     </div>
     <div>
@@ -127,5 +127,52 @@
   </div>
 {% endif %}
 
+{% if articulo.lleva_serie %}
+<div class="card" style="margin-bottom:16px;">
+  <h2 class="card-titulo">Unidades</h2>
+  <p class="hint" style="margin:-8px 0 14px;">
+    Este producto se controla por unidad: cada aparato tiene su número de
+    serie. De quién se compró y a quién se entregó lo dice la boleta de cada
+    movimiento.
+  </p>
+  <div class="table-wrap">
+  <table class="tabla-responsiva">
+    <thead>
+      <tr><th>N.º de serie</th><th>Estado</th><th>Entró con</th><th>Salió con</th></tr>
+    </thead>
+    <tbody>
+      {% for u in unidades %}
+      <tr>
+        <td data-etiqueta="N.º de serie" class="code celda-principal">{{ u.numero_serie }}</td>
+        <td data-etiqueta="Estado">
+          {% if u.en_bodega %}<span class="chip chip-good">En bodega</span>
+          {% else %}<span class="chip chip-neutral">Fuera de bodega</span>{% endif %}
+        </td>
+        <td data-etiqueta="Entró con">
+          {% if u.movimiento_ingreso.folio %}
+            <a href="{% url 'documento_detalle' u.movimiento_ingreso.folio %}" class="code">{{ u.movimiento_ingreso.folio }}</a>
+          {% else %}<span class="hint">Carga inicial</span>{% endif %}
+        </td>
+        <td data-etiqueta="Salió con">
+          {% if u.movimiento_salida %}
+            {% if u.movimiento_salida.folio %}
+              <a href="{% url 'documento_detalle' u.movimiento_salida.folio %}" class="code">{{ u.movimiento_salida.folio }}</a>
+            {% else %}—{% endif %}
+            {% if u.movimiento_salida.cliente_nombre %}· {{ u.movimiento_salida.cliente_nombre }}{% endif %}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="fila-vacia"><td colspan="4">
+        Todavía no tiene unidades registradas. Entran con una boleta de ingreso.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
 <a href="{% url 'catalogo_articulos' %}" class="btn">← Volver al catálogo</a>
+
 {% endblock %}

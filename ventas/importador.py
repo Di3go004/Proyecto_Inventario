@@ -26,7 +26,6 @@ CAMPOS_IMPORTABLES = [
     ('capacidad', 'Capacidad', False, ['CAPACIDAD']),
     ('precio', 'Precio', False, ['PRECIO']),
     ('proveedor', 'Proveedor', False, ['PROVEEDOR']),
-    ('numero_serie', 'Número de serie', False, ['SERIE', 'SERIAL']),
     ('stock_inicial', 'Stock / existencia inicial', False, ['TOTAL EXISTENCIA', 'EXISTENCIA MENSUAL', 'EXISTENCIA']),
 ]
 
@@ -55,8 +54,6 @@ def leer_filas(ruta, hoja, fila_encabezado, mapeo):
     "nombre_producto" se omiten (secciones en blanco entre bloques, comunes
     en estos archivos).
     """
-    from .models import limpiar_serial
-
     libro = xl.abrir_libro(ruta)
     try:
         ws = libro[hoja]
@@ -79,7 +76,6 @@ def leer_filas(ruta, hoja, fila_encabezado, mapeo):
                 'capacidad': xl.valor_texto(obtener('capacidad')),
                 'precio': xl.valor_decimal(obtener('precio')),
                 'proveedor': xl.valor_texto(obtener('proveedor')),
-                'numero_serie': limpiar_serial(xl.valor_texto(obtener('numero_serie'))),
                 'stock_inicial': xl.valor_entero(obtener('stock_inicial')),
             }
     finally:
@@ -136,8 +132,6 @@ def ejecutar_importacion(ruta, hoja, fila_encabezado, mapeo, usuario):
                     existente.precio = fila['precio']
                     if proveedor:
                         existente.proveedor = proveedor
-                    if fila['numero_serie']:
-                        existente.numero_serie = fila['numero_serie']
                     existente.save()
                     resultado['actualizados'] += 1
                 else:
@@ -149,7 +143,6 @@ def ejecutar_importacion(ruta, hoja, fila_encabezado, mapeo, usuario):
                         bodega=bodega,
                         precio=fila['precio'],
                         proveedor=proveedor,
-                        numero_serie=fila['numero_serie'],
                     )
                     if fila['stock_inicial'] > 0:
                         MovimientoVenta.objects.create(

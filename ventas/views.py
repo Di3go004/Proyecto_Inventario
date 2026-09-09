@@ -22,7 +22,7 @@ from . import boletas, documentos, importador
 from .forms import (
     ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, identificador_de, leer_lineas,
 )
-from .models import Articulo, MovimientoVenta
+from .models import Articulo, MovimientoVenta, UnidadArticulo
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
 
@@ -40,7 +40,14 @@ def catalogo_articulos(request):
 
     q = request.GET.get('q', '').strip()
     if q:
-        articulos = articulos.filter(Q(codigo_interno__icontains=q) | Q(nombre_producto__icontains=q))
+        # También por serial: escribir A-1002 tiene que llevar al producto
+        # que tiene esa unidad. distinct() porque la unión con las unidades
+        # repetiría el producto una vez por serial que coincida.
+        articulos = articulos.filter(
+            Q(codigo_interno__icontains=q)
+            | Q(nombre_producto__icontains=q)
+            | Q(unidades__numero_serie__icontains=q)
+        ).distinct()
 
     bodega_id = request.GET.get('bodega', '').strip()
     if bodega_id:
@@ -109,18 +116,66 @@ def articulo_detalle(request, pk):
     # Los últimos movimientos, para no tener que ir al kardex completo solo
     # para ver qué pasó hace poco con este producto.
     movimientos = articulo.movimientos.select_related('usuario').order_by('-fecha', '-id')[:8]
+    # Las unidades solo existen en los productos que llevan serie. En los
+    # demás la lista sale vacía y la ficha no la pinta.
+    unidades = (
+        articulo.unidades
+        .select_related('movimiento_ingreso', 'movimiento_salida')
+        # Las que siguen en bodega primero: es lo que se busca al abrir la ficha.
+        .order_by(F('movimiento_salida').asc(nulls_first=True), 'numero_serie')
+        if articulo.lleva_serie else []
+    )
     return render(request, 'ventas/articulo_detalle.html', {
+        'unidades': unidades,
         'articulo': articulo, 'movimientos': movimientos,
     })
 
+
+def _registrar_unidades_iniciales(articulo, seriales, usuario):
+    """
+    Las unidades de la carga inicial, con su movimiento de saldo detrás.
+
+    No se crean sueltas a propósito: la regla del sistema es que **detrás de
+    cada unidad hay un movimiento**, que es lo que impide que la existencia se
+    descuadre en silencio. Acá ese movimiento es un "Ajuste / Saldo inicial",
+    el mismo que usa la carga masiva desde Excel, y queda con el nombre de
+    quien capturó el producto.
+
+    Una sola transacción: o entran todas las unidades o no entra ninguna.
+    """
+    with transaction.atomic():
+        movimiento = MovimientoVenta.objects.create(
+            articulo=articulo,
+            tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL,
+            cantidad=len(seriales),
+            usuario=usuario,
+            observacion='Carga inicial del catálogo.',
+        )
+        UnidadArticulo.objects.bulk_create([
+            UnidadArticulo(articulo=articulo, numero_serie=serial,
+                           movimiento_ingreso=movimiento)
+            for serial in seriales
+        ])
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.PRACTICANTE)
 def articulo_nuevo(request):
     if request.method == 'POST':
         form = ArticuloForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Artículo creado. El stock inicial se registra desde Movimientos (Fase 3).')
+            articulo = form.save()
+            seriales = form.cleaned_data.get('seriales') or []
+            if seriales:
+                _registrar_unidades_iniciales(articulo, seriales, request.user)
+                messages.success(
+                    request,
+                    f'Artículo creado con {len(seriales)} unidad(es) registradas.',
+                )
+            else:
+                messages.success(
+                    request,
+                    'Artículo creado. La existencia entra con un ingreso desde Movimientos.',
+                )
             return redirect('catalogo_articulos')
     else:
         form = ArticuloForm()
@@ -318,8 +373,11 @@ def api_buscar_articulos(request):
         .filter(
             Q(codigo_interno__icontains=consulta)
             | Q(nombre_producto__icontains=consulta)
-            | Q(numero_serie__icontains=consulta)
+            | Q(unidades__numero_serie__icontains=consulta)
         )
+        # distinct(): buscar por serial une con las unidades, y sin esto un
+        # producto con cuatro seriales parecidos sale cuatro veces en la lista.
+        .distinct()
         .select_related('bodega', 'proveedor')
         .order_by('nombre_producto')[:10]
     )

@@ -7,7 +7,7 @@ from django.utils import timezone
 from core.forms import CampoProveedor, solo_el_nombre
 from core.models import Proveedor
 
-from .models import SIN_SERIAL, Articulo, MovimientoVenta, limpiar_serial
+from .models import Articulo, MovimientoVenta, UnidadArticulo, limpiar_serial
 
 
 class ArticuloForm(forms.ModelForm):
@@ -20,9 +20,9 @@ class ArticuloForm(forms.ModelForm):
         # stock_actual NO se incluye: se calcula solo desde los movimientos
         # (RF-08), nunca se edita a mano desde el catálogo.
         fields = [
-            'codigo_interno', 'numero_serie', 'nombre_producto', 'marca', 'modelo',
+            'codigo_interno', 'nombre_producto', 'marca', 'modelo',
             'capacidad', 'bodega', 'categoria', 'proveedor', 'precio', 'imagen', 'imagen_url',
-            'stock_optimo', 'stock_alerta', 'stock_critico', 'activo',
+            'lleva_serie', 'stock_optimo', 'stock_alerta', 'stock_critico', 'activo',
         ]
         # codigo_interno queda opcional a propósito: si se deja vacío, se
         # genera solo como SE-MODELO-CAPACIDAD al guardar (Articulo.save()).
@@ -31,23 +31,62 @@ class ArticuloForm(forms.ModelForm):
             'codigo_interno': forms.TextInput(attrs={
                 'placeholder': 'Vacío = se genera solo (SE-MODELO-CAPACIDAD)',
             }),
-            'numero_serie': forms.TextInput(attrs={
-                'placeholder': f'Vacío = {SIN_SERIAL} (sin serial)',
-            }),
         }
+
+    # No es campo del modelo: cada línea se convierte en una UnidadArticulo.
+    seriales = forms.CharField(
+        required=False, label='Números de serie',
+        widget=forms.Textarea(attrs={'rows': 4, 'placeholder': 'Un serial por línea'}),
+        help_text='Uno por línea. Se pueden pegar de una lista.',
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         solo_el_nombre(self.fields['categoria'])
+
+        # Los seriales solo se capturan al dar de alta el producto, que es la
+        # carga inicial del inventario. Después cada unidad entra por su
+        # boleta: si se pudieran agregar editando, el catálogo sería una
+        # puerta trasera para meter existencia sin respaldo — que es justo lo
+        # que se cerró en Bodega Técnica.
+        if self.instance.pk:
+            del self.fields['seriales']
 
     # El orden de los umbrales no se valida acá: lo hace la restricción de la
     # base de datos, que Django comprueba al validar el formulario y ya trae
     # su propio mensaje (ver UMBRALES_EN_ORDEN en models.py). Estaba escrito
     # en los dos lados y el error salía repetido en pantalla.
 
-    def clean_numero_serie(self):
-        """Ver limpiar_serial: escribir "S/S" es decir que no tiene."""
-        return limpiar_serial(self.cleaned_data.get('numero_serie'))
+    def clean_seriales(self):
+        """
+        Una línea por unidad. Se comprueban acá y no al guardar para poder
+        devolver el formulario con el error puesto, en vez de reventar a
+        mitad de crear las unidades.
+        """
+        crudo = self.cleaned_data.get('seriales') or ''
+        limpios, vistos = [], set()
+        for linea in crudo.splitlines():
+            serial = limpiar_serial(linea)
+            if not serial:
+                continue          # líneas vacías, o alguien escribió "S/S"
+            if serial.upper() in vistos:
+                raise forms.ValidationError(f'"{serial}" está repetido en la lista.')
+            if UnidadArticulo.objects.filter(numero_serie__iexact=serial).exists():
+                raise forms.ValidationError(
+                    f'El serial "{serial}" ya está registrado en otro producto.'
+                )
+            vistos.add(serial.upper())
+            limpios.append(serial)
+        return limpios
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('seriales') and not datos.get('lleva_serie'):
+            raise forms.ValidationError(
+                'Se escribieron seriales pero el producto no está marcado como '
+                '"Lleva número de serie".'
+            )
+        return datos
 
     def clean_imagen(self):
         """

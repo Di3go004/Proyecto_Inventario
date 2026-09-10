@@ -323,13 +323,26 @@ class FilaDeExistencias:
         """El número real en las unidades; en el producto, cómo se resume."""
         return self.articulo.serial if self.es_producto else self.unidad.numero_serie
 
+    # Las cantidades y el dinero van SOLO en la fila del producto. Las de
+    # unidad llevan lo que es de esa unidad —su serial, con qué entró y
+    # cuándo— y dejan esas celdas vacías.
+    #
+    # Al principio cada unidad llevaba existencia 1 y su precio, y la fila del
+    # producto el total; la columna "Fila" servía para filtrar antes de sumar.
+    # No alcanza: nadie filtra antes de seleccionar una columna y mirar la
+    # suma, y ahí el valor salía al doble. Una hoja donde sumar mal es posible
+    # es una hoja mal hecha, por más que traiga la forma de sumar bien.
     @property
     def existencia(self):
-        return self.articulo.stock_actual if self.es_producto else 1
+        return self.articulo.stock_actual if self.es_producto else None
+
+    @property
+    def precio(self):
+        return self.articulo.precio if self.es_producto else None
 
     @property
     def valor(self):
-        return self.articulo.precio * self.existencia
+        return self.articulo.precio * self.articulo.stock_actual if self.es_producto else None
 
     @property
     def nivel(self):

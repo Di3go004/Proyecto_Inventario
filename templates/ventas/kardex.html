@@ -35,10 +35,7 @@
     {% endcomment %}
     <tr {% if m.folio %}data-href="{% url 'documento_detalle' m.folio %}"{% endif %}>
       <td data-etiqueta="Fecha" class="num celda-principal" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
-      <td data-etiqueta="Boleta" class="code">{{ m.folio|default:"—" }}</td>|date:"d/m/Y H:i" }}</td>
-      <td data-etiqueta="Boleta" class="code">
-        {% if m.folio %}<a href="{% url 'documento_detalle' m.folio %}">{{ m.folio }}</a>{% else %}—{% endif %}
-      </td>
+      <td data-etiqueta="Boleta" class="code">{{ m.folio|default:"—" }}</td>
       <td data-etiqueta="Movimiento">
         {% if m.tipo_documento == 'ingreso' %}
           <span class="chip chip-good">Ingreso</span>

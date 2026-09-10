@@ -149,11 +149,10 @@ def reporte_existencias(request):
         return _excel(
             'existencias',
             'Existencias y valorizacion - Bodega 1 y 2',
-            # "Fila" va de primera y no es adorno: abajo de cada producto que
-            # lleva serie van sus unidades, y esta hoja no trae fila de
-            # totales — la suma la hace quien la abre. Sin poder separar
-            # producto de unidad, seleccionar "Valor total" contaría todo dos
-            # veces. Se filtra por esta columna y después se suma.
+            # "Fila" dice si el renglón es el producto o una de sus unidades.
+            # Las cantidades y el dinero van solo en el del producto: sumar la
+            # columna "Valor total" tal cual tiene que dar el total correcto,
+            # sin filtrar nada antes. Ver FilaDeExistencias en core/reportes.py.
             ['Fila', 'Código', 'N.º de serial', 'Producto', 'Bodega',
              'Marca / Modelo', 'Existencia', 'Precio unitario', 'Valor total',
              'Nivel', 'Proveedor', 'Entró con', 'Fecha de ingreso'],
@@ -161,7 +160,7 @@ def reporte_existencias(request):
                 [fila.tipo, fila.articulo.codigo_interno, fila.serial,
                  fila.articulo.nombre_producto, fila.articulo.bodega.nombre,
                  f'{fila.articulo.marca} {fila.articulo.modelo}'.strip(),
-                 fila.existencia, fila.articulo.precio, fila.valor,
+                 fila.existencia, fila.precio, fila.valor,
                  fila.nivel.capitalize(), str(fila.articulo.proveedor or ''),
                  fila.entro_con_texto,
                  exportar.valor_para_excel(fila.fecha_de_ingreso)

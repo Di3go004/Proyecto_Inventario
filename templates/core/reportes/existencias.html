@@ -157,9 +157,11 @@
     </tr>
     {% for u in a.unidades_aca %}
     {% comment %}
-      La fila de una unidad no lleva nivel: sola tiene existencia 1 contra un
-      umbral de 2, así que diría "Crítico" de un producto que tiene cuatro.
-      El nivel es del producto y vive en su fila.
+      La fila de una unidad no lleva existencia, precio, valor ni nivel: eso
+      es del producto y vive en su fila. Con las cantidades repetidas en las
+      dos, sumar la columna de valor daba el doble — y el nivel calculado por
+      unidad diría "Crítico" de un producto que tiene cuatro, porque una sola
+      unidad es existencia 1 contra un umbral de 2.
     {% endcomment %}
     <tr class="fila-unidad" data-de="u{{ a.pk }}" hidden
         {% if u.movimiento_ingreso.folio %}data-href="{% url 'documento_detalle' u.movimiento_ingreso.folio %}"{% endif %}>
@@ -175,9 +177,9 @@
       <td data-etiqueta="Fecha de ingreso" class="columna-secundaria">
         {{ u.movimiento_ingreso.fecha|date:"d/m/Y"|default:"—" }}
       </td>
-      <td data-etiqueta="Existencia" class="num">1</td>
-      <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
-      <td data-etiqueta="Valor total" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td></td>
+      <td></td>
+      <td></td>
       <td></td>
     </tr>
     {% endfor %}

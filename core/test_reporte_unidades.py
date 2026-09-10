@@ -181,27 +181,60 @@ class ExistenciasDesglosaLasUnidadesTests(BaseReporteUnidades):
         self.assertTrue(producto['Nivel'])
         self.assertEqual([u['Nivel'] for u in unidades], [None, None, None])
 
-    def test_las_cantidades_no_se_cuentan_dos_veces_al_filtrar(self):
+    def test_sumar_la_columna_tal_cual_da_el_total_correcto(self):
         """
-        La razón de la columna "Fila": la hoja no trae totales, y sumar sin
-        separar contaría el producto y otra vez sus unidades.
+        Sin filtrar nada. Al principio cada unidad llevaba su existencia y su
+        precio, y la columna "Fila" servía para separar antes de sumar; en la
+        práctica nadie filtra: selecciona la columna, mira la suma, y el valor
+        salía al doble. Ahora las cantidades viven en un solo renglón.
         """
         filas = self.datos(self.hoja(reverse('reporte_existencias')))
 
-        productos = [f for f in filas if f['Fila'] == 'Producto']
-        unidades = [f for f in filas if f['Fila'] == 'Unidad']
+        existencia = sum(f['Existencia'] or 0 for f in filas)
+        valor = sum(f['Valor total'] or 0 for f in filas)
 
-        self.assertEqual(sum(f['Existencia'] for f in productos), 503)
-        self.assertEqual(sum(f['Existencia'] for f in unidades), 3)
-        self.assertEqual(sum(f['Valor total'] for f in productos), 3 * 1000 + 500 * 25)
+        self.assertEqual(existencia, 503, '3 indicadores + 500 conectores')
+        self.assertEqual(valor, 3 * 1000 + 500 * 25)
 
-    def test_cada_unidad_vale_el_precio_del_producto(self):
+    def test_la_fila_de_la_unidad_no_lleva_cantidades_ni_dinero(self):
         filas = self.datos(self.hoja(reverse('reporte_existencias')))
 
         unidad = next(f for f in filas if f['N.º de serial'] == 'A-1001')
-        self.assertEqual(unidad['Existencia'], 1)
-        self.assertEqual(unidad['Precio unitario'], 1000)
-        self.assertEqual(unidad['Valor total'], 1000)
+        for columna in ('Existencia', 'Precio unitario', 'Valor total', 'Nivel'):
+            with self.subTest(columna=columna):
+                self.assertIsNone(unidad[columna])
+
+    def test_pero_sí_lleva_lo_que_es_de_la_unidad(self):
+        """Vaciar las columnas de dinero no puede dejar la fila sin sentido."""
+        filas = self.datos(self.hoja(reverse('reporte_existencias')))
+
+        unidad = next(f for f in filas if f['N.º de serial'] == 'A-1001')
+        self.assertEqual(unidad['Producto'], 'INDICADOR SE7581P')
+        self.assertEqual(unidad['Entró con'], 'ING-00001')
+        self.assertIsNotNone(unidad['Fecha de ingreso'])
+
+    def test_un_producto_de_una_sola_unidad_tampoco_se_duplica(self):
+        """
+        El caso más fácil de pasar por alto: con una unidad, el producto y su
+        unidad se ven casi idénticos y el valor se contaba dos veces igual.
+        """
+        otro = Articulo.objects.create(
+            nombre_producto='EQUIPO UNICO', modelo='U-1', bodega=self.bodega,
+            precio=500, lleva_serie=True,
+        )
+        movimiento = MovimientoVenta.objects.create(
+            folio='ING-00003', articulo=otro, cantidad=1,
+            tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.VENTA,
+            usuario=self.admin,
+        )
+        ingresar_unidades(movimiento, ['U-9001'])
+
+        filas = self.datos(self.hoja(reverse('reporte_existencias')))
+        del_equipo = [f for f in filas if f['Código'] == otro.codigo_interno]
+
+        self.assertEqual(len(del_equipo), 2, 'el producto y su única unidad')
+        self.assertEqual(sum(f['Valor total'] or 0 for f in del_equipo), 500)
 
 
 class LaPantallaDeExistenciasTests(BaseReporteUnidades):

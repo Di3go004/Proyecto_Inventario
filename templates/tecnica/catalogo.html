@@ -56,6 +56,16 @@
         </select>
       </label>
       <label class="filtro">
+        <span>Categoría</span>
+        <select name="categoria">
+          <option value="">Todas</option>
+          {% for c in categorias %}
+            <option value="{{ c.id }}" {% if categoria_id == c.id|stringformat:"s" %}selected{% endif %}>{{ c.nombre }}</option>
+          {% endfor %}
+          <option value="sin" {% if categoria_id == 'sin' %}selected{% endif %}>— Sin categoría —</option>
+        </select>
+      </label>
+      <label class="filtro">
         <span>Precio desde</span>
         <input type="number" step="0.01" min="0" name="precio_min" value="{{ precio_min }}" placeholder="Q 0.00">
       </label>
@@ -66,7 +76,7 @@
     </div>
     <div class="filtros-acciones">
       <button type="submit" class="btn btn-primary">Aplicar filtros</button>
-      {% if q or estado or proveedor_id or precio_min or precio_max %}
+      {% if q or estado or proveedor_id or categoria_id or precio_min or precio_max %}
         <a href="{% url 'catalogo_activos' %}" class="btn">Limpiar todo</a>
       {% endif %}
     </div>
@@ -123,7 +133,7 @@
     </tr>
     {% empty %}
     <tr class="fila-vacia"><td colspan="8">
-      {% if q or estado or proveedor_id or precio_min or precio_max %}
+      {% if q or estado or proveedor_id or categoria_id or precio_min or precio_max %}
         No hay activos que coincidan con los filtros.
         <a href="{% url 'catalogo_activos' %}">Limpiar filtros</a>
       {% else %}

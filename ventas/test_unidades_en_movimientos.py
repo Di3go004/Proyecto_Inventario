@@ -573,3 +573,64 @@ class LasTresPantallasComparanIgualTests(BaseUnidadesEnMovimientos):
 
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, 'ya está registrado')
+
+
+class LaFilaDeLaUnidadLlevaASuBoletaTests(BaseUnidadesEnMovimientos):
+    """
+    Una unidad tiene dos boletas —con cuál entró y con cuál salió— y la fila
+    un solo destino. Se toma la que contesta la pregunta con la que uno abre
+    esta tabla: dónde está hoy.
+    """
+
+    def fila_de(self, serial):
+        from ventas.models import UnidadArticulo
+        return UnidadArticulo.objects.get(numero_serie=serial)
+
+    def test_en_bodega_lleva_a_la_boleta_de_ingreso(self):
+        self.ingresar([(self.equipo, 1, 'A-1001')], folio='ING-00070')
+
+        self.assertEqual(self.fila_de('A-1001').boleta_de_referencia, 'ING-00070')
+
+    def test_si_ya_salio_lleva_a_la_de_salida(self):
+        """La que interesa de una unidad que no está es a dónde se fue."""
+        self.ingresar([(self.equipo, 1, 'A-1001')], folio='ING-00070')
+        self.sacar([(self.equipo, 1, 'A-1001')], folio='SAL-00070')
+
+        self.assertEqual(self.fila_de('A-1001').boleta_de_referencia, 'SAL-00070')
+
+    def test_un_demo_devuelto_vuelve_a_apuntar_al_ingreso(self):
+        """Está de vuelta en bodega, así que su salida ya no la explica."""
+        self.ingresar([(self.equipo, 1, 'A-1001')], folio='ING-00070')
+        self.sacar(
+            [(self.equipo, 1, 'A-1001')], folio='SAL-00070',
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
+        )
+        movimiento = MovimientoVenta.objects.get(folio='SAL-00070')
+        self.client.post(reverse('devolucion_demo', args=[movimiento.pk]), {
+            'fecha_devolucion': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            'devuelto_por': 'Ivan Leiva', 'observacion': '',
+        })
+
+        self.assertEqual(self.fila_de('A-1001').boleta_de_referencia, 'ING-00070')
+
+    def test_la_carga_inicial_no_tiene_boleta_y_la_fila_no_enlaza(self):
+        """El ajuste de saldo del alta no lleva folio: no hubo papel."""
+        inicial = MovimientoVenta.objects.create(
+            articulo=self.equipo, cantidad=1,
+            tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL,
+            usuario=self.admin,
+        )
+        ingresar_unidades(inicial, ['A-2001'])
+
+        self.assertEqual(self.fila_de('A-2001').boleta_de_referencia, '')
+
+    def test_la_ficha_pinta_el_enlace_en_la_fila(self):
+        self.ingresar([(self.equipo, 1, 'A-1001')], folio='ING-00070')
+
+        respuesta = self.client.get(reverse('articulo_detalle', args=[self.equipo.pk]))
+
+        self.assertContains(
+            respuesta,
+            f'data-href="{reverse("documento_detalle", args=["ING-00070"])}"',
+        )

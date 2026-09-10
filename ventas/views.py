@@ -13,7 +13,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
-from core.models import Bodega, Proveedor
+from core.models import Bodega, Categoria, Proveedor
 from core.paginacion import paginar
 from tecnica.models import Activo, MovimientoActivo
 from usuarios.decorators import rol_excluido, rol_requerido
@@ -65,6 +65,14 @@ def catalogo_articulos(request):
     if proveedor_id:
         articulos = articulos.filter(proveedor_id=proveedor_id)
 
+    # "sin" son los que todavía no se clasificaron: el Resumen los cuenta y
+    # esta es la forma de ir a buscarlos para ponerles categoría.
+    categoria_id = request.GET.get('categoria', '').strip()
+    if categoria_id == 'sin':
+        articulos = articulos.filter(categoria__isnull=True)
+    elif categoria_id:
+        articulos = articulos.filter(categoria_id=categoria_id)
+
     precio_min = request.GET.get('precio_min', '').strip()
     if precio_min:
         try:
@@ -97,7 +105,10 @@ def catalogo_articulos(request):
     # Cuántos filtros hay puestos (sin contar la búsqueda por texto, que
     # siempre está a la vista): se muestra junto al botón "Filtros" para
     # que se note que hay filtros aplicados aunque el panel esté cerrado.
-    filtros_activos = len([f for f in (bodega_id, proveedor_id, nivel, precio_min, precio_max, activo) if f])
+    filtros_activos = len([
+        f for f in (bodega_id, proveedor_id, categoria_id, nivel, precio_min, precio_max, activo)
+        if f
+    ])
 
     return render(request, 'ventas/catalogo.html', {
         'filtros_activos': filtros_activos,
@@ -105,9 +116,13 @@ def catalogo_articulos(request):
         'pagina': pagina,
         'bodegas': Bodega.objects.filter(tipo=Bodega.Tipo.VENTA),
         'proveedores': Proveedor.objects.order_by('nombre'),
+        # Solo las de este módulo: una categoría de herramienta no tiene nada
+        # que hacer en el catálogo de venta.
+        'categorias': Categoria.objects.filter(modulo=Categoria.Modulo.VENTAS),
         'q': q,
         'bodega_id': bodega_id,
         'proveedor_id': proveedor_id,
+        'categoria_id': categoria_id,
         'nivel': nivel,
         'precio_min': precio_min,
         'precio_max': precio_max,

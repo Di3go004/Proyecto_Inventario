@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.dateparse import parse_date
 
-from core.models import Bodega, Proveedor
+from core.models import Bodega, Categoria, Proveedor
 from core.paginacion import paginar
 from usuarios.decorators import rol_excluido, rol_requerido
 from usuarios.models import Usuario
@@ -51,6 +51,14 @@ def catalogo_activos(request):
     if proveedor_id:
         activos = activos.filter(proveedor_id=proveedor_id)
 
+    # "sin" son los que todavía no se clasificaron: el Resumen los cuenta y
+    # esta es la forma de ir a buscarlos para ponerles categoría.
+    categoria_id = request.GET.get('categoria', '').strip()
+    if categoria_id == 'sin':
+        activos = activos.filter(categoria__isnull=True)
+    elif categoria_id:
+        activos = activos.filter(categoria_id=categoria_id)
+
     precio_min = request.GET.get('precio_min', '').strip()
     if precio_min:
         try:
@@ -67,17 +75,23 @@ def catalogo_activos(request):
 
     pagina = paginar(request, activos)
 
-    filtros_activos = len([f for f in (estado, proveedor_id, precio_min, precio_max) if f])
+    filtros_activos = len([
+        f for f in (estado, proveedor_id, categoria_id, precio_min, precio_max) if f
+    ])
 
     return render(request, 'tecnica/catalogo.html', {
         'filtros_activos': filtros_activos,
         'activos': pagina,
         'pagina': pagina,
         'proveedores': Proveedor.objects.order_by('nombre'),
+        # Solo las de este módulo: una categoría de venta no tiene nada que
+        # hacer en el catálogo de herramienta.
+        'categorias': Categoria.objects.filter(modulo=Categoria.Modulo.TECNICA),
         'q': q,
         'estado': estado,
         'estados': list(Activo.Estado.choices) + [('agotado', 'Agotado (dado de baja)')],
         'proveedor_id': proveedor_id,
+        'categoria_id': categoria_id,
         'precio_min': precio_min,
         'precio_max': precio_max,
     })

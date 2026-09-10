@@ -146,7 +146,14 @@
     </thead>
     <tbody>
       {% for u in unidades %}
-      <tr>
+      {% comment %}
+        La fila entera lleva a la boleta que explica dónde está la unidad
+        hoy: la de salida si ya salió, la de ingreso si sigue en bodega. Una
+        unidad tiene dos boletas y la fila un solo destino, así que se elige
+        la que contesta la pregunta con la que uno abre esta tabla. Los dos
+        números siguen siendo enlaces propios, para ir al otro.
+      {% endcomment %}
+      <tr {% if u.boleta_de_referencia %}data-href="{% url 'documento_detalle' u.boleta_de_referencia %}"{% endif %}>
         <td data-etiqueta="N.º de serie" class="code celda-principal">{{ u.numero_serie }}</td>
         <td data-etiqueta="Estado">
           {% if u.en_bodega %}<span class="chip chip-good">En bodega</span>

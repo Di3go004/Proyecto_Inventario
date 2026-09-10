@@ -586,6 +586,20 @@ class UnidadArticulo(models.Model):
         """Para pintarlo en la ficha del producto."""
         return 'En bodega' if self.en_bodega else 'Fuera de bodega'
 
+    @property
+    def boleta_de_referencia(self):
+        """
+        El número de boleta al que lleva la fila de esta unidad.
+
+        Una unidad tiene dos boletas —con cuál entró y con cuál salió— y una
+        fila un solo destino, así que se toma la que contesta la pregunta con
+        la que uno abre la tabla: dónde está hoy. Si ya salió, la de salida;
+        si sigue en bodega, la de ingreso. Vacío en la carga inicial, que no
+        tiene boleta porque no hubo papel.
+        """
+        movimiento = self.movimiento_salida or self.movimiento_ingreso
+        return movimiento.folio if movimiento else ''
+
 
 class MovimientoUnidad(models.Model):
     """

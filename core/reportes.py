@@ -13,13 +13,14 @@ unos milisegundos; y mantiene la regla de RF-11 en un único lugar, el
 modelo, en vez de duplicarla en SQL.
 """
 
+from dataclasses import dataclass
 from decimal import Decimal
 
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Prefetch, Q, Sum
 from django.utils import timezone
 
 from tecnica.models import Activo, PrestamoActivo
-from ventas.models import Articulo, MovimientoVenta
+from ventas.models import SIN_SERIAL, Articulo, MovimientoVenta, UnidadArticulo
 
 
 def _vacio_por_nivel():
@@ -33,6 +34,20 @@ def existencias(solo_activos=True, bodega_id=None):
     """
     articulos = Articulo.objects.select_related('bodega', 'proveedor').order_by(
         'bodega__nombre', 'nombre_producto',
+    ).prefetch_related(
+        # Las unidades que siguen en bodega, para desglosarlas debajo de su
+        # producto. Solo las que están: es un reporte de existencias, y una
+        # unidad ya vendida no es existencia — esa sale en el de movimientos.
+        Prefetch(
+            'unidades',
+            queryset=(
+                UnidadArticulo.objects.en_bodega()
+                # movimientos: para poder decir con qué boleta entró cada una.
+                .prefetch_related('movimientos')
+                .order_by('numero_serie')
+            ),
+            to_attr='unidades_aca',
+        ),
     )
     if solo_activos:
         articulos = articulos.filter(activo=True)
@@ -174,6 +189,8 @@ def movimientos_del_periodo(desde=None, hasta=None, bodega_id=None):
     movimientos = (
         MovimientoVenta.objects
         .select_related('articulo', 'articulo__bodega', 'usuario')
+        # Los seriales que movió cada boleta, para desglosarla por unidad.
+        .prefetch_related('unidades')
         .order_by('-fecha', '-id')
     )
     if desde:
@@ -269,4 +286,144 @@ def prestamos_abiertos():
 
     # Lo que lleva más tiempo afuera primero: es lo que hay que ir a buscar.
     filas.sort(key=lambda f: f['dias'], reverse=True)
+    return filas
+
+
+# ---------------------------------------------------------------------------
+# Desglose por unidad
+#
+# Un producto que se controla por serial sale en el reporte como su fila de
+# siempre y, debajo, una fila por cada aparato que tenga en bodega. Los que no
+# llevan serie no cambian: una sola fila, con "S/S" donde iría el serial.
+#
+# La columna "Fila" dice cuál es cuál. No es adorno: el Excel no trae fila de
+# totales —la suma la hace quien lo abre— y sin poder separar producto de
+# unidad, seleccionar la columna "Valor total" contaría todo dos veces. Con
+# esa columna se filtra primero y se suma después.
+# ---------------------------------------------------------------------------
+
+FILA_PRODUCTO = 'Producto'
+FILA_UNIDAD = 'Unidad'
+
+
+@dataclass
+class FilaDeExistencias:
+    """Una fila del reporte: o un producto, o una de sus unidades."""
+
+    tipo: str
+    articulo: object
+    unidad: object = None
+
+    @property
+    def es_producto(self):
+        return self.tipo == FILA_PRODUCTO
+
+    @property
+    def serial(self):
+        """El número real en las unidades; en el producto, cómo se resume."""
+        return self.articulo.serial if self.es_producto else self.unidad.numero_serie
+
+    @property
+    def existencia(self):
+        return self.articulo.stock_actual if self.es_producto else 1
+
+    @property
+    def valor(self):
+        return self.articulo.precio * self.existencia
+
+    @property
+    def nivel(self):
+        """
+        Solo en la fila del producto. Una unidad sola tiene existencia 1
+        contra un umbral de 2, así que cada una diría "Crítico" — la columna
+        estaría mintiendo sobre un producto que tiene cuatro.
+        """
+        return self.articulo.nivel_alerta if self.es_producto else ''
+
+    @property
+    def entro_con(self):
+        """La boleta con la que llegó ese aparato. Vacío en el producto."""
+        if self.es_producto:
+            return None
+        return self.unidad.movimiento_ingreso
+
+    @property
+    def fecha_de_ingreso(self):
+        movimiento = self.entro_con
+        return movimiento.fecha if movimiento else None
+
+    @property
+    def entro_con_texto(self):
+        """
+        El número de boleta, o "Carga inicial" cuando no hay: las unidades
+        del arranque entraron con un ajuste de saldo, que no lleva boleta
+        porque no hubo papel. Es lo mismo que dice la ficha del producto.
+        """
+        movimiento = self.entro_con
+        if movimiento is None:
+            return ''
+        return movimiento.folio or 'Carga inicial'
+
+
+def desglosar_existencias(detalle):
+    """
+    Convierte la lista de artículos en filas de producto + filas de unidad.
+
+    `detalle` tiene que venir de existencias(), que ya trae las unidades en
+    bodega precargadas en `unidades_aca`.
+    """
+    filas = []
+    for articulo in detalle:
+        filas.append(FilaDeExistencias(FILA_PRODUCTO, articulo))
+        for unidad in getattr(articulo, 'unidades_aca', []):
+            filas.append(FilaDeExistencias(FILA_UNIDAD, articulo, unidad))
+    return filas
+
+
+@dataclass
+class FilaDeMovimientos:
+    """Un movimiento del período; en los que llevan serial, una por unidad."""
+
+    movimiento: object
+    serial: str = ''
+
+    @property
+    def cantidad(self):
+        """1 en las filas de unidad: cada serial es un aparato."""
+        return 1 if self.serial else self.movimiento.cantidad
+
+    @property
+    def serial_para_mostrar(self):
+        """S/S en lo que no lleva serie, igual que en todo el sistema."""
+        return self.serial or SIN_SERIAL
+
+    def __getattr__(self, nombre):
+        """
+        Lo demás es del movimiento: fecha, folio, producto, cliente...
+
+        El guardia evita la recursión infinita si algo pregunta por un
+        atributo antes de que `movimiento` exista (copias, pickle, el
+        depurador): sin él, buscar `movimiento` volvería a entrar aquí.
+        """
+        if nombre.startswith('_') or 'movimiento' not in self.__dict__:
+            raise AttributeError(nombre)
+        return getattr(self.__dict__['movimiento'], nombre)
+
+
+def desglosar_movimientos(detalle):
+    """
+    Una fila por unidad en los movimientos de productos que llevan serial.
+
+    Es la misma forma que ya usa la boleta en PDF, y la que hace útil el
+    reporte: sin esto dice que el martes salieron 2 indicadores, pero no
+    cuáles. La unidad que ya salió no aparece en el de existencias —ahí solo
+    va lo que está en bodega—, así que este es el reporte donde se rastrea.
+    """
+    filas = []
+    for movimiento in detalle:
+        seriales = [unidad.numero_serie for unidad in movimiento.unidades.all()]
+        if seriales:
+            filas += [FilaDeMovimientos(movimiento, serial) for serial in sorted(seriales)]
+        else:
+            filas.append(FilaDeMovimientos(movimiento))
     return filas

@@ -694,7 +694,13 @@ def kardex_articulo(request, pk):
     articulo = get_object_or_404(Articulo.objects.select_related('bodega'), pk=pk)
 
     movimientos = list(
-        articulo.movimientos.select_related('usuario').order_by('fecha', 'id')
+        articulo.movimientos
+        .select_related('usuario')
+        # Qué aparatos movió cada boleta. Acá no se desglosa en una fila por
+        # unidad como en los otros reportes: la columna de saldo es del
+        # movimiento entero, y partirlo la dejaría sin sentido.
+        .prefetch_related('unidades')
+        .order_by('fecha', 'id')
     )
     saldo = 0
     for movimiento in movimientos:

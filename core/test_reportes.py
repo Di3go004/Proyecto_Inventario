@@ -85,16 +85,38 @@ class BaseReportes(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         return openpyxl.load_workbook(io.BytesIO(respuesta.content)).active
 
-    def fila_del_encabezado(self, hoja, primer_titulo):
+    def fila_del_encabezado(self, hoja, titulo):
         """
         Busca en qué fila cayó de verdad el texto del encabezado, en vez de
         confiar en la constante. Si las pruebas usaran la constante, moverla
         movería también lo que comprueban y no detectarían un desfase.
+
+        Se busca en cualquier columna, no solo en la primera: el reporte de
+        existencias estrenó una columna "Fila" al frente y "Código" pasó a la
+        segunda, con lo que todas estas pruebas dejaron de encontrar la
+        cabecera. Es la misma razón por la que las columnas se buscan por
+        título — insertar una corre todas las que siguen.
         """
         for numero in range(1, 15):
-            if hoja.cell(row=numero, column=1).value == primer_titulo:
-                return numero
-        self.fail(f'no se encontró el encabezado "{primer_titulo}" en la hoja')
+            for columna in range(1, 25):
+                if hoja.cell(row=numero, column=columna).value == titulo:
+                    return numero
+        self.fail(f'no se encontró el encabezado "{titulo}" en la hoja')
+
+    def filas_de_producto(self, hoja):
+        """
+        Cuántas filas de producto trae la hoja de existencias.
+
+        No sirve contar hasta max_row: debajo de cada producto que lleva
+        serial van sus unidades, y esas no son artículos del catálogo. La
+        columna "Fila" es justamente la que permite separarlas — sin ella
+        tampoco se podría sumar el valor total en Excel sin contar doble.
+        """
+        fila = self.fila_del_encabezado(hoja, 'Fila')
+        return sum(
+            1 for numero in range(fila + 1, hoja.max_row + 1)
+            if hoja.cell(row=numero, column=1).value == 'Producto'
+        )
 
     def columna(self, hoja, fila_encabezado, titulo):
         """
@@ -368,15 +390,13 @@ class ExcelTests(BaseReportes):
         en_pantalla = pantalla.context['totales']['articulos']
 
         hoja = self.hoja(reverse('reporte_existencias'))
-        en_excel = hoja.max_row - self.fila_del_encabezado(hoja, 'Código')
 
-        self.assertEqual(en_excel, en_pantalla)
+        self.assertEqual(self.filas_de_producto(hoja), en_pantalla)
 
     def test_el_filtro_de_la_pantalla_se_aplica_a_la_descarga(self):
         hoja = self.hoja(reverse('reporte_existencias'), bodega=self.b2.pk)
-        filas = hoja.max_row - self.fila_del_encabezado(hoja, 'Código')
 
-        self.assertEqual(filas, 1, 'solo el artículo de Bodega 2')
+        self.assertEqual(self.filas_de_producto(hoja), 1, 'solo el artículo de Bodega 2')
 
     def test_una_hoja_sin_datos_no_revienta(self):
         """Sin préstamos abiertos el archivo igual se genera, solo vacío."""

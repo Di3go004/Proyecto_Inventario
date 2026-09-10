@@ -20,14 +20,22 @@
 <table class="tabla-responsiva">
   <thead>
     <tr>
-      <th>Fecha</th><th>Boleta</th><th>Movimiento</th><th>Cantidad</th>
+      <th>Fecha</th><th>Boleta</th><th>Movimiento</th>
+      <th>N.º de serial</th>
+      <th>Cantidad</th>
       <th>Saldo</th><th class="columna-secundaria">Registrado por</th><th>Detalle</th>
     </tr>
   </thead>
   <tbody>
     {% for m in movimientos %}
-    <tr>
+    {% comment %}
+      La fila entera lleva a la boleta, como en el catálogo, en Entradas y
+      salidas y en la ficha. Era la única tabla del sistema donde había que
+      apuntarle al número.
+    {% endcomment %}
+    <tr {% if m.folio %}data-href="{% url 'documento_detalle' m.folio %}"{% endif %}>
       <td data-etiqueta="Fecha" class="num celda-principal" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+      <td data-etiqueta="Boleta" class="code">{{ m.folio|default:"—" }}</td>|date:"d/m/Y H:i" }}</td>
       <td data-etiqueta="Boleta" class="code">
         {% if m.folio %}<a href="{% url 'documento_detalle' m.folio %}">{{ m.folio }}</a>{% else %}—{% endif %}
       </td>
@@ -38,6 +46,9 @@
           <span class="chip chip-critical">Salida</span>
         {% endif %}
         <span class="etiqueta-transaccion">{{ m.get_tipo_transaccion_display }}</span>
+      </td>
+      <td data-etiqueta="N.º de serial">
+        {% for u in m.unidades.all %}<span class="serial-chip"><span class="serial-chip-texto">{{ u.numero_serie }}</span></span>{% empty %}<span class="code">S/S</span>{% endfor %}
       </td>
       <td data-etiqueta="Cantidad" class="num">
         {% if m.signo > 0 %}+{{ m.cantidad }}{% elif m.signo < 0 %}−{{ m.cantidad }}{% else %}0{% endif %}
@@ -52,7 +63,7 @@
       </td>
     </tr>
     {% empty %}
-    <tr class="fila-vacia"><td colspan="7">
+    <tr class="fila-vacia"><td colspan="8">
       Este artículo todavía no tiene movimientos registrados.
     </td></tr>
     {% endfor %}

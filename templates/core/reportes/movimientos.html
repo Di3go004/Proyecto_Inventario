@@ -93,6 +93,7 @@
   <thead>
     <tr>
       <th>Fecha</th><th>Boleta</th><th>Movimiento</th><th>Producto</th>
+      <th>N.º de serial</th>
       <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
       <th class="columna-secundaria">Registrado por</th>
     </tr>
@@ -108,6 +109,7 @@
         <span class="etiqueta-transaccion">{{ m.get_tipo_transaccion_display }}</span>
       </td>
       <td data-etiqueta="Producto" class="truncate celda-principal">{{ m.articulo.nombre_producto }}</td>
+      <td data-etiqueta="N.º de serial" class="code">{{ m.serial_para_mostrar }}</td>
       <td data-etiqueta="Bodega" class="columna-secundaria">{{ m.articulo.bodega.nombre }}</td>
       <td data-etiqueta="Cantidad" class="num">{% if m.tipo_documento == 'ingreso' %}+{% else %}−{% endif %}{{ m.cantidad }}</td>
       <td data-etiqueta="Registrado por" class="truncate columna-secundaria">
@@ -115,7 +117,7 @@
       </td>
     </tr>
     {% empty %}
-    <tr class="fila-vacia"><td colspan="7">No hay movimientos en ese período.</td></tr>
+    <tr class="fila-vacia"><td colspan="8">No hay movimientos en ese período.</td></tr>
     {% endfor %}
   </tbody>
 </table>

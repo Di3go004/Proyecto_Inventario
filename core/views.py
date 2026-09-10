@@ -149,17 +149,30 @@ def reporte_existencias(request):
         return _excel(
             'existencias',
             'Existencias y valorizacion - Bodega 1 y 2',
-            ['Código', 'N.º de serial', 'Producto', 'Bodega', 'Marca / Modelo',
-             'Existencia', 'Precio unitario', 'Valor total', 'Nivel', 'Proveedor'],
+            # "Fila" va de primera y no es adorno: abajo de cada producto que
+            # lleva serie van sus unidades, y esta hoja no trae fila de
+            # totales — la suma la hace quien la abre. Sin poder separar
+            # producto de unidad, seleccionar "Valor total" contaría todo dos
+            # veces. Se filtra por esta columna y después se suma.
+            ['Fila', 'Código', 'N.º de serial', 'Producto', 'Bodega',
+             'Marca / Modelo', 'Existencia', 'Precio unitario', 'Valor total',
+             'Nivel', 'Proveedor', 'Entró con', 'Fecha de ingreso'],
             [
-                [a.codigo_interno, a.serial, a.nombre_producto, a.bodega.nombre,
-                 f'{a.marca} {a.modelo}'.strip(), a.stock_actual, a.precio,
-                 a.precio * a.stock_actual, a.nivel_alerta.capitalize(),
-                 str(a.proveedor or '')]
-                for a in detalle
+                [fila.tipo, fila.articulo.codigo_interno, fila.serial,
+                 fila.articulo.nombre_producto, fila.articulo.bodega.nombre,
+                 f'{fila.articulo.marca} {fila.articulo.modelo}'.strip(),
+                 fila.existencia, fila.articulo.precio, fila.valor,
+                 fila.nivel.capitalize(), str(fila.articulo.proveedor or ''),
+                 fila.entro_con_texto,
+                 exportar.valor_para_excel(fila.fecha_de_ingreso)
+                 if fila.fecha_de_ingreso else '']
+                for fila in reportes.desglosar_existencias(detalle)
             ],
             subtitulo='Solo artículos activos' if solo_activos else 'Activos e inactivos',
-            formatos={6: exportar.FORMATO_MONEDA, 7: exportar.FORMATO_MONEDA},
+            formatos={
+                7: exportar.FORMATO_MONEDA, 8: exportar.FORMATO_MONEDA,
+                12: exportar.FORMATO_FECHA,
+            },
         )
 
     return render(request, 'core/reportes/existencias.html', {
@@ -279,6 +292,11 @@ def reporte_movimientos(request):
     bodega_id = request.GET.get('bodega', '').strip()
 
     resumen_periodo, detalle = reportes.movimientos_del_periodo(desde, hasta, bodega_id or None)
+    # Una fila por unidad en lo que lleva serial: sin eso el reporte dice que
+    # el martes salieron 2 indicadores, pero no cuáles. Y la unidad que ya
+    # salió no aparece en el de existencias —ahí solo va lo que está en
+    # bodega—, así que este es el reporte donde se rastrea.
+    filas = reportes.desglosar_movimientos(detalle)
 
     if request.GET.get('formato') == 'excel':
         rango = ' a '.join(f'{f:%d/%m/%Y}' for f in (desde, hasta) if f) or 'todo el historial'
@@ -286,16 +304,17 @@ def reporte_movimientos(request):
             'movimientos',
             'Movimientos de Bodega 1 y 2',
             ['Fecha', 'Boleta', 'Dirección', 'Tipo', 'Código', 'Producto',
-             'Bodega', 'Cantidad', 'Solicitado por', 'Cliente / Proveedor',
-             'No. factura', 'Registrado por'],
+             'N.º de serial', 'Bodega', 'Cantidad', 'Solicitado por',
+             'Cliente / Proveedor', 'No. factura', 'Registrado por'],
             [
                 [exportar.valor_para_excel(m.fecha), m.folio,
                  m.get_tipo_documento_display(), m.get_tipo_transaccion_display(),
                  m.articulo.codigo_interno, m.articulo.nombre_producto,
+                 m.serial_para_mostrar,
                  m.articulo.bodega.nombre, m.cantidad, m.solicitado_por,
                  m.cliente_nombre or str(m.proveedor or ''), m.no_factura,
                  m.usuario.get_full_name() or m.usuario.username]
-                for m in detalle
+                for m in filas
             ],
             subtitulo=f'Período: {rango}',
             formatos={0: exportar.FORMATO_FECHA},
@@ -303,7 +322,7 @@ def reporte_movimientos(request):
 
     return render(request, 'core/reportes/movimientos.html', {
         'resumen': resumen_periodo,
-        'pagina': paginar(request, detalle),
+        'pagina': paginar(request, filas),
         'bodegas': _bodegas_de_venta(),
         'desde': request.GET.get('desde', ''),
         'hasta': request.GET.get('hasta', ''),

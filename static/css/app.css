@@ -707,3 +707,17 @@ form.card > .errorlist,
   background: var(--state-critical-bg); color: var(--state-critical-fg);
   text-decoration: line-through;
 }
+
+/* --- Unidades desplegadas dentro de un reporte -------------------------- */
+
+.desplegar-unidades {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; color: var(--brand-primary); display: inline-flex;
+  align-items: center; gap: 5px;
+}
+.desplegar-unidades:hover { text-decoration: underline; }
+.desplegar-flecha { font-size: .7em; }
+
+.fila-unidad { background: var(--surface-alt); }
+.fila-unidad td { color: var(--text-muted); }
+.unidad-marca { color: var(--text-faint); padding-left: 6px; }

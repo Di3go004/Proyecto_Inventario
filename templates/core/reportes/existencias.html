@@ -115,16 +115,37 @@
 <table class="tabla-responsiva">
   <thead>
     <tr>
-      <th>Código</th><th class="columna-secundaria">N.º de serial</th>
+      <th>Código</th>
+      {% comment %}
+        El serial dejó de ser secundario: en este reporte es el desglose por
+        unidad, y "columna-secundaria" lo esconde entre 1025 y 1450 px —justo
+        una laptop— llevándose también el botón para desplegarlo.
+      {% endcomment %}
+      <th>N.º de serial</th>
       <th>Producto</th><th class="columna-secundaria">Bodega</th>
       <th>Existencia</th><th>Precio</th><th>Valor total</th><th>Nivel</th>
     </tr>
   </thead>
   <tbody>
     {% for a in pagina %}
-    <tr data-href="{% url 'articulo_detalle' a.pk %}">
+    {% comment %}
+      Los productos que se controlan por serial se pueden abrir para ver cuál
+      es cuál. Resumido por defecto porque de un vistazo lo que se busca es
+      cuántos hay, no los números; el Excel sí sale siempre desglosado, que es
+      donde se trabaja el conteo físico.
+    {% endcomment %}
+    <tr data-href="{% url 'articulo_detalle' a.pk %}"
+        {% if a.unidades_aca %}class="tiene-unidades"{% endif %}>
       <td data-etiqueta="Código" class="code truncate">{{ a.codigo_interno }}</td>
-      <td data-etiqueta="N.º de serial" class="code columna-secundaria">{{ a.serial }}</td>
+      <td data-etiqueta="N.º de serial" class="code">
+        {% if a.unidades_aca %}
+          <button type="button" class="desplegar-unidades" aria-expanded="false"
+                  data-producto="u{{ a.pk }}"
+                  title="Ver los números de serie">
+            <span class="desplegar-flecha" aria-hidden="true">▸</span>{{ a.serial }}
+          </button>
+        {% else %}{{ a.serial }}{% endif %}
+      </td>
       <td data-etiqueta="Producto" class="truncate celda-principal">{{ a.nombre_producto }}</td>
       <td data-etiqueta="Bodega" class="columna-secundaria">{{ a.bodega.nombre }}</td>
       <td data-etiqueta="Existencia" class="num">{{ a.stock_actual }}</td>
@@ -134,12 +155,67 @@
         <span class="chip {{ a.nivel_alerta|clase_nivel }}">{{ a.nivel_alerta|texto_nivel }}</span>
       </td>
     </tr>
+    {% for u in a.unidades_aca %}
+    {% comment %}
+      La fila de una unidad no lleva nivel: sola tiene existencia 1 contra un
+      umbral de 2, así que diría "Crítico" de un producto que tiene cuatro.
+      El nivel es del producto y vive en su fila.
+    {% endcomment %}
+    <tr class="fila-unidad" data-de="u{{ a.pk }}" hidden
+        {% if u.movimiento_ingreso.folio %}data-href="{% url 'documento_detalle' u.movimiento_ingreso.folio %}"{% endif %}>
+      <td data-etiqueta="Código"></td>
+      <td data-etiqueta="N.º de serie" class="code">
+        <span class="unidad-marca" aria-hidden="true">└</span> {{ u.numero_serie }}
+      </td>
+      <td data-etiqueta="Entró con" class="truncate">
+        {% if u.movimiento_ingreso.folio %}
+          Entró con la boleta <span class="code">{{ u.movimiento_ingreso.folio }}</span>
+        {% else %}Carga inicial{% endif %}
+      </td>
+      <td data-etiqueta="Fecha de ingreso" class="columna-secundaria">
+        {{ u.movimiento_ingreso.fecha|date:"d/m/Y"|default:"—" }}
+      </td>
+      <td data-etiqueta="Existencia" class="num">1</td>
+      <td data-etiqueta="Precio" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td data-etiqueta="Valor total" class="num">Q {{ a.precio|floatformat:2 }}</td>
+      <td></td>
+    </tr>
+    {% endfor %}
     {% empty %}
-    <tr class="fila-vacia"><td colspan="7">Sin artículos.</td></tr>
+    <tr class="fila-vacia"><td colspan="8">Sin artículos.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 
 {% include "componentes/paginacion.html" with pagina=pagina etiqueta="artículos" %}
+
+<script>
+/*
+ * Abrir y cerrar los seriales de un producto.
+ *
+ * Las filas de unidad ya vienen en la página, escondidas: son pocas por
+ * producto y así abrirlas no cuesta una consulta más ni deja al usuario
+ * esperando. El Excel sale siempre desglosado, sin importar qué esté abierto
+ * acá — es un reporte, no un reflejo de la pantalla.
+ */
+// La escucha va en el documento y no en la tabla: esta pantalla tiene tres
+// tablas —el resumen por bodega, Bodega Técnica y el detalle— y engancharse a
+// "la primera" agarraba la del resumen, donde no hay ningún botón que abrir.
+(function () {
+  document.addEventListener('click', function (evento) {
+    var boton = evento.target.closest('.desplegar-unidades');
+    if (!boton) return;
+    // La fila entera lleva a la ficha del producto; este botón no.
+    evento.stopPropagation();
+
+    var abierto = boton.getAttribute('aria-expanded') === 'true';
+    boton.setAttribute('aria-expanded', String(!abierto));
+    boton.querySelector('.desplegar-flecha').textContent = abierto ? '▸' : '▾';
+
+    document.querySelectorAll('tr.fila-unidad[data-de="' + boton.dataset.producto + '"]')
+      .forEach(function (fila) { fila.hidden = abierto; });
+  });
+})();
+</script>
 {% endblock %}

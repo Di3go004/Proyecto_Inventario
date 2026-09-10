@@ -130,7 +130,7 @@ class ReporteDeExistenciasTests(BaseSerial):
 
     def columnas(self, hoja):
         for fila in range(1, 15):
-            if hoja.cell(row=fila, column=1).value == 'Código':
+            if hoja.cell(row=fila, column=1).value == 'Fila':
                 titulos = {}
                 for columna in range(1, 20):
                     valor = hoja.cell(row=fila, column=columna).value

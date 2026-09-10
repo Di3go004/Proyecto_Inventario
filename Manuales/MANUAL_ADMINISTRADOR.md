@@ -88,9 +88,10 @@ realizar cada uno:
 | Pantalla de resumen | Sí | Sí | Sí | No |
 | Consulta de catálogos | Sí | Sí | Sí | Sí |
 | Alta, modificación y baja de productos | Sí | No | No | Sí |
-| Registro de entradas y salidas | Sí | Sí | No | No |
+| Registro de entradas y salidas | Sí | Sí | No | Sí |
 | Registro de préstamos de herramienta | Sí | Sí | No | No |
 | Baja de existencia en Bodega Técnica | Sí | Sí | No | No |
+| Kardex e historial de un producto | Sí | Sí | Sí | No |
 | Reportes y valorización | Sí | No | Sí | No |
 | Usuarios, categorías y proveedores | Sí | No | No | No |
 
@@ -100,9 +101,13 @@ movimientos, para lo cual dicha información no resulta necesaria. La
 información sobre qué productos requieren reposición sí se encuentra
 disponible para él en la pantalla de resumen.
 
-**Nota importante:** el perfil de Practicante no registra movimientos de
-ningún tipo. Su función se limita a la captura del catálogo, por lo que el
-sistema lo dirige directamente a esa pantalla al iniciar sesión.
+**Nota importante:** el perfil de Practicante captura el catálogo y registra
+las entradas y salidas de Bodega 1 y 2 (FO-SE-013 y FO-SE-012), incluida la
+devolución del equipo que sale en préstamo o demostración. **No** mueve
+Bodega Técnica: los préstamos de herramienta y las bajas de existencia
+permanecen fuera de su alcance, al igual que los reportes y el kardex. El
+sistema lo dirige al catálogo al iniciar sesión, por ser la pantalla de su
+trabajo principal.
 
 <!-- CAPTURA: barra lateral del administrador, con todas las secciones visibles -->
 ![Barra lateral del administrador](capturas-admin/03-navegacion.png)
@@ -626,10 +631,18 @@ productos.
 
 ---
 
-### 2.12. Carga Masiva desde Excel
+### 2.12. Carga Masiva desde Excel — retirada
 
-Permite incorporar múltiples productos a partir de los archivos **FO-SE-053**
-(Bodega 1 y 2) o **FO-SE-065** (Bodega Técnica). El proceso consta de tres
+**Nota importante:** esta función se retiró del sistema por decisión de la
+empresa: el catálogo se captura producto por producto. La opción ya no
+aparece en ninguno de los dos catálogos, para ningún perfil.
+
+El apartado se conserva a modo de referencia por si en el futuro se resuelve
+incorporar un catálogo completo —una bodega nueva, o la lista de un
+proveedor—, en cuyo caso deberá solicitarse su reactivación.
+
+Permitía incorporar múltiples productos a partir de los archivos **FO-SE-053**
+(Bodega 1 y 2) o **FO-SE-065** (Bodega Técnica). El proceso constaba de tres
 pasos:
 
 1. **Carga del archivo** y selección de la hoja correspondiente al mes que se
@@ -752,6 +765,7 @@ respaldo previamente.
 |:---:|:---:|---|---|
 | 01 | *(pendiente)* | Emisión inicial del instructivo para el perfil de Administrador | Gerente Técnico |
 | 02 | *(pendiente)* | Se incorpora el control por número de serie (2.4.3 y 2.6.2), la columna de precio en la salida (2.6.3), el desglose por unidad en los reportes (2.8.1) y el filtro por categoría (2.4.1) | Gerente Técnico |
+| 03 | *(pendiente)* | El perfil de Practicante pasa a registrar entradas y salidas de Bodega 1 y 2, incluida la devolución de préstamos y demostraciones (2.2). Se retira la carga masiva desde Excel (2.12) | Gerente Técnico |
 
 ---
 

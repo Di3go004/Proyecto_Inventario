@@ -2,14 +2,17 @@
 
 **Soluciones Exactas, S.A.**
 
-Tu trabajo en el sistema es **dejar el catálogo bien capturado**: que cada
-producto de las bodegas esté registrado, con su nombre correcto, su marca, su
-precio y su foto.
+Tenés dos trabajos en el sistema:
 
-No vas a registrar entradas ni salidas, ni préstamos de herramienta. Eso lo
-hace el personal de bodega. Si intentás entrar a esas pantallas el sistema te
-lo va a impedir — **no es que hiciste algo mal**, es que no son parte de tu
-trabajo.
+1. **Dejar el catálogo bien capturado**: que cada producto de las bodegas esté
+   registrado, con su nombre correcto, su marca, su precio y su foto.
+2. **Registrar las entradas y salidas de Bodega 1 y 2**: las boletas de lo que
+   entra y de lo que sale.
+
+Lo de **Bodega Técnica** es distinto: ahí capturás herramienta en el catálogo,
+pero los préstamos y las bajas no te tocan. Tampoco los reportes. Si intentás
+entrar a esas pantallas el sistema te lo va a impedir — **no es que hiciste
+algo mal**, es que no son parte de tu trabajo.
 
 ---
 
@@ -22,8 +25,9 @@ trabajo.
 5. [Corregir un producto ya capturado](#5-corregir-un-producto-ya-capturado)
 6. [Eliminar un producto](#6-eliminar-un-producto)
 7. [Buscar y filtrar](#7-buscar-y-filtrar)
-8. [Errores comunes](#8-errores-comunes)
-9. [Cuándo avisarle al encargado](#9-cuándo-avisarle-al-encargado)
+8. [Registrar entradas y salidas](#8-registrar-entradas-y-salidas)
+9. [Errores comunes](#9-errores-comunes)
+10. [Cuándo avisarle al encargado](#10-cuándo-avisarle-al-encargado)
 
 ---
 
@@ -55,12 +59,13 @@ mayúsculas** (da igual `ana` que `Ana`), pero la contraseña sí las distingue.
 
 Al entrar caés directo en el **Catálogo de Bodega 1 y 2**.
 
-En la barra de la izquierda vas a tener solo dos opciones:
+En la barra de la izquierda vas a tener tres opciones:
 
 | Opción | Qué contiene |
 |---|---|
 | **Bodega 1 y 2** | Lo que la empresa vende: indicadores, básculas, celdas de carga, repuestos |
 | **Bodega Técnica** | Herramienta e insumos de uso interno: taladros, llaves, brocas, pintura |
+| **Entradas y salidas** | Las boletas de Bodega 1 y 2: lo que entra y lo que sale (sección 8) |
 
 Arriba a la derecha aparece tu nombre de usuario con la etiqueta
 **Practicante**, y el botón **Salir**.
@@ -308,7 +313,80 @@ completo.
 
 ---
 
-## 8. Errores comunes
+## 8. Registrar entradas y salidas
+
+Además del catálogo, ahora también registrás las boletas de **Bodega 1 y 2**:
+lo que entra (FO-SE-013) y lo que sale (FO-SE-012).
+
+> **Esto no es capturar, es mover inventario.** Lo que registrés acá cambia la
+> existencia de verdad. Si te equivocás, no lo arreglés registrando otro
+> movimiento al revés — avisale al encargado.
+
+Entrá a **Entradas y salidas** en la barra de la izquierda, y usá **+ Ingreso**
+o **+ Salida** según lo que traigas.
+
+<!-- CAPTURA: la pantalla de Entradas y salidas con los dos botones -->
+![Entradas y salidas](capturas/09-movimientos.png)
+
+### Los datos de arriba
+
+| Campo | Qué poner |
+|---|---|
+| **Número de boleta** | **El que trae impreso el papel.** El sistema propone el siguiente de la serie, pero si tu talonario va en otro, cambialo |
+| **Fecha del movimiento** | Viene la de hoy. Si estás digitando una boleta de ayer, cambiala a la del papel |
+| **Tipo de movimiento** | Venta, Préstamo/Demo, Repuestos o Materiales/Otro |
+| **Solicitado por** | Quién pidió el movimiento |
+| **No. de factura** | El de la factura del proveedor, si hay |
+
+En la **salida** aparecen tres más: **Entregado por**, **Cliente** y
+**Envío / recibo**.
+
+### Los productos
+
+Escribí parte del código o del nombre y elegí de la lista. Debajo de la línea
+te dice la bodega y cuánto hay, para que confirmes que agarraste el correcto.
+
+Con **+ Agregar línea** ponés tantos productos como traiga la boleta.
+
+**El precio** viene puesto con el del catálogo. Si la factura trae otro,
+escribí el de la factura: ese es el que queda guardado en esta boleta.
+
+### Si el producto lleva número de serie
+
+Ahí la cosa cambia: **la cantidad no se escribe**.
+
+- En un **ingreso**, ponés los seriales de los aparatos que están llegando,
+  uno por uno con Enter. La cantidad se pone sola.
+- En una **salida**, el sistema te muestra los seriales que hay en bodega y
+  vos marcás cuáles salen.
+
+> **Si el serial del equipo que tenés en la mano no aparece en la lista de la
+> salida, no registrés nada.** Ese aparato figura como ya entregado. Avisale al
+> encargado.
+
+Al terminar, **Registrar ingreso** o **Registrar salida**. Vas a caer en la
+boleta ya guardada, con el botón para imprimirla en PDF y firmarla.
+
+<!-- CAPTURA: la boleta guardada, con el botón de imprimir -->
+![Boleta guardada](capturas/10-boleta.png)
+
+### Devolver un préstamo o demo
+
+Cuando vuelva el equipo que salió como **Préstamo / Demo**, buscá esa boleta en
+Entradas y salidas y usá **Registrar regreso**. Ahí ponés la fecha y quién lo
+devolvió. La existencia vuelve sola.
+
+### Lo que NO te toca
+
+- **Los préstamos de herramienta** de Bodega Técnica (FO-SE-066)
+- **Dar de baja** existencia en Bodega Técnica
+- Los **reportes** y el **kardex** de un producto
+
+Si necesitás alguna de esas, es del encargado de bodega.
+
+---
+
+## 9. Errores comunes
 
 | Lo que ves | Qué pasó | Qué hacer |
 |---|---|---|
@@ -324,7 +402,7 @@ completo.
 
 ---
 
-## 9. Cuándo avisarle al encargado
+## 10. Cuándo avisarle al encargado
 
 No adivines en estos casos:
 
@@ -334,6 +412,10 @@ No adivines en estos casos:
 - **Te faltó cargar un serial** o cargaste uno de más, y el producto ya está
   guardado — desde el catálogo ya no se puede, tiene que entrar por boleta
 - **Un equipo no trae placa legible** y no podés leerle el serial
+- **El serial del equipo que vas a entregar no aparece** en la lista de la
+  salida — ese aparato figura como ya entregado
+- **Registraste una boleta con datos equivocados.** No la arreglés con otro
+  movimiento al revés: el historial es el respaldo de la existencia
 - El sistema **no te deja eliminar** algo que capturaste por error
 - Una herramienta **ya no sirve** y hay que darla de baja
 - Un producto **está repetido** en el catálogo
@@ -354,7 +436,11 @@ arrastra a los reportes de toda la empresa.
 4. **Los seriales, solo al crear** el producto — después entran por boleta
 5. **Fotos subidas como archivo**, nunca enlaces de Google
 6. **Revisá la lista de proveedores** antes de escribir uno nuevo
-7. **Ante la duda, preguntá** — no inventes datos
+7. **El número de boleta, el del papel** — no el que el sistema propone, si tu
+   talonario va en otro
+8. **Una boleta mal registrada se avisa, no se arregla** con otro movimiento
+   al revés
+9. **Ante la duda, preguntá** — no inventes datos
 
 ---
 

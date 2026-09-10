@@ -123,7 +123,7 @@
     {% else %}
       <p class="empty" style="padding:0;">
         Este artículo todavía no tiene movimientos registrados.
-        {% if user.puede_editar %}
+        {% if user.puede_registrar_boletas %}
           <a href="{% url 'movimiento_ingreso' %}">Registrar un ingreso →</a>
         {% endif %}
       </p>

@@ -34,7 +34,7 @@
     <tr>
       <th>Origen</th><th class="columna-secundaria">Código</th><th>Qué</th>
       <th>Cantidad</th><th>Quién lo tiene</th><th>Salió el</th><th>Días</th>
-      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+      {% if user.puede_mover_tecnica %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -54,7 +54,7 @@
         {% elif f.dias >= 7 %}<span class="chip chip-warn">{{ f.dias }} días</span>
         {% else %}<span class="chip chip-neutral">{{ f.dias }} días</span>{% endif %}
       </td>
-      {% if user.puede_editar %}
+      {% if user.puede_mover_tecnica %}
       <td class="celda-acciones">
         <span class="actions">
           <a href="{{ f.url }}" class="btn btn-sm btn-primary">Registrar regreso</a>

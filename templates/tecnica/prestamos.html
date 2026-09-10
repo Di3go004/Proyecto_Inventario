@@ -19,7 +19,7 @@
     <a href="{% url 'prestamos_pdf' %}?{% url_con pagina='' %}" class="btn" target="_blank" rel="noopener">
       Imprimir hoja (PDF)
     </a>
-    {% if user.puede_editar %}
+    {% if user.puede_mover_tecnica %}
       <a href="{% url 'prestamo_nuevo' %}" class="btn btn-primary">+ Registrar salida</a>
     {% endif %}
   </div>
@@ -73,7 +73,7 @@
       <th>Herramienta</th><th class="columna-secundaria">Código</th>
       <th>Solicitante</th><th>Salida</th><th>Estado al salir</th>
       <th>Regreso</th><th>Estado al regresar</th>
-      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+      {% if user.puede_mover_tecnica %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -96,7 +96,7 @@
         {% if p.estado_al_regresar %}<span class="chip {{ p.estado_al_regresar|clase_estado }}">{{ p.get_estado_al_regresar_display }}</span>
         {% else %}—{% endif %}
       </td>
-      {% if user.puede_editar %}
+      {% if user.puede_mover_tecnica %}
       <td class="celda-acciones">
         <span class="actions">
           {% if not p.fecha_regreso %}

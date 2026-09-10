@@ -59,9 +59,13 @@ class RolesDelModeloTests(BasePermisos):
 
     def test_solo_contabilidad_es_de_solo_lectura(self):
         """RF-04: contabilidad no edita; los otros dos sí, cada uno en lo suyo."""
-        self.assertTrue(self.admin.puede_editar)
-        self.assertTrue(self.operador.puede_editar)
-        self.assertFalse(self.contabilidad.puede_editar)
+        for usuario in (self.admin, self.operador):
+            with self.subTest(rol=usuario.rol):
+                self.assertTrue(usuario.puede_registrar_boletas)
+                self.assertTrue(usuario.puede_mover_tecnica)
+
+        self.assertFalse(self.contabilidad.puede_registrar_boletas)
+        self.assertFalse(self.contabilidad.puede_mover_tecnica)
 
     def test_el_rol_por_defecto_es_el_menos_privilegiado(self):
         nuevo = Usuario.objects.create_user(username='sin_rol_explicito', password='clave-de-prueba')

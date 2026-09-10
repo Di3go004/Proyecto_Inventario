@@ -583,19 +583,19 @@ def _registrar_documento(request, tipo_documento):
     })
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR, Usuario.Rol.PRACTICANTE)
 def movimiento_ingreso(request):
     """RF-05: reemplaza el formato de papel FO-SE-013."""
     return _registrar_documento(request, MovimientoVenta.TipoDocumento.INGRESO)
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR, Usuario.Rol.PRACTICANTE)
 def movimiento_salida(request):
     """RF-05: reemplaza el formato de papel FO-SE-012."""
     return _registrar_documento(request, MovimientoVenta.TipoDocumento.SALIDA)
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@login_required
 def movimientos_ventas(request):
     """
     Historial de entradas y salidas (RF-05). Lo ven los 3 roles: es la
@@ -646,7 +646,7 @@ def movimientos_ventas(request):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@login_required
 def documento_detalle(request, folio):
     """
     Todas las líneas de un mismo folio, como se ve la boleta en papel.
@@ -672,7 +672,7 @@ def documento_detalle(request, folio):
     })
 
 
-@rol_excluido(Usuario.Rol.PRACTICANTE)
+@login_required
 def documento_pdf(request, folio):
     """
     RF-10: la boleta lista para imprimir y firmar a mano, con el mismo
@@ -732,7 +732,7 @@ def kardex_articulo(request, pk):
     })
 
 
-@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
+@rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR, Usuario.Rol.PRACTICANTE)
 def devolucion_demo(request, pk):
     """RF-06: cierra un préstamo/demo y devuelve el equipo al stock."""
     movimiento = get_object_or_404(

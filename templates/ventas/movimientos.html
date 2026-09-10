@@ -9,7 +9,7 @@
       y FO-SE-012, que son un solo talonario.
     </p>
   </div>
-  {% if user.puede_editar %}
+  {% if user.puede_registrar_boletas %}
     <div class="page-acciones">
       <a href="{% url 'movimiento_ingreso' %}" class="btn">+ Ingreso</a>
       <a href="{% url 'movimiento_salida' %}" class="btn btn-primary">+ Salida</a>
@@ -91,7 +91,7 @@
       <th>Fecha</th><th>Boleta</th><th>Movimiento</th><th>Producto</th>
       <th class="columna-secundaria">Bodega</th><th>Cantidad</th>
       <th class="columna-secundaria">Solicitado por</th><th>Estado</th>
-      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+      {% if user.puede_registrar_boletas %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -129,7 +129,7 @@
           —
         {% endif %}
       </td>
-      {% if user.puede_editar %}
+      {% if user.puede_registrar_boletas %}
       <td class="celda-acciones">
         <span class="actions">
           {% if m.esta_afuera %}
@@ -145,7 +145,7 @@
         No hay movimientos que coincidan con los filtros.
         <a href="{% url 'movimientos_ventas' %}">Limpiar filtros</a>
       {% else %}
-        Todavía no hay movimientos registrados.{% if user.puede_editar %} Empieza con un ingreso o una salida.{% endif %}
+        Todavía no hay movimientos registrados.{% if user.puede_registrar_boletas %} Empieza con un ingreso o una salida.{% endif %}
       {% endif %}
     </td></tr>
     {% endfor %}

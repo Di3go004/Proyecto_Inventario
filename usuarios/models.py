@@ -43,15 +43,29 @@ class Usuario(AbstractUser):
         return self.rol == self.Rol.PRACTICANTE
 
     @property
-    def puede_editar(self):
+    def puede_registrar_boletas(self):
         """
-        Quién puede MOVER inventario: registrar entradas, salidas, préstamos
-        y devoluciones.
+        Quién registra el talonario de Bodega 1 y 2: entradas (FO-SE-013),
+        salidas (FO-SE-012) y la devolución de lo que salió a préstamo o demo.
 
-        Antes esto era "cualquiera menos contabilidad" y alcanzaba, porque
-        editar el catálogo y mover inventario iban siempre de la mano. Con el
-        practicante dejaron de ir juntos: él captura productos pero no saca
-        nada de la bodega, así que son dos permisos distintos (RF-04).
+        La devolución va junto con la salida y no aparte: quien puede sacar un
+        equipo a demo tiene que poder registrar que volvió. Separarlas dejaría
+        préstamos abiertos que su propio autor no puede cerrar.
+        """
+        return self.rol in (
+            self.Rol.ADMINISTRADOR, self.Rol.OPERADOR, self.Rol.PRACTICANTE,
+        )
+
+    @property
+    def puede_mover_tecnica(self):
+        """
+        Quién mueve la herramienta de uso interno: préstamos (FO-SE-066) y
+        bajas de existencia.
+
+        Va aparte de las boletas de Bodega 1 y 2 porque son dos trabajos
+        distintos. Cuando el practicante pasó a registrar entradas y salidas,
+        un solo permiso de "mover inventario" le habría abierto también la
+        herramienta, que no es lo suyo.
         """
         return self.rol in (self.Rol.ADMINISTRADOR, self.Rol.OPERADOR)
 

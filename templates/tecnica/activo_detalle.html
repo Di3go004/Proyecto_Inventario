@@ -10,7 +10,7 @@
     <p class="page-sub">{{ activo.bodega.nombre }}{% if activo.categoria %} · {{ activo.categoria.nombre }}{% endif %}</p>
   </div>
   <div class="page-acciones">
-    {% if user.puede_editar and not activo.agotado %}
+    {% if user.puede_mover_tecnica and not activo.agotado %}
       {% if prestamo_abierto %}
         <a href="{% url 'prestamo_regreso' prestamo_abierto.pk %}" class="btn">Registrar regreso</a>
       {% endif %}

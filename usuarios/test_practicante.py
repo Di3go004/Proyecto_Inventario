@@ -8,6 +8,7 @@ bodegas.
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import Bodega, Categoria, Proveedor
 from tecnica.models import Activo
@@ -42,13 +43,20 @@ class PermisosDelModeloTests(BasePracticante):
     def test_puede_editar_el_catalogo(self):
         self.assertTrue(self.practicante.puede_editar_catalogo)
 
-    def test_no_puede_mover_inventario(self):
+    def test_registra_el_talonario_de_bodega_1_y_2(self):
         """
-        `puede_editar` decide los botones de entradas, salidas, préstamos y
-        devoluciones. Antes significaba "cualquiera menos contabilidad", y el
-        practicante habría entrado por ahí.
+        Entradas, salidas y devoluciones. Antes no las tenía: el practicante
+        solo capturaba catálogo. La empresa decidió que también las registre.
         """
-        self.assertFalse(self.practicante.puede_editar)
+        self.assertTrue(self.practicante.puede_registrar_boletas)
+
+    def test_pero_no_mueve_la_herramienta(self):
+        """
+        Préstamos de Bodega Técnica y bajas de existencia siguen fuera. Por
+        eso los dos permisos están separados: uno solo de "mover inventario"
+        le habría abierto también esa bodega.
+        """
+        self.assertFalse(self.practicante.puede_mover_tecnica)
 
     def test_los_otros_roles_no_cambiaron(self):
         operador = Usuario.objects.create_user(
@@ -58,11 +66,17 @@ class PermisosDelModeloTests(BasePracticante):
             username='cont_prac', password='clave-de-prueba', rol=Usuario.Rol.CONTABILIDAD,
         )
 
-        self.assertTrue(operador.puede_editar)
+        self.assertTrue(operador.puede_registrar_boletas)
+        self.assertTrue(operador.puede_mover_tecnica)
         self.assertFalse(operador.puede_editar_catalogo)
-        self.assertFalse(contable.puede_editar)
+
+        # Contabilidad consulta e imprime, no registra nada.
+        self.assertFalse(contable.puede_registrar_boletas)
+        self.assertFalse(contable.puede_mover_tecnica)
         self.assertFalse(contable.puede_editar_catalogo)
-        self.assertTrue(self.admin.puede_editar)
+
+        self.assertTrue(self.admin.puede_registrar_boletas)
+        self.assertTrue(self.admin.puede_mover_tecnica)
         self.assertTrue(self.admin.puede_editar_catalogo)
 
     def test_no_entra_al_panel_de_django(self):
@@ -98,6 +112,14 @@ class AlcanceCompletoTests(BasePracticante):
         # a quien más le sirve enterarse en el momento y no al guardar. No
         # enseña nada que no vea ya en la ficha del producto.
         'api_seriales_ocupados',
+
+        # --- El talonario de Bodega 1 y 2 ---
+        # La empresa decidió que el practicante también registre entradas y
+        # salidas. La lista de movimientos es el camino a los botones, y la
+        # boleta es a donde cae al guardar: sin ellas registraría un ingreso
+        # y recibiría un 403 en la cara.
+        'movimientos_ventas', 'movimiento_ingreso', 'movimiento_salida',
+        'documento_detalle', 'documento_pdf', 'devolucion_demo',
     }
 
     def urls_a_probar(self):
@@ -152,13 +174,12 @@ class PantallasCerradasTests(BasePracticante):
             with self.subTest(pantalla=nombre):
                 self.assertEqual(self.client.get(reverse(nombre)).status_code, 403)
 
-    def test_no_ve_los_movimientos(self):
-        for nombre in ('movimientos_ventas', 'prestamos_tecnica'):
-            with self.subTest(pantalla=nombre):
-                self.assertEqual(self.client.get(reverse(nombre)).status_code, 403)
-
-    def test_no_puede_registrar_movimientos_ni_prestamos(self):
-        for nombre in ('movimiento_ingreso', 'movimiento_salida', 'prestamo_nuevo'):
+    def test_no_ve_los_prestamos_de_herramienta(self):
+        """
+        Bodega Técnica no es lo suyo. Entradas y salidas sí las ve, desde que
+        también registra el talonario de Bodega 1 y 2.
+        """
+        for nombre in ('prestamos_tecnica', 'prestamo_nuevo'):
             with self.subTest(pantalla=nombre):
                 self.assertEqual(self.client.get(reverse(nombre)).status_code, 403)
 
@@ -253,13 +274,21 @@ class TrabajoDelPracticanteTests(BasePracticante):
 
 
 class NavegacionTests(BasePracticante):
-    def test_la_navegacion_solo_le_ofrece_los_catalogos(self):
+    def test_la_navegacion_le_ofrece_lo_suyo_y_nada_mas(self):
+        """
+        El menú no puede ofrecer una pantalla que responda 403: se enseña lo
+        que alcanza. Entradas y salidas entró cuando pasó a registrar el
+        talonario; los préstamos de herramienta no, porque esa bodega sigue
+        cerrada para él.
+        """
         respuesta = self.client.get(reverse('catalogo_articulos'))
 
-        self.assertContains(respuesta, 'Bodega 1 y 2')
-        self.assertContains(respuesta, 'Bodega Técnica')
-        for fuera in ('Resumen', 'Reportes', 'Entradas y salidas',
-                      'Préstamos de herramienta', 'Usuarios', 'Categorías'):
+        for dentro in ('Bodega 1 y 2', 'Bodega Técnica', 'Entradas y salidas'):
+            with self.subTest(seccion=dentro):
+                self.assertContains(respuesta, dentro)
+
+        for fuera in ('Resumen', 'Reportes', 'Préstamos de herramienta',
+                      'Usuarios', 'Categorías'):
             with self.subTest(seccion=fuera):
                 self.assertNotContains(respuesta, f'>{fuera}</a>')
 
@@ -333,3 +362,154 @@ class PantallaDeUsuariosTests(BasePracticante):
         self.assertContains(
             respuesta, '<span class="chip chip-neutral">Practicante</span>', count=2,
         )
+
+
+class ElPracticanteRegistraElTalonarioTests(BasePracticante):
+    """
+    Entradas, salidas y devoluciones de Bodega 1 y 2 (FO-SE-013 y FO-SE-012).
+
+    Antes no las tenía: capturaba catálogo y nada más. La empresa decidió que
+    también las registre, así que el permiso de "mover inventario" se partió
+    en dos — el talonario de Bodega 1 y 2 por un lado y la herramienta de
+    Bodega Técnica por otro. Con uno solo, esto le habría abierto también los
+    préstamos y las bajas de la otra bodega.
+    """
+
+    def cabecera(self, **extra):
+        datos = {
+            'folio': '', 'fecha': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            'tipo_transaccion': MovimientoVenta.TipoTransaccion.VENTA,
+            'solicitado_por': 'Ivan Leiva', 'no_factura': '', 'observacion': '',
+            'linea_articulo': [str(self.articulo.pk)], 'linea_cantidad': ['5'],
+            'linea_texto': [self.articulo.codigo_interno],
+            'linea_seriales': [''], 'linea_precio': [''],
+        }
+        datos.update(extra)
+        return datos
+
+    def test_abre_las_pantallas_de_registrar(self):
+        for nombre in ('movimientos_ventas', 'movimiento_ingreso', 'movimiento_salida'):
+            with self.subTest(pantalla=nombre):
+                self.assertEqual(self.client.get(reverse(nombre)).status_code, 200)
+
+    def test_registra_un_ingreso_de_verdad(self):
+        respuesta = self.client.post(
+            reverse('movimiento_ingreso'), self.cabecera(folio='ING-P1'),
+        )
+
+        self.assertEqual(respuesta.status_code, 302)
+        movimiento = MovimientoVenta.objects.get(folio='ING-P1')
+        self.assertEqual(movimiento.usuario, self.practicante)
+        self.articulo.refresh_from_db()
+        self.assertEqual(self.articulo.stock_actual, 5)
+
+    def test_y_llega_a_la_boleta_que_acaba_de_guardar(self):
+        """
+        Al guardar, el sistema redirige al documento. Si esa pantalla le
+        estuviera cerrada, registraría el ingreso y recibiría un 403 en la
+        cara — con el movimiento ya guardado.
+        """
+        respuesta = self.client.post(
+            reverse('movimiento_ingreso'), self.cabecera(folio='ING-P2'), follow=True,
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'ING-P2')
+
+    def test_puede_imprimir_esa_boleta(self):
+        self.client.post(reverse('movimiento_ingreso'), self.cabecera(folio='ING-P3'))
+
+        respuesta = self.client.get(reverse('documento_pdf', args=['ING-P3']))
+
+        self.assertEqual(respuesta.status_code, 200)
+
+    def test_registra_una_salida(self):
+        self.client.post(reverse('movimiento_ingreso'), self.cabecera(folio='ING-P4'))
+
+        respuesta = self.client.post(reverse('movimiento_salida'), self.cabecera(
+            folio='SAL-P1', linea_cantidad=['2'],
+            entregado_por='Bodega', cliente_nombre='Cliente X', envio_recibo='',
+        ))
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.articulo.refresh_from_db()
+        self.assertEqual(self.articulo.stock_actual, 3)
+
+    def test_cierra_el_prestamo_que_el_mismo_sacó(self):
+        """
+        La devolución va junto con la salida: quien saca un equipo a demo
+        tiene que poder registrar que volvió. Separarlas dejaría préstamos
+        abiertos que su propio autor no puede cerrar.
+        """
+        self.client.post(reverse('movimiento_ingreso'), self.cabecera(folio='ING-P5'))
+        self.client.post(reverse('movimiento_salida'), self.cabecera(
+            folio='SAL-P2', linea_cantidad=['1'],
+            tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
+            entregado_por='Bodega', cliente_nombre='Cliente X', envio_recibo='',
+        ))
+        prestamo = MovimientoVenta.objects.get(folio='SAL-P2')
+        self.assertTrue(prestamo.esta_afuera)
+
+        respuesta = self.client.post(reverse('devolucion_demo', args=[prestamo.pk]), {
+            'fecha_devolucion': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            'devuelto_por': 'Ivan Leiva', 'observacion': '',
+        })
+
+        self.assertEqual(respuesta.status_code, 302)
+        prestamo.refresh_from_db()
+        self.assertFalse(prestamo.esta_afuera)
+
+    def test_ve_los_botones_de_registrar(self):
+        respuesta = self.client.get(reverse('movimientos_ventas'))
+
+        self.assertContains(respuesta, '+ Ingreso')
+        self.assertContains(respuesta, '+ Salida')
+
+
+class LoQueSigueCerradoAlPracticanteTests(BasePracticante):
+    """El permiso nuevo no puede haber abierto de más."""
+
+    def test_la_herramienta_sigue_siendo_de_otros(self):
+        for nombre in ('prestamos_tecnica', 'prestamo_nuevo'):
+            with self.subTest(pantalla=nombre):
+                self.assertEqual(self.client.get(reverse(nombre)).status_code, 403)
+
+    def test_no_da_de_baja_existencia_en_tecnica(self):
+        respuesta = self.client.get(reverse('activo_baja', args=[self.activo.pk]))
+
+        self.assertEqual(respuesta.status_code, 403)
+
+    def test_sigue_sin_ver_el_kardex(self):
+        """
+        Se decidió dejárselo cerrado: registra el talonario, no audita el
+        historial de un producto.
+        """
+        respuesta = self.client.get(reverse('kardex_articulo', args=[self.articulo.pk]))
+
+        self.assertEqual(respuesta.status_code, 403)
+
+    def test_la_ficha_no_le_enseña_los_ultimos_movimientos(self):
+        respuesta = self.client.get(reverse('articulo_detalle', args=[self.articulo.pk]))
+
+        self.assertNotContains(respuesta, 'Últimos movimientos')
+        self.assertNotContains(respuesta, 'Ver kardex completo')
+
+    def test_sigue_sin_ver_los_reportes(self):
+        for nombre in ('indice_reportes', 'reporte_existencias', 'reporte_movimientos'):
+            with self.subTest(pantalla=nombre):
+                self.assertEqual(self.client.get(reverse(nombre)).status_code, 403)
+
+    def test_el_resumen_lo_sigue_mandando_al_catalogo(self):
+        self.assertRedirects(
+            self.client.get(reverse('resumen')), reverse('catalogo_articulos'),
+        )
+
+    def test_en_la_boleta_no_se_le_ofrece_la_herramienta(self):
+        """
+        Una boleta puede traer líneas de las dos bodegas. Que pueda verla no
+        le da acciones sobre la herramienta.
+        """
+        respuesta = self.client.get(reverse('catalogo_activos'))
+
+        self.assertNotContains(respuesta, 'Registrar salida')
+        self.assertNotContains(respuesta, 'Dar de baja')

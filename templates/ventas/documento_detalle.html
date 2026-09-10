@@ -89,7 +89,7 @@
       {% if es_ingreso %}<th>Proveedor</th>{% endif %}
       <th>Cantidad</th>
       <th>Precio unitario</th><th>Subtotal</th><th>Estado</th>
-      {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
+      {% if user.puede_registrar_boletas %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -143,7 +143,7 @@
           —
         {% endif %}
       </td>
-      {% if user.puede_editar %}
+      {% if user.puede_registrar_boletas %}
       <td class="celda-acciones">
         <span class="actions">
           {% if linea.esta_afuera %}

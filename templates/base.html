@@ -54,9 +54,18 @@
         <a href="{% url 'catalogo_articulos' %}" class="{% if 'articulo' in request.resolver_match.url_name %}active{% endif %}">Bodega 1 y 2</a>
         <a href="{% url 'catalogo_activos' %}" class="{% if 'activo' in request.resolver_match.url_name %}active{% endif %}">Bodega Técnica</a>
 
+        {% comment %}
+          Cada enlace se enseña a quien puede entrar: si no, el menú ofrece
+          una pantalla que responde 403.
+
+          Entradas y salidas la alcanzan todos —contabilidad la consulta, el
+          practicante registra ahí desde que también lleva el talonario—. La
+          de préstamos de herramienta sigue cerrada al practicante: esa bodega
+          no es lo suyo.
+        {% endcomment %}
+        <p class="app-sidebar-grupo">Movimientos</p>
+        <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|devolucion_demo' %}active{% endif %}">Entradas y salidas</a>
         {% if not user.es_practicante %}
-          <p class="app-sidebar-grupo">Movimientos</p>
-          <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|devolucion_demo' %}active{% endif %}">Entradas y salidas</a>
           <a href="{% url 'prestamos_tecnica' %}" class="{% if request.resolver_match.url_name in 'prestamos_tecnica|prestamo_nuevo|prestamo_regreso' %}active{% endif %}">Préstamos de herramienta</a>
         {% endif %}
 

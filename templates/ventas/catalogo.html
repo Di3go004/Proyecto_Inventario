@@ -10,14 +10,6 @@
   </div>
   {% if user.puede_editar_catalogo %}
     <div class="page-acciones">
-      {% comment %}
-        La carga masiva es solo del administrador: una importación mal
-        mapeada mete cientos de filas malas de un golpe. El practicante
-        captura uno por uno.
-      {% endcomment %}
-      {% if user.es_administrador %}
-        <a href="{% url 'carga_masiva_subir' %}" class="btn">Carga masiva desde Excel</a>
-      {% endif %}
       <a href="{% url 'articulo_nuevo' %}" class="btn btn-primary">+ Nuevo artículo</a>
     </div>
   {% endif %}

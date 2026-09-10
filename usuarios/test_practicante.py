@@ -269,10 +269,23 @@ class NavegacionTests(BasePracticante):
         self.assertContains(respuesta, '+ Nuevo artículo')
         self.assertContains(respuesta, 'Editar')
 
-    def test_no_ve_el_boton_de_carga_masiva(self):
-        respuesta = self.client.get(reverse('catalogo_articulos'))
+    def test_nadie_ve_el_boton_de_carga_masiva(self):
+        """
+        La empresa decidió no usar la importación desde Excel: el catálogo se
+        captura a mano. El botón se quitó de las dos bodegas — para nadie, ni
+        siquiera para el administrador.
 
-        self.assertNotContains(respuesta, 'Carga masiva desde Excel')
+        Las pantallas siguen existiendo y respondiendo por su dirección, sin
+        camino que lleve a ellas. Se dejaron así a propósito, con su código y
+        sus pruebas, por si alguna vez hay que volver a importar un catálogo
+        entero; borrarlas obligaría a rehacerlas.
+        """
+        for usuario in (self.practicante, self.admin):
+            self.client.force_login(usuario)
+            for pantalla in ('catalogo_articulos', 'catalogo_activos'):
+                with self.subTest(rol=usuario.rol, pantalla=pantalla):
+                    respuesta = self.client.get(reverse(pantalla))
+                    self.assertNotContains(respuesta, 'Carga masiva desde Excel')
 
     def test_no_ve_el_kardex_ni_los_movimientos_del_articulo(self):
         respuesta = self.client.get(reverse('articulo_detalle', args=[self.articulo.pk]))
@@ -284,10 +297,8 @@ class NavegacionTests(BasePracticante):
         """El rol nuevo no puede haberle quitado nada al administrador."""
         self.client.force_login(self.admin)
 
-        catalogo = self.client.get(reverse('catalogo_articulos'))
         ficha = self.client.get(reverse('articulo_detalle', args=[self.articulo.pk]))
 
-        self.assertContains(catalogo, 'Carga masiva desde Excel')
         self.assertContains(ficha, 'Ver kardex completo')
         self.assertContains(ficha, 'Últimos movimientos')
 

@@ -70,3 +70,19 @@ scroll, y en el manual se verian incompletas.
 
 ANTES DE GUARDAR CADA CAPTURA: revisa que no salgan datos que no quieras
 compartir, sobre todo nombres de clientes en las boletas de salida.
+
+--- Agregadas en la revisión 02 (control por número de serie) ---
+
+05b-unidades.png
+    La ficha de un producto que lleva serie, desplazada hasta el apartado
+    "Unidades", con alguna unidad "En bodega" y alguna "Fuera de bodega".
+
+11b-seriales.png
+    La línea de un ingreso con un producto que lleva serie: el campo de
+    números de serie con dos o tres etiquetas capturadas, y el campo de
+    cantidad bloqueado mostrando ese mismo número.
+
+14b-salida-seriales.png
+    La línea de una salida con un producto que lleva serie: los seriales que
+    hay en bodega ofrecidos bajo "En bodega:", con dos ya elegidos y la
+    cantidad puesta en 2 por el sistema.

@@ -143,9 +143,11 @@ corrección de productos corresponden a otro perfil.
 <!-- CAPTURA: catálogo de Bodega 1 y 2 visto por el operador -->
 ![Catálogo de Bodega 1 y 2](capturas-operador/04-catalogo-ventas.png)
 
-El buscador localiza productos por **código interno o nombre**. Mediante la
-opción **Filtros** se pueden combinar bodega, proveedor, nivel de stock,
-estado y rango de precio.
+El buscador localiza productos por **código interno, nombre o número de
+serie**. Escribir el serial de un equipo presenta el producto al que
+pertenece, lo que permite identificar un aparato a partir de la placa que trae
+puesta. Mediante la opción **Filtros** se pueden combinar bodega, proveedor,
+categoría, nivel de stock, estado y rango de precio.
 
 Al seleccionar cualquier fila se accede a la ficha del producto, donde se
 presentan sus datos, su existencia y su nivel de reposición.
@@ -153,9 +155,21 @@ presentan sus datos, su existencia y su nivel de reposición.
 <!-- CAPTURA: ficha de un artículo -->
 ![Ficha de un artículo](capturas-operador/05-articulo-ficha.png)
 
+En los productos que se controlan por número de serie, la ficha presenta
+además el apartado **Unidades**: cada aparato con su serial, si permanece en
+bodega o ya salió, y con qué boleta ingresó y con cuál salió. Al seleccionar
+cualquier fila se accede a la boleta correspondiente.
+
+**Nota importante:** este apartado es el que permite responder dónde está un
+equipo determinado. Cuando se requiera localizar un aparato por su placa,
+deberá consultarse aquí antes de darlo por extraviado.
+
+<!-- CAPTURA: apartado Unidades de un producto con serial -->
+![Unidades de un producto](capturas-operador/05b-unidades.png)
+
 Desde la ficha, el enlace **Ver kardex completo** presenta la totalidad de los
 movimientos del producto —cada entrada y cada salida— con su fecha, número de
-boleta y el usuario que los registró.
+boleta, los números de serie que movió y el usuario que los registró.
 
 **Nota importante:** el kardex es la herramienta a utilizar cuando la
 existencia que muestra el sistema no coincide con el conteo físico. Permite
@@ -244,7 +258,43 @@ movimientos registrados. No existe ninguna pantalla en la que la cantidad se
 escriba directamente, y no deberá buscarse: la única forma de que un producto
 tenga existencia es que se le registre su ingreso.
 
-#### 2.5.3. Impresión de la boleta
+#### 2.5.3. Productos que se controlan por número de serie
+
+Algunos productos —indicadores, básculas, módulos— se controlan **uno por
+uno**, por su número de serie. Los repuestos, consumibles y accesorios se
+llevan por cantidad, y en ellos el procedimiento no presenta variación alguna.
+
+El sistema distingue unos de otros: al seleccionar un producto controlado por
+unidad, la línea presenta el campo de **números de serie** y el campo de
+cantidad queda bloqueado.
+
+Se deberá capturar el serial de cada aparato que está ingresando, escribiéndolo
+y presionando **Enter**. Cada uno se agrega como una etiqueta, y al lado se
+indica cuántas unidades se llevan capturadas. La **×** de una etiqueta la
+retira.
+
+**Nota importante:** en estos productos **la cantidad no se escribe**: es
+cuántos seriales lleve la línea. De esta forma la boleta no puede quedar
+registrada por una cantidad que no corresponda con los aparatos recibidos.
+
+**Nota importante:** el sistema no permite guardar un ingreso de un producto
+controlado por unidad sin sus números de serie. Cuando el equipo llegue sin
+placa legible, deberá reportarse al encargado antes de registrar la boleta.
+
+**Nota importante:** un número de serie no se repite en todo el sistema. Si al
+capturarlo la etiqueta se presenta **en rojo y tachada**, ese serial ya se
+encuentra registrado y el aviso indica en qué producto. Deberá verificarse
+antes de continuar: por lo general se trata de un número mal digitado o de un
+equipo ya ingresado con anterioridad.
+
+**Nota importante:** la boleta impresa presenta **un renglón por unidad**, con
+su número de serie, por lo que una boleta de varios equipos con serial puede
+ocupar más de una hoja.
+
+<!-- CAPTURA: línea de un producto con serial, con varias etiquetas capturadas -->
+![Captura de números de serie](capturas-operador/11b-seriales.png)
+
+#### 2.5.4. Impresión de la boleta
 
 Una vez guardado, desde la pantalla de la boleta se deberá utilizar la opción
 **Imprimir boleta (PDF)**. El documento se genera en tamaño **media carta**,
@@ -272,10 +322,35 @@ el del ingreso, con tres campos adicionales en el encabezado:
 <!-- CAPTURA: encabezado del formulario de salida -->
 ![Registrar una salida](capturas-operador/14-salida.png)
 
+La salida presenta igualmente la columna de **precio**. El sistema propone el
+del catálogo; cuando al cliente se le haya facturado otro —por un descuento o
+un precio negociado— deberá escribirse el que efectivamente pagó, ya que es el
+que queda guardado en el movimiento y el que aparece impreso en la boleta.
+
 **Nota importante:** el sistema no permite registrar una salida por una
 cantidad mayor a la existencia disponible. Cuando esto ocurra, deberá
 verificarse el kardex del producto (apartado 2.4) antes de continuar, ya que
 indica que la bodega física y el sistema no coinciden.
+
+#### 2.6.1. Salida de un producto controlado por número de serie
+
+En los productos que se controlan por unidad **no se captura la cantidad: se
+elige cuáles aparatos salen**. Al seleccionar el producto, la línea presenta
+los números de serie que ese producto tiene en bodega, y se marcan los que
+correspondan al equipo que se está entregando. La cantidad resulta de cuántos
+se hayan marcado.
+
+**Nota importante:** deberá verificarse que el número marcado coincida con la
+placa del equipo que físicamente se está entregando. Es el dato que permite
+saber después cuál de los aparatos recibió cada cliente.
+
+**Nota importante:** el sistema solo admite números de serie que se encuentren
+en bodega. Si el serial del equipo que se tiene en mano no aparece en la
+lista, no deberá registrarse la salida: significa que ese aparato figura como
+ya entregado, y deberá reportarse al encargado.
+
+<!-- CAPTURA: línea de salida con los seriales disponibles y dos marcados -->
+![Selección de seriales en una salida](capturas-operador/14b-salida-seriales.png)
 
 ---
 
@@ -400,6 +475,9 @@ adquiere una nueva unidad, bastará con registrar su ingreso.
 | El sistema no permite registrar una salida por falta de existencia | Consultar el kardex del producto (apartado 2.4) y reportar la diferencia al encargado |
 | La existencia no coincide con el conteo físico | Consultar el kardex e informar al encargado. **No deberá corregirse registrando movimientos que no ocurrieron** |
 | No aparece la opción **Dar de baja** | El activo se encuentra en existencia cero |
+| El sistema no permite guardar un ingreso sin números de serie | Ese producto se controla por unidad. Deberán capturarse los seriales del equipo recibido; si el equipo llegó sin placa legible, reportarlo al encargado |
+| Un número de serie se presenta en rojo y tachado | Ese serial ya se encuentra registrado, y el aviso indica en qué producto. Verificar la placa antes de continuar: por lo general es un número mal digitado |
+| El serial del equipo a entregar no aparece en la lista de la salida | Ese aparato figura como ya entregado. **No deberá registrarse la salida**: reportar al encargado |
 | Se registró un movimiento con datos incorrectos | Informar al encargado. El operador no elimina movimientos, ya que el historial es el respaldo de la existencia |
 
 ---
@@ -425,6 +503,7 @@ adquiere una nueva unidad, bastará con registrar su ingreso.
 | Revisión No. | Fecha de Emisión | Descripción de la Revisión o Actualización | Aprobado Por |
 |:---:|:---:|---|---|
 | 01 | *(pendiente)* | Emisión inicial del instructivo para el perfil de Operador de Bodega | Gerente Técnico |
+| 02 | *(pendiente)* | Se incorpora el control por número de serie en el ingreso (2.5.3) y en la salida (2.6.1), la columna de precio en la salida (2.6) y la consulta de unidades desde la ficha (2.4) | Gerente Técnico |
 
 ---
 

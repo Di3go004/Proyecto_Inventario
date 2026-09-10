@@ -74,3 +74,20 @@ incompleta.
 ANTES DE GUARDAR CADA CAPTURA: revisa que no salgan datos que no quieras
 compartir (precios reales, nombres de clientes, contrasenas). El manual se le
 entrega a gente que quiza no deberia verlos.
+
+--- Agregadas en la revisión 02 (control por número de serie) ---
+
+06b-seriales.png
+    El formulario de nuevo artículo con la casilla "Lleva número de serie"
+    marcada y el campo de seriales con tres o cuatro capturados. Que se vea
+    uno en rojo y tachado (escribir un serial que ya exista) y el aviso que
+    dice en qué producto está.
+
+07b-unidades.png
+    La ficha de un producto que lleva serie, desplazada hasta el apartado
+    "Unidades". Que se vean unidades en los dos estados: alguna "En bodega"
+    y alguna "Fuera de bodega" con su boleta de salida.
+
+21b-existencias-unidades.png
+    El reporte de existencias con un producto con serial desplegado: la fila
+    del producto y debajo sus unidades, con la boleta de ingreso y la fecha.

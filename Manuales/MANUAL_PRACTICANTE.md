@@ -83,7 +83,8 @@ derecha).
 | Campo | ¿Obligatorio? | Qué poner |
 |---|---|---|
 | **Código interno** | No | **Dejalo vacío.** El sistema lo arma solo |
-| **Número de serie** | No | El serial del equipo. **Si no trae, dejalo vacío** |
+| **Lleva número de serie** | — | Marcala **solo** si el equipo se controla uno por uno por su serial |
+| **Números de serie** | No | Solo si marcaste la casilla. Uno por uno, con Enter |
 | **Producto** | **Sí** | El nombre, como aparece en la factura |
 | **Marca** | No | BRECKNELL, LOCOSC, AND… |
 | **Modelo** | No | LP7510, SE-7120… |
@@ -103,15 +104,45 @@ derecha).
 `SE-LP7510-300kg`. Si ya existe otro igual, le agrega `-2` al final para que no
 se repita.
 
-**Número de serie — si el equipo no trae placa, dejalo vacío.** No escribas
-`S/S` ni una raya: el sistema pone **S/S** solo, y así aparece en el
-catálogo, en la ficha del artículo y en el Excel de existencias.
+**Lleva número de serie — esta casilla decide cómo se controla el producto.**
+Es lo más importante de esta pantalla, así que leelo despacio.
 
-> Si lo escribís igual, no pasa nada malo: el sistema entiende que quisiste
-> decir “no tiene” y lo deja vacío. Pero es un campo único — dos artículos
-> **no** pueden compartir el mismo serial de verdad. Si al guardar te dice
-> que ese número ya existe, es que ese serial ya está cargado en otro
-> artículo: buscálo antes de crear uno repetido.
+**Sin marcar** (así viene, y es el caso más común): el producto se lleva **por
+cantidad**. Un tornillo es un tornillo; da igual cuál de los 500 agarres. En
+la columna de serial el sistema escribe **S/S** solo, y así sale en el
+catálogo, en la ficha y en el Excel.
+
+**Marcada**: cada aparato se controla **por separado, por su número de serie**.
+Cuatro indicadores del mismo modelo son un solo producto en el catálogo pero
+cuatro unidades distintas, y el sistema sabe cuál está en bodega y cuál se
+vendió.
+
+> **¿Cuál marco?** Preguntale al encargado si tenés duda. La regla es
+> sencilla: si al equipo se le puede leer una placa con un número y a la
+> empresa le importa *cuál* de ellos entregó, va marcada. Un indicador, una
+> báscula, un módulo: marcados. Un conector, un adaptador genérico, un
+> tornillo, un rollo de cable: **sin marcar**.
+
+**Números de serie — solo si marcaste la casilla.** El campo está apagado y en
+gris hasta que la marqués.
+
+Escribí un serial y dale **Enter**. Se agrega como una etiqueta y al lado te va
+diciendo cuántas unidades llevás. Seguí con el siguiente. Si te equivocaste en
+uno, la **×** de su etiqueta lo quita.
+
+**Si los tenés en una hoja de Excel, copiá la columna y pegala**: se reparten
+solos, uno por renglón. No hace falta meterlos de uno en uno.
+
+> **Un serial no se repite en todo el sistema.** Si escribís uno que ya
+> existe, la etiqueta sale **en rojo y tachada**, y el aviso te dice en qué
+> producto está. No esperés a guardar: corregilo ahí mismo. Suele ser que ya
+> lo cargaste antes, o que te bailó un número.
+
+**Solo se capturan al crear el producto.** Cuando lo edités después, el campo
+ya no aparece — y es a propósito. De ahí en adelante cada aparato entra por su
+**boleta de ingreso**, que es lo que deja el respaldo de cuándo llegó y con
+qué documento. Si te falta uno, no lo agregues por acá: avisale al encargado
+para que lo ingrese con su boleta.
 
 **Producto** es el único que no se puede dejar vacío. Escribilo completo y sin
 abreviar: `INDICADOR DE PESO DIGITAL`, no `IND. PESO`. Después alguien va a
@@ -225,6 +256,12 @@ producto **no borra nada**: sigue siendo el mismo producto con su historial.
 > lo vuelve a generar. Eso está bien si querés regenerarlo, pero si el producto
 > ya estaba etiquetado físicamente con un código, dejalo como está.
 
+**Los números de serie no aparecen al editar.** Es a propósito: una vez creado
+el producto, cada aparato entra por su boleta de ingreso, que es lo que deja
+constancia de cuándo llegó. Si te faltó cargar uno o cargaste uno de más,
+avisale al encargado — no hay forma de arreglarlo desde acá, y está bien que
+no la haya.
+
 ---
 
 ## 6. Eliminar un producto
@@ -248,11 +285,18 @@ el sistema lo protege. **Avisale al encargado**: él decide qué hacer.
 
 ## 7. Buscar y filtrar
 
-**El buscador** de arriba encuentra por código o por nombre. No hace falta
-escribir completo: con `celda` aparecen todas las celdas de carga.
+**El buscador** de arriba encuentra por código, por nombre y **por número de
+serie**. No hace falta escribir completo: con `celda` aparecen todas las celdas
+de carga, y pegando el serial de un aparato te lleva directo a su producto —
+sirve para comprobar si ya lo cargaste, sin ir a buscarlo a mano.
 
 **Filtros** (el desplegable debajo del buscador) sirve para acotar: por bodega,
-por proveedor, por rango de precio. Se pueden combinar varios a la vez.
+por proveedor, **por categoría** y por rango de precio. Se pueden combinar
+varios a la vez.
+
+> El filtro de categoría trae una opción **— Sin categoría —**: son los
+> productos que todavía no tienen ninguna. Es la forma de encontrarlos para
+> irles poniendo la suya, en vez de ir revisando el catálogo entero.
 
 Al lado del botón *Filtros* aparece un número cuando hay filtros puestos. **Si
 un producto que sabés que existe no aparece, revisá ese número** — casi siempre
@@ -271,6 +315,9 @@ completo.
 | **"No se puede eliminar"** | El producto ya tiene historial | Avisar al encargado |
 | **"Los umbrales deben cumplir: crítico ≤ alerta ≤ óptimo"** | Los tres números de stock están en desorden | Revisar que el crítico sea el más chico y el óptimo el más grande |
 | **"Ya existe un artículo con ese código interno"** | Se repitió un código | En Bodega 1 y 2, dejá el código vacío. En Técnica, revisá cuál le toca |
+| **Un serial sale en rojo y tachado** | Ese número ya está cargado | El aviso dice en qué producto está. Buscálo con el buscador antes de cargarlo de nuevo; si te bailó un número, corregilo |
+| **"se controla por número de serie: hay que indicar el de cada unidad"** | El producto tiene la casilla marcada y no le pusiste ningún serial | O le ponés los seriales, o desmarcás la casilla porque ese producto va por cantidad |
+| **"no se controla por número de serie"** | Pusiste seriales en un producto sin la casilla marcada | Marcá la casilla, o quitá los seriales |
 | **"La imagen no puede pesar más de 5 MB"** | La foto es muy grande | Sacala con menos resolución o achicala antes de subirla |
 | **Una pantalla dice que no tenés permiso** | Es una pantalla que no es de tu rol | Es normal. Volvé al catálogo desde la barra de la izquierda |
 | **La página no carga** | La computadora del sistema está apagada, o no estás en la red de la oficina | Avisar al encargado |
@@ -283,6 +330,10 @@ No adivines en estos casos:
 
 - **No sabés el precio** de un producto
 - **No sabés qué código interno** le toca a una herramienta de Bodega Técnica
+- **No sabés si un producto lleva número de serie** o va por cantidad
+- **Te faltó cargar un serial** o cargaste uno de más, y el producto ya está
+  guardado — desde el catálogo ya no se puede, tiene que entrar por boleta
+- **Un equipo no trae placa legible** y no podés leerle el serial
 - El sistema **no te deja eliminar** algo que capturaste por error
 - Una herramienta **ya no sirve** y hay que darla de baja
 - Un producto **está repetido** en el catálogo
@@ -298,9 +349,12 @@ arrastra a los reportes de toda la empresa.
 
 1. **Nombres completos**, sin abreviar
 2. **Código interno vacío** en Bodega 1 y 2 — el sistema lo arma
-3. **Fotos subidas como archivo**, nunca enlaces de Google
-4. **Revisá la lista de proveedores** antes de escribir uno nuevo
-5. **Ante la duda, preguntá** — no inventes datos
+3. **La casilla de serie solo en los equipos** que se controlan uno por uno;
+   los repuestos y consumibles van sin marcar
+4. **Los seriales, solo al crear** el producto — después entran por boleta
+5. **Fotos subidas como archivo**, nunca enlaces de Google
+6. **Revisá la lista de proveedores** antes de escribir uno nuevo
+7. **Ante la duda, preguntá** — no inventes datos
 
 ---
 

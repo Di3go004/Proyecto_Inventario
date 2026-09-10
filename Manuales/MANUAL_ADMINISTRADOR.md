@@ -152,10 +152,17 @@ pesas y repuestos.
 
 #### 2.4.1. Búsqueda y filtros
 
-El buscador localiza productos por **código interno o nombre**. Mediante la
-opción **Filtros** se pueden combinar, de forma simultánea y junto con el
-buscador, los siguientes criterios: bodega, proveedor, nivel de stock, estado
-y rango de precio.
+El buscador localiza productos por **código interno, nombre o número de
+serie**. Al consultar un número de serie el sistema presenta el producto al
+que pertenece esa unidad, lo que permite identificar un equipo a partir de su
+placa. Mediante la opción **Filtros** se pueden combinar, de forma simultánea
+y junto con el buscador, los siguientes criterios: bodega, proveedor,
+categoría, nivel de stock, estado y rango de precio.
+
+**Nota importante:** el filtro de categoría incluye la opción
+**— Sin categoría —**, que presenta los productos pendientes de clasificar.
+Constituye el complemento del conteo de productos sin clasificar de la
+pantalla de Resumen.
 
 <!-- CAPTURA: panel de Filtros abierto con varios filtros aplicados -->
 ![Filtros del catálogo](capturas-admin/05-filtros.png)
@@ -169,7 +176,8 @@ siguiente tabla:
 | Campo | Obligatorio | Contenido |
 |---|:---:|---|
 | Código interno | No | Se deberá dejar vacío. El sistema lo genera como `SE-MODELO-CAPACIDAD` |
-| Número de serie | No | Si el equipo no cuenta con placa, se deberá dejar vacío; el sistema lo presenta como `S/S` |
+| Lleva número de serie | — | Se marcará únicamente en los equipos que se controlan por unidad. Ver el numeral 2.4.3 |
+| Números de serie | No | Se habilita al marcar la casilla anterior. Se capturan uno por uno |
 | Producto | **Sí** | Nombre completo, sin abreviaturas |
 | Marca / Modelo / Capacidad | No | BRECKNELL, LP7510, 300 kg |
 | Bodega | **Sí** | Bodega 1 (equipo) o Bodega 2 (repuestos) |
@@ -186,7 +194,44 @@ siguiente tabla:
 la calcula a partir de las entradas y salidas registradas. Cuando un producto
 deba iniciar con existencia, se deberá registrar el ingreso correspondiente.
 
-#### 2.4.3. Umbrales de reposición
+#### 2.4.3. Control por número de serie
+
+El catálogo admite dos formas de controlar un producto, determinadas por la
+casilla **Lleva número de serie**:
+
+| | Sin marcar | Marcada |
+|---|---|---|
+| Cómo se controla | Por cantidad | Por unidad |
+| A qué corresponde | Repuestos, consumibles, accesorios | Equipo con placa: indicadores, básculas, módulos |
+| Columna de serial | `S/S` | Cantidad de unidades en bodega |
+| En los movimientos | Se captura la cantidad | Se indican los seriales; la cantidad resulta de cuántos son |
+
+Cuando la casilla se encuentra marcada, cada aparato constituye una **unidad**
+independiente dentro del mismo producto. Cuatro indicadores del mismo modelo
+corresponden a un solo registro del catálogo —con un precio, una categoría y
+unos umbrales— y a cuatro unidades, cada una identificada por su serial. El
+sistema registra cuál de ellas permanece en bodega y con qué documento salió
+cada una.
+
+**Nota importante:** el criterio para marcar la casilla es si a la empresa le
+interesa saber **cuál** de los aparatos se entregó. Los repuestos y
+consumibles se llevan por cantidad, dado que sus unidades son intercambiables.
+
+**Nota importante:** el número de serie es único en todo el sistema. Al
+capturar uno ya registrado, el sistema lo advierte en el momento e indica en
+qué producto se encuentra, sin necesidad de intentar guardar.
+
+**Nota importante:** los números de serie se capturan **únicamente al crear el
+producto**, lo que corresponde a la carga inicial del inventario. Al editar el
+producto el campo ya no se presenta: a partir de ese momento cada unidad
+ingresa mediante su boleta de ingreso (FO-SE-013), de modo que toda unidad
+cuenta con el documento que respalda su entrada. Esta restricción impide que
+el catálogo se utilice para incorporar existencia sin respaldo documental.
+
+<!-- CAPTURA: campo de números de serie con varios seriales capturados y uno marcado en rojo por repetido -->
+![Captura de números de serie](capturas-admin/06b-seriales.png)
+
+#### 2.4.4. Umbrales de reposición
 
 Los tres umbrales determinan en qué momento el sistema advierte que un
 producto requiere reposición:
@@ -199,7 +244,7 @@ producto requiere reposición:
 **crítico ≤ alerta ≤ óptimo**. En caso contrario el sistema no permite guardar
 el registro e indica el motivo en pantalla.
 
-#### 2.4.4. Ficha del producto y kardex
+#### 2.4.5. Ficha del producto y kardex
 
 Al seleccionar cualquier fila del catálogo se accede a la ficha del producto,
 donde se presentan su imagen, sus datos, su nivel de reposición y el enlace
@@ -208,15 +253,23 @@ donde se presentan su imagen, sus datos, su nivel de reposición y el enlace
 <!-- CAPTURA: ficha de un artículo con datos y foto -->
 ![Ficha de un artículo](capturas-admin/07-articulo-ficha.png)
 
+En los productos que se controlan por unidad, la ficha presenta además el
+apartado **Unidades**, con la relación de cada aparato: su número de serie, si
+permanece en bodega o ya salió, con qué boleta ingresó y con cuál salió. Al
+seleccionar cualquier fila se accede a la boleta correspondiente.
+
+<!-- CAPTURA: ficha de un producto con serial, mostrando el apartado Unidades -->
+![Unidades de un producto](capturas-admin/07b-unidades.png)
+
 El kardex presenta la totalidad de los movimientos del producto —cada entrada
-y cada salida— con su fecha, número de boleta y el usuario que los registró.
-Constituye
-el respaldo de la existencia que muestra el sistema.
+y cada salida— con su fecha, número de boleta, los números de serie que movió
+y el usuario que los registró. Constituye el respaldo de la existencia que
+muestra el sistema. Al seleccionar cualquier fila se accede a su boleta.
 
 <!-- CAPTURA: kardex de un artículo con varios movimientos -->
 ![Kardex de un artículo](capturas-admin/08-kardex.png)
 
-#### 2.4.5. Eliminación de un producto
+#### 2.4.6. Eliminación de un producto
 
 **Nota importante:** el sistema no permite eliminar un producto que registre
 movimientos, ya que se perdería su historial. Cuando un producto deje de
@@ -334,9 +387,6 @@ ingreso a otro precio **no** actualiza el catálogo: cuando un precio cambie de
 forma permanente, deberá modificarse en la ficha del producto (apartado
 2.4.2), y la valorización se recalculará con el nuevo valor.
 
-La boleta de salida (FO-SE-012) no lleva columna de precio, conforme al
-formato físico.
-
 <!-- CAPTURA: formulario de ingreso con la cabecera llena y dos líneas -->
 ![Registrar ingreso](capturas-admin/13-ingreso.png)
 
@@ -345,12 +395,41 @@ corresponder siempre al que trae impreso el talonario físico. Es el único
 número que identifica el documento: es el que aparece impreso en el PDF y el
 que permite localizar la boleta de papel a partir del registro del sistema.
 
-#### 2.6.2. Registro de una salida
+#### 2.6.2. Líneas de productos controlados por unidad
+
+Al seleccionar un producto que se controla por número de serie (apartado
+2.4.3), la línea presenta el campo de captura de seriales y el campo de
+cantidad queda bloqueado.
+
+En un **ingreso** se capturan los seriales del equipo que está llegando, uno
+por uno. En una **salida** se eligen de entre los que el producto tiene en
+bodega, que el sistema presenta en la propia línea.
+
+**Nota importante:** en estos productos **la cantidad no se captura**: resulta
+de cuántos seriales lleve la línea. De esta forma no puede registrarse una
+boleta cuya cantidad no corresponda con los aparatos indicados.
+
+**Nota importante:** el sistema no permite registrar un ingreso de un producto
+controlado por unidad sin indicar los seriales, ni registrar una salida de un
+serial que no se encuentre en bodega. En los productos que se llevan por
+cantidad el procedimiento no presenta variación alguna.
+
+**Nota importante:** la boleta impresa presenta **un renglón por unidad**, con
+su número de serie. En consecuencia, una boleta de doce equipos con serial
+puede ocupar más de una hoja.
+
+#### 2.6.3. Registro de una salida
 
 Se deberá seleccionar la opción **+ Salida**. El encabezado incorpora tres
 campos adicionales: **Entregado por**, **Cliente** y **Envío / recibo**.
 
-#### 2.6.3. Impresión de la boleta
+La salida presenta igualmente la columna de **precio**, que el sistema propone
+del catálogo y permite corregir. En una venta el precio corresponde al que
+efectivamente pagó el cliente, el cual puede diferir del precio de lista; el
+valor capturado queda guardado en el movimiento, conforme a lo indicado en el
+apartado anterior.
+
+#### 2.6.4. Impresión de la boleta
 
 Desde la pantalla de la boleta se deberá utilizar la opción **Imprimir boleta
 (PDF)**. El documento se genera en tamaño **media carta**, conforme al
@@ -362,7 +441,7 @@ talonario físico, para su impresión y firma.
 <!-- CAPTURA: el PDF generado, para comparar con la boleta de papel -->
 ![Boleta en PDF](capturas-admin/15-boleta-pdf.png)
 
-#### 2.6.4. Devolución de equipo en préstamo o demostración
+#### 2.6.5. Devolución de equipo en préstamo o demostración
 
 Cuando el tipo de movimiento registrado sea **Préstamo / Demo**, el sistema
 mantiene el movimiento abierto hasta que el equipo sea devuelto. Para cerrarlo
@@ -434,6 +513,33 @@ El sistema genera cinco reportes, todos ellos exportables a Excel.
 **Nota importante:** el archivo de Excel del reporte de alertas contiene dos
 hojas, una por bodega. Los importes se exportan con formato numérico, por lo
 que pueden sumarse y ordenarse sin necesidad de reformatear el archivo.
+
+#### 2.8.1. Los números de serie en los reportes
+
+En el reporte de **existencias**, los productos que se controlan por unidad se
+presentan con su renglón habitual y, debajo, un renglón por cada aparato que
+permanezca en bodega, con su número de serie, la boleta con la que ingresó y
+la fecha correspondiente. En pantalla el detalle se encuentra plegado y se
+despliega al seleccionar la cantidad de unidades; el archivo de Excel lo
+presenta siempre desplegado, por ser el formato en el que se trabaja el
+conteo físico.
+
+La primera columna del archivo, denominada **Fila**, indica si el renglón
+corresponde al producto o a una de sus unidades.
+
+**Nota importante:** las cantidades, el precio, el valor y el nivel de
+reposición se presentan **únicamente en el renglón del producto**. Los
+renglones de unidad contienen solo lo que identifica al aparato. De esta
+forma, al sumar la columna de valor total se obtiene la valorización correcta
+sin necesidad de filtrar previamente el archivo.
+
+**Nota importante:** el reporte de existencias presenta exclusivamente las
+unidades que permanecen en bodega, por tratarse de un reporte de existencias.
+Las unidades que ya salieron se consultan en el reporte de **movimientos**,
+que presenta un renglón por cada unidad movida con su número de serie.
+
+<!-- CAPTURA: reporte de existencias con un producto desplegado mostrando sus seriales -->
+![Unidades en el reporte de existencias](capturas-admin/21b-existencias-unidades.png)
 
 ---
 
@@ -633,6 +739,9 @@ respaldo previamente.
 | La existencia no coincide con el conteo físico | Ejecutar `recalcular_stock --solo-revisar`. De existir diferencias, registrar el ajuste como movimiento |
 | El sistema no permite eliminar un producto | El producto registra movimientos. Se deberá desmarcar la casilla **Activo** |
 | El sistema no permite guardar los umbrales | Deberán cumplir la relación crítico ≤ alerta ≤ óptimo |
+| El sistema no permite registrar un ingreso sin números de serie | El producto se controla por unidad. Se deberán capturar los seriales del equipo que ingresa, o corregir la casilla en el catálogo si el producto se lleva por cantidad |
+| Un número de serie se presenta en rojo y tachado | Ese serial ya se encuentra registrado. El aviso indica en qué producto; se deberá localizar con el buscador antes de volver a capturarlo |
+| El sistema no permite dar salida a un número de serie | Esa unidad no se encuentra en bodega: ya salió con otra boleta, o el número no corresponde a ese producto |
 | Un colaborador deja la empresa | Desmarcar **Puede iniciar sesión** el mismo día |
 
 ---
@@ -642,6 +751,7 @@ respaldo previamente.
 | Revisión No. | Fecha de Emisión | Descripción de la Revisión o Actualización | Aprobado Por |
 |:---:|:---:|---|---|
 | 01 | *(pendiente)* | Emisión inicial del instructivo para el perfil de Administrador | Gerente Técnico |
+| 02 | *(pendiente)* | Se incorpora el control por número de serie (2.4.3 y 2.6.2), la columna de precio en la salida (2.6.3), el desglose por unidad en los reportes (2.8.1) y el filtro por categoría (2.4.1) | Gerente Técnico |
 
 ---
 

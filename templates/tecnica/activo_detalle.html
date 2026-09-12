@@ -116,6 +116,18 @@
       <dt>Última actualización</dt>
       <dd>{{ activo.fecha_actualizacion|date:"d/m/Y H:i" }}</dd>
     </div>
+    {% comment %}
+      A todo lo ancho y de últimas: es texto libre de varios renglones —el
+      contenido de un kit, por ejemplo— y en una celda de la rejilla quedaría
+      apretado contra los datos cortos. Solo aparece si tiene algo escrito:
+      un rótulo con una raya al lado no informa nada.
+    {% endcomment %}
+    {% if activo.descripcion %}
+      <div style="grid-column:1/-1;">
+        <dt>Descripción</dt>
+        <dd>{{ activo.descripcion|linebreaksbr }}</dd>
+      </div>
+    {% endif %}
   </dl>
 </div>
 

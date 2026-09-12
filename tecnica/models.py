@@ -40,6 +40,26 @@ class Activo(models.Model):
     marca = models.CharField(max_length=100, blank=True)
     modelo = models.CharField(max_length=100, blank=True)
 
+    # El espacio para lo que no cabe en ningún otro campo. Nació por los kits:
+    # un "KIT CHANGAN ROJO" no dice en su nombre qué trae adentro, y lo que la
+    # empresa necesita saber es qué objeto, marca y modelo lleva cada pieza.
+    # Eso son varios datos por registro, así que un texto es la respuesta —
+    # modelarlo como kit y piezas aparte sería lo correcto de libro, pero
+    # sobreingeniería para algo que nadie va a filtrar ni contar.
+    #
+    # Queda libre a propósito, sin un formato impuesto: según el producto se
+    # usa para una cosa distinta. El buscador del catálogo la cubre, que es lo
+    # que la vuelve consultable — escribir "STANLEY" encuentra los kits que
+    # traen algo de esa marca, cosa que hoy no se puede preguntar de ninguna
+    # forma.
+    #
+    # No se muestra en la tabla del catálogo: un párrafo por fila la volvería
+    # ilegible. Vive en la ficha del activo.
+    descripcion = models.TextField(
+        blank=True, verbose_name='Descripción',
+        help_text='Descripciones extra del producto.',
+    )
+
     categoria = models.ForeignKey(
         Categoria, on_delete=models.SET_NULL, null=True, blank=True,
         limit_choices_to={'modulo': Categoria.Modulo.TECNICA},

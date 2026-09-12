@@ -44,6 +44,22 @@
       <label for="{{ form.modelo.id_for_label }}">Modelo</label>
       {{ form.modelo }}
     </div>
+
+    {% comment %}
+      Después de marca y modelo, y a todo lo ancho: es lo que se escribe
+      cuando esos campos no alcanzan — el contenido de un kit, una
+      particularidad del producto.
+    {% endcomment %}
+    <div class="field span-2">
+      <label for="{{ form.descripcion.id_for_label }}">{{ form.descripcion.label }}</label>
+      {{ form.descripcion }}
+      <span class="hint">
+        Opcional. Para lo que no cabe en los demás campos: en un kit, qué trae
+        adentro con su marca y modelo. El buscador del catálogo encuentra por
+        aquí, así que lo que se escriba se puede volver a buscar.
+      </span>
+      {% for e in form.descripcion.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
     <div class="field">
       <label for="{{ form.bodega.id_for_label }}">Bodega</label>
       {{ form.bodega }}

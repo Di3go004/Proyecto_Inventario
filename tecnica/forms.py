@@ -15,10 +15,17 @@ class ActivoForm(forms.ModelForm):
     class Meta:
         model = Activo
         fields = [
-            'codigo_interno', 'nombre_producto', 'marca', 'modelo',
+            'codigo_interno', 'nombre_producto', 'marca', 'modelo', 'descripcion',
             'categoria', 'bodega', 'proveedor', 'precio', 'imagen', 'imagen_url', 'estado',
             'es_consumible', 'stock_optimo', 'stock_alerta', 'stock_critico',
         ]
+        widgets = {
+            # Tres renglones: da lugar para el contenido de un kit sin ocupar
+            # media pantalla en los activos que no lo necesitan.
+            'descripcion': forms.Textarea(attrs={
+                'rows': 3, 'placeholder': 'Descripciones extra del producto',
+            }),
+        }
 
     # No es campo del modelo (Activo.existencia se calcula desde los
     # movimientos), pero sí se captura acá: la herramienta entra al catálogo

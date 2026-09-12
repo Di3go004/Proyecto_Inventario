@@ -36,7 +36,16 @@ def catalogo_activos(request):
 
     q = request.GET.get('q', '').strip()
     if q:
-        activos = activos.filter(Q(codigo_interno__icontains=q) | Q(nombre_producto__icontains=q))
+        # También por descripción: es lo que vuelve consultable ese campo.
+        # Los kits llevan su contenido ahí —qué objeto, marca y modelo trae
+        # cada pieza—, así que escribir "STANLEY" encuentra los kits que
+        # traen algo de esa marca. Sin esto la descripción se podría escribir
+        # pero no recuperar, y no serviría de nada.
+        activos = activos.filter(
+            Q(codigo_interno__icontains=q)
+            | Q(nombre_producto__icontains=q)
+            | Q(descripcion__icontains=q)
+        )
 
     estado = request.GET.get('estado', '').strip()
     if estado == 'agotado':

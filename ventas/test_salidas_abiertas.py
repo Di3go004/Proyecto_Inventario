@@ -745,3 +745,145 @@ class ElRegresoSeLlamaDevueltoTests(BaseSalidasAbiertas):
 
         self.assertContains(respuesta, 'Devuelto')
         self.assertNotContains(respuesta, 'Devolución')
+
+
+class LoUsadoTests(BaseSalidasAbiertas):
+    """
+    Lo que se gasta en el trabajo —un desengrasante, por ejemplo— no se vendió
+    porque nadie lo pagó, pero tampoco regresa. Antes solo había vendido y
+    devuelto: o se inflaban las ventas, o la línea quedaba pendiente para
+    siempre y la boleta nunca se podía cerrar.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.desengrasante = Articulo.objects.create(
+            nombre_producto='Desengrasante', modelo='DG-1', capacidad='1L',
+            bodega=self.bodega, precio=Decimal('45'),
+        )
+        MovimientoVenta.objects.create(
+            articulo=self.desengrasante, tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
+            tipo_transaccion=TIPO.MATERIALES_OTRO, cantidad=20, usuario=self.admin,
+            folio='ING-00003', fecha=self.hace_una_semana - timedelta(days=1),
+        )
+
+    def test_lo_usado_se_queda_fuera_y_resuelve_la_linea(self):
+        salida = self.salida(self.desengrasante, 4)
+
+        self.resultado(salida, vendidas='1', usadas='2', devueltas='1')
+
+        salida.refresh_from_db()
+        self.assertEqual((salida.cantidad_vendida, salida.cantidad_usada, salida.devueltas), (1, 2, 1))
+        self.assertFalse(salida.tiene_pendientes)
+        self.assertEqual(self.existencia(self.desengrasante), 17, 'solo regresa la devuelta')
+
+    def test_con_lo_usado_la_boleta_se_puede_cerrar(self):
+        salida = self.salida(self.desengrasante, 3)
+        registrar_resultado(salida, usuario=self.operador, usadas=3)
+
+        cerrar_boleta('SAL-00001', self.admin)
+
+        salida.refresh_from_db()
+        self.assertTrue(salida.esta_cerrada)
+
+    def test_no_pasan_de_lo_que_salio(self):
+        salida = self.salida(self.desengrasante, 4)
+
+        respuesta = self.resultado(salida, vendidas='2', usadas='2', devueltas='1')
+
+        self.assertContains(respuesta, 'Salieron 4: no pueden ser 2 vendidas, 2 usadas y 1 devuelta.')
+        salida.refresh_from_db()
+        self.assertEqual(salida.cantidad_usada, 0)
+
+    def test_se_puede_corregir_mientras_siga_abierta(self):
+        salida = self.salida(self.desengrasante, 4)
+        self.resultado(salida, vendidas='0', usadas='3', devueltas='0')
+
+        self.resultado(salida, vendidas='0', usadas='1', devueltas='0')
+
+        salida.refresh_from_db()
+        self.assertEqual((salida.cantidad_usada, salida.pendientes), (1, 3))
+
+    def test_un_equipo_con_serial_no_se_usa(self):
+        salida = self.salida(self.equipo, 2, unidades=['A-1', 'A-2'])
+
+        with self.assertRaisesMessage(ValidationError, 'no se usa'):
+            registrar_resultado(salida, usuario=self.operador, usadas=1)
+        respuesta = self.client.get(reverse('salida_resultado', args=[salida.pk]))
+        self.assertNotIn('usadas', respuesta.context['form'].fields)
+
+    def test_la_boleta_lo_dice(self):
+        salida = self.salida(self.desengrasante, 4)
+        registrar_resultado(salida, usuario=self.operador, vendidas=1, usadas=2, devueltas=1,
+                            fecha_regreso=timezone.now(), devuelto_por='Pedro')
+
+        respuesta = self.client.get(reverse('documento_detalle', args=['SAL-00001']))
+
+        self.assertContains(respuesta, '1 vendida')
+        self.assertContains(respuesta, '2 usadas')
+        self.assertContains(respuesta, '1 devuelta · ')
+
+    def test_ya_no_cuenta_como_pendiente_fuera_de_bodega(self):
+        from core.reportes import prestamos_abiertos
+        salida = self.salida(self.desengrasante, 4)
+        registrar_resultado(salida, usuario=self.operador, usadas=3)
+
+        fila = [f for f in prestamos_abiertos() if f['origen'] == 'Bodega 1 y 2'][0]
+
+        self.assertEqual(fila['cantidad'], 1)
+
+    def test_el_historial_la_da_por_resuelta(self):
+        salida = self.salida(self.desengrasante, 2)
+        registrar_resultado(salida, usuario=self.operador, usadas=2)
+
+        pendientes = self.client.get(reverse('movimientos_ventas'), {'estado': 'pendientes'})
+        por_cerrar = self.client.get(reverse('movimientos_ventas'), {'estado': 'por_cerrar'})
+
+        self.assertEqual(list(pendientes.context['movimientos']), [])
+        self.assertEqual([m.folio for m in por_cerrar.context['movimientos']], ['SAL-00001'])
+
+    def test_la_boleta_impresa_lo_marca(self):
+        salida = self.salida(self.desengrasante, 4)
+        registrar_resultado(salida, usuario=self.operador, vendidas=2, usadas=2)
+        lineas = documentos.lineas_del_documento('SAL-00001')
+        casillas = {c for c, _e in boletas.OPCIONES_TIPO}
+
+        renglones = boletas.renglones_de(lineas)
+
+        self.assertEqual([(r.cantidad, r.etiqueta) for r in renglones], [(2, 'VENDIDO'), (2, 'USADO')])
+        self.assertEqual(boletas.casillas_marcadas(lineas, False) & casillas, {VENTA, TIPO.MATERIALES_OTRO})
+
+    def test_cuenta_en_el_subtotal_porque_no_regreso(self):
+        """Salió y no volvió: es parte de lo que la boleta sacó de bodega."""
+        salida = self.salida(self.desengrasante, 4)            # Q 45 c/u
+        registrar_resultado(salida, usuario=self.operador, usadas=2, devueltas=2,
+                            fecha_regreso=timezone.now(), devuelto_por='Pedro')
+
+        linea = documentos.lineas_del_documento('SAL-00001')[0]
+
+        self.assertEqual(linea.subtotal, Decimal('90'))
+
+
+class LaFechaDelRegresoAlMinutoTests(BaseSalidasAbiertas):
+    """
+    La pantalla solo deja escribir horas y minutos. Si la salida quedó
+    guardada con segundos, un regreso en el mismo minuto no es anterior.
+    """
+
+    def test_el_mismo_minuto_se_acepta(self):
+        con_segundos = timezone.now().replace(second=45, microsecond=0) - timedelta(hours=1)
+        salida = self.salida(self.celda, 2, fecha=con_segundos)
+
+        registrar_resultado(salida, usuario=self.operador, devueltas=2,
+                            fecha_regreso=con_segundos.replace(second=0), devuelto_por='Pedro')
+
+        self.assertEqual(salida.devoluciones.get().cantidad, 2)
+
+    def test_el_minuto_anterior_no(self):
+        con_segundos = timezone.now().replace(second=45, microsecond=0) - timedelta(hours=1)
+        salida = self.salida(self.celda, 2, fecha=con_segundos)
+
+        with self.assertRaisesMessage(ValidationError, 'no puede ser anterior'):
+            registrar_resultado(salida, usuario=self.operador, devueltas=2,
+                                fecha_regreso=con_segundos.replace(second=0) - timedelta(minutes=1),
+                                devuelto_por='Pedro')

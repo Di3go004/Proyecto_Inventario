@@ -6,7 +6,7 @@
     <p class="eyebrow">Bodega 1 y 2 · Boleta {{ salida.folio|default:"sin número" }}</p>
     <h1 class="page-title">¿Qué pasó con lo que salió?</h1>
     <p class="page-sub">
-      Lo que se vendió se queda fuera de bodega; lo devuelto vuelve a la
+      Lo vendido y lo usado se quedan fuera de bodega; lo devuelto vuelve a la
       existencia con la fecha en que se devolvió. Lo que todavía no se sabe queda
       pendiente y se completa después.
     </p>
@@ -85,8 +85,14 @@
       <div class="field">
         <label for="{{ form.vendidas.id_for_label }}">{{ form.vendidas.label }}</label>
         {{ form.vendidas }}
-        <span class="hint">Se quedaron con el cliente. Un repuesto que se usó también cuenta.</span>
+        <span class="hint">Se quedaron con el cliente. Un repuesto que se instaló también cuenta.</span>
         {% for e in form.vendidas.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="field">
+        <label for="{{ form.usadas.id_for_label }}">{{ form.usadas.label }}</label>
+        {{ form.usadas }}
+        <span class="hint">Se gastaron en el trabajo y nadie las pagó: un desengrasante, por ejemplo. Si de algo usado sobra y regresa, eso va en devueltas.</span>
+        {% for e in form.usadas.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
       </div>
       <div class="field">
         <label for="{{ form.devueltas.id_for_label }}">{{ form.devueltas.label }}</label>

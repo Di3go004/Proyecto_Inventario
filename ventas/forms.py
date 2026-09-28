@@ -245,6 +245,7 @@ class ResultadoSalidaForm(forms.Form):
     ]
 
     vendidas = forms.IntegerField(min_value=0, label='Vendidas', required=False)
+    usadas = forms.IntegerField(min_value=0, label='Usadas', required=False)
     devueltas = forms.IntegerField(min_value=0, label='Devueltas', required=False)
     fecha_regreso = forms.DateTimeField(
         label='Fecha en que se devolvió', widget=EntradaFechaHora(), required=False,
@@ -261,7 +262,9 @@ class ResultadoSalidaForm(forms.Form):
         self.con_serial = bool(self.unidades)
 
         if self.con_serial:
+            # Un equipo con número de serie se vende o regresa: no se gasta.
             del self.fields['vendidas']
+            del self.fields['usadas']
             del self.fields['devueltas']
             for unidad, estado in salida.estado_de_unidades():
                 self.fields[f'unidad_{unidad.pk}'] = forms.ChoiceField(
@@ -270,6 +273,7 @@ class ResultadoSalidaForm(forms.Form):
                 )
         elif not self.is_bound:
             self.fields['vendidas'].initial = salida.cantidad_vendida
+            self.fields['usadas'].initial = salida.cantidad_usada
             self.fields['devueltas'].initial = salida.devueltas
 
         if not self.is_bound:
@@ -295,6 +299,7 @@ class ResultadoSalidaForm(forms.Form):
             argumentos['unidades_devueltas'] = [u for u, e in elegidos.items() if e == 'devuelta']
         else:
             argumentos['vendidas'] = datos.get('vendidas') or 0
+            argumentos['usadas'] = datos.get('usadas') or 0
             argumentos['devueltas'] = datos.get('devueltas') or 0
         return argumentos
 

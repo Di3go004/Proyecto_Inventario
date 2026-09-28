@@ -740,6 +740,9 @@ form.card > .errorlist,
 .serial-chip.serial-devuelta { background: var(--state-neutral-bg); color: var(--state-neutral-fg); }
 .serial-chip.serial-pendiente { background: var(--state-warn-bg); color: var(--state-warn-fg); }
 
+/* Lo que se gastó en el trabajo: ni vendido (verde) ni devuelto (gris). */
+.chip-usada { background: var(--accent-soft-bg); color: var(--brand-primary); }
+
 /* Debajo del subtotal de una línea de la que algo regresó: explica por qué
    no es cantidad × precio. */
 .nota-subtotal {

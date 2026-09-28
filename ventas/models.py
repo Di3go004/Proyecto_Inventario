@@ -279,7 +279,8 @@ class MovimientoQuerySet(models.QuerySet):
         return (
             self.filter(tipo_documento=MovimientoVenta.TipoDocumento.SALIDA)
             .con_devueltas()
-            .filter(cantidad__gt=models.F('cantidad_vendida') + models.F('suma_devuelta'))
+            .filter(cantidad__gt=models.F('cantidad_vendida') + models.F('cantidad_usada')
+                    + models.F('suma_devuelta'))
         )
 
     def salidas_por_cerrar(self):
@@ -290,7 +291,8 @@ class MovimientoQuerySet(models.QuerySet):
                 fecha_cierre__isnull=True,
             )
             .con_devueltas()
-            .filter(cantidad=models.F('cantidad_vendida') + models.F('suma_devuelta'))
+            .filter(cantidad=models.F('cantidad_vendida') + models.F('cantidad_usada')
+                    + models.F('suma_devuelta'))
         )
 
 
@@ -390,9 +392,17 @@ class MovimientoVenta(models.Model):
     #
     # Cuántas de esta línea se confirmaron vendidas. Las que regresaron no van
     # acá: son sus devoluciones. Lo que falta para completar la cantidad está
-    # pendiente. Un repuesto que se usó en un trabajo cuenta como vendido: se
-    # lo llevó el cliente.
+    # pendiente. Un repuesto que se instaló cuenta como vendido: se lo llevó
+    # el cliente.
     cantidad_vendida = models.PositiveIntegerField(default=0)
+
+    # Cuántas se usaron y se acabaron en el trabajo: un desengrasante, por
+    # ejemplo. No se vendieron —nadie las pagó— pero tampoco regresan. Como lo
+    # vendido, se quedan fuera de bodega. Si de algo usado sobra y regresa,
+    # eso es una devolución normal.
+    #
+    # Solo en productos sin serial: un equipo con número de serie no se gasta.
+    cantidad_usada = models.PositiveIntegerField(default=0)
 
     # En una devolución, la línea de salida de la que regresó.
     devolucion_de = models.ForeignKey(
@@ -421,9 +431,11 @@ class MovimientoVenta(models.Model):
         constraints = [
             models.CheckConstraint(check=models.Q(cantidad__gt=0), name='chk_mov_venta_cantidad_positiva'),
             models.CheckConstraint(
-                check=models.Q(cantidad_vendida__lte=models.F('cantidad')),
-                name='chk_mov_venta_vendidas_hasta_cantidad',
-                violation_error_message='No se pueden vender más unidades de las que salieron.',
+                check=models.Q(cantidad__gte=models.F('cantidad_vendida') + models.F('cantidad_usada')),
+                name='chk_mov_venta_resultado_hasta_cantidad',
+                violation_error_message=(
+                    'Entre vendidas y usadas no pueden ser más de las que salieron.'
+                ),
             ),
             # Una devolución es algo que entra: nunca una salida.
             models.CheckConstraint(
@@ -499,10 +511,10 @@ class MovimientoVenta(models.Model):
 
     @property
     def pendientes(self):
-        """Lo que falta resolver: ni confirmado vendido ni regresado."""
+        """Lo que falta resolver: ni vendido, ni usado, ni regresado."""
         if not self.es_salida:
             return 0
-        return self.cantidad - self.cantidad_vendida - self.devueltas
+        return self.cantidad - self.cantidad_vendida - self.cantidad_usada - self.devueltas
 
     @property
     def tiene_pendientes(self):
@@ -524,6 +536,7 @@ class MovimientoVenta(models.Model):
             return []
         partes = [
             ('vendidas', self.cantidad_vendida),
+            ('usadas', self.cantidad_usada),
             ('devueltas', self.devueltas),
             ('pendientes', self.pendientes),
         ]
@@ -872,13 +885,13 @@ def unidades_con_serial(seriales):
 # ---------------------------------------------------------------------------
 
 def registrar_resultado(
-    salida, *, usuario, vendidas=0, devueltas=0,
+    salida, *, usuario, vendidas=0, usadas=0, devueltas=0,
     unidades_vendidas=(), unidades_devueltas=(),
     fecha_regreso=None, devuelto_por='', observacion='',
 ):
     """
-    Dice qué pasó con una línea de salida: cuántas se vendieron y cuántas
-    regresaron. Lo que no sea ninguna de las dos sigue pendiente.
+    Dice qué pasó con una línea de salida: cuántas se vendieron, cuántas se
+    usaron en el trabajo y cuántas regresaron. Lo demás sigue pendiente.
 
     Recibe el resultado **completo** de la línea, no solo lo que cambió. Así
     la misma pantalla sirve para registrarlo por partes —hoy regresa una, en
@@ -890,7 +903,8 @@ def registrar_resultado(
     deshace empezando por la devolución más reciente.
 
     En una línea con seriales no se dan cantidades sino las unidades: hay que
-    saber cuál aparato regresó, no solo cuántos.
+    saber cuál aparato regresó, no solo cuántos. Ahí no hay usadas: un equipo
+    con número de serie no se gasta.
     """
     with transaction.atomic():
         salida = (
@@ -918,15 +932,24 @@ def registrar_resultado(
                 raise ValidationError('Alguna de esas unidades no salió en esta línea.')
             if ids_vendidas & ids_devueltas:
                 raise ValidationError('Una unidad no puede quedar vendida y devuelta a la vez.')
+            if usadas:
+                raise ValidationError(
+                    'Un producto con número de serie no se usa: cada aparato se vende o regresa.'
+                )
             vendidas, devueltas = len(ids_vendidas), len(ids_devueltas)
 
-        if vendidas < 0 or devueltas < 0:
+        if vendidas < 0 or usadas < 0 or devueltas < 0:
             raise ValidationError('Las cantidades no pueden ser negativas.')
-        if vendidas + devueltas > salida.cantidad:
-            raise ValidationError(
-                f'Salieron {salida.cantidad}: no pueden ser {vendidas} vendidas '
-                f'y {devueltas} devueltas.'
-            )
+        if vendidas + usadas + devueltas > salida.cantidad:
+            partes = [
+                f'{cuantas} {nombre}{"s" if cuantas != 1 else ""}'
+                for cuantas, nombre in (
+                    (vendidas, 'vendida'), (usadas, 'usada'), (devueltas, 'devuelta'),
+                )
+                if cuantas
+            ]
+            juntas = partes[0] if len(partes) == 1 else f'{", ".join(partes[:-1])} y {partes[-1]}'
+            raise ValidationError(f'Salieron {salida.cantidad}: no pueden ser {juntas}.')
 
         devoluciones = list(
             salida.devoluciones.order_by('-fecha', '-id').prefetch_related('unidades')
@@ -944,7 +967,12 @@ def registrar_resultado(
         if cuantas_regresan:
             if fecha_regreso is None:
                 raise ValidationError('Falta la fecha en que regresó.')
-            if fecha_regreso < salida.fecha:
+            # Al minuto, que es lo que se puede escribir en la pantalla: una
+            # salida guardada a las 10:55:45 y un regreso escrito 10:55 son el
+            # mismo minuto, no un regreso anterior. Comparando los segundos, el
+            # sistema rechazaba la hora que él mismo proponía, con un mensaje
+            # que decía la misma hora en los dos lados.
+            if fecha_regreso < salida.fecha.replace(second=0, microsecond=0):
                 raise ValidationError(
                     'El regreso no puede ser anterior a la salida '
                     f'({fechas.fecha_hora(salida.fecha)}).'
@@ -1025,10 +1053,12 @@ def registrar_resultado(
                     for unidad in por_regresar
                 ])
 
-        # update() y no save(): lo vendido no mueve la existencia, así que no
-        # hay nada que recalcular. La restricción de la base sigue cuidando
-        # que no se vendan más de las que salieron.
-        MovimientoVenta.objects.filter(pk=salida.pk).update(cantidad_vendida=vendidas)
+        # update() y no save(): lo vendido y lo usado no mueven la existencia
+        # —ya estaba fuera—, así que no hay nada que recalcular. La restricción
+        # de la base sigue cuidando que no pasen de las que salieron.
+        MovimientoVenta.objects.filter(pk=salida.pk).update(
+            cantidad_vendida=vendidas, cantidad_usada=usadas,
+        )
         if con_serial:
             pasos = MovimientoUnidad.objects.filter(movimiento=salida)
             pasos.update(vendida=False)

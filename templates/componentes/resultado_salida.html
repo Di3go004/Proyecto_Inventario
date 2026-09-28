@@ -1,7 +1,7 @@
 {% comment %}
-  Cómo va una línea de salida: "3 vendidas · 1 devuelta · 2026-09-30 · 1
-  pendiente". Una sola pieza para que la boleta, el historial y la pantalla
-  del resultado lo digan igual.
+  Cómo va una línea de salida: "3 vendidas · 1 usada · 1 devuelta ·
+  2026-09-30 · 1 pendiente". Una sola pieza para que la boleta, el historial
+  y la pantalla del resultado lo digan igual.
 
   "Devuelta" y no "regresó": así lo manejan en la empresa —en las boletas de
   papel le ponen "dev"—. Cada devolución lleva su fecha, porque eso es lo que
@@ -12,4 +12,4 @@
   Recibe `salida`, el MovimientoVenta de la línea. En lo que no es una salida
   —un ingreso, una línea de Bodega Técnica, la propia devolución—, una raya.
 {% endcomment %}
-{% if salida.es_salida %}{% if salida.cantidad_vendida %}<span class="chip chip-good">{{ salida.cantidad_vendida }} vendida{{ salida.cantidad_vendida|pluralize }}</span> {% endif %}{% for devolucion in salida.devoluciones_por_fecha %}<span class="chip chip-neutral"{% if devolucion.devuelto_por %} title="Devuelto por {{ devolucion.devuelto_por }}"{% endif %}>{{ devolucion.cantidad }} devuelta{{ devolucion.cantidad|pluralize }} · {{ devolucion.fecha|date:"DATE_FORMAT" }}</span> {% endfor %}{% if salida.pendientes %}<span class="chip chip-warn">{{ salida.pendientes }} pendiente{{ salida.pendientes|pluralize }}</span>{% endif %}{% else %}—{% endif %}
+{% if salida.es_salida %}{% if salida.cantidad_vendida %}<span class="chip chip-good">{{ salida.cantidad_vendida }} vendida{{ salida.cantidad_vendida|pluralize }}</span> {% endif %}{% if salida.cantidad_usada %}<span class="chip chip-usada">{{ salida.cantidad_usada }} usada{{ salida.cantidad_usada|pluralize }}</span> {% endif %}{% for devolucion in salida.devoluciones_por_fecha %}<span class="chip chip-neutral"{% if devolucion.devuelto_por %} title="Devuelto por {{ devolucion.devuelto_por }}"{% endif %}>{{ devolucion.cantidad }} devuelta{{ devolucion.cantidad|pluralize }} · {{ devolucion.fecha|date:"DATE_FORMAT" }}</span> {% endfor %}{% if salida.pendientes %}<span class="chip chip-warn">{{ salida.pendientes }} pendiente{{ salida.pendientes|pluralize }}</span>{% endif %}{% else %}—{% endif %}

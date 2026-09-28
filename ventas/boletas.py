@@ -149,7 +149,7 @@ class Renglon:
 # DEVUELTO y no REGRESÓ: en las boletas de papel le ponen "dev", y el pie ya
 # dice "DEVUELTO POR".
 ETIQUETA_DE_ESTADO = {'vendida': 'VENDIDO', 'devuelta': 'DEVUELTO'}
-ETIQUETA_DE_PARTE = {'vendidas': 'VENDIDO', 'devueltas': 'DEVUELTO'}
+ETIQUETA_DE_PARTE = {'vendidas': 'VENDIDO', 'usadas': 'USADO', 'devueltas': 'DEVUELTO'}
 
 
 def _pendiente(linea):
@@ -238,14 +238,17 @@ def casillas_marcadas(lineas, es_ingreso):
 
     En el ingreso, la del tipo del encabezado. En la salida, las de todas sus
     líneas —una boleta puede llevar un demo y una venta— más "Equipo venta"
-    en cuanto algo que salió con el técnico se confirma vendido. Lo que sigue
-    con el técnico no marca ninguna: todavía no se sabe qué va a ser.
+    en cuanto algo que salió con el técnico se confirma vendido, y
+    "Materiales / Otro" en cuanto algo se usó en el trabajo. Lo que sigue con
+    el técnico no marca ninguna: todavía no se sabe qué va a ser.
     """
     if es_ingreso:
         return {getattr(lineas[0].movimiento, 'tipo_transaccion', '')}
     marcadas = {linea.movimiento.tipo_transaccion for linea in lineas}
     if any(linea.movimiento.cantidad_vendida for linea in lineas):
         marcadas.add(MovimientoVenta.TipoTransaccion.VENTA)
+    if any(linea.movimiento.cantidad_usada for linea in lineas):
+        marcadas.add(MovimientoVenta.TipoTransaccion.MATERIALES_OTRO)
     return marcadas
 
 

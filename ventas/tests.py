@@ -156,7 +156,16 @@ class PrestamoDemoTests(BaseVentas):
         self.mover(articulo, MovimientoVenta.TipoDocumento.INGRESO, 5)
         salida = self.mover(articulo, MovimientoVenta.TipoDocumento.SALIDA, 2)
         salida.cantidad_vendida = 3
-        with self.assertRaisesMessage(ValidationError, 'No se pueden vender más'):
+        with self.assertRaisesMessage(ValidationError, 'no pueden ser más de las que salieron'):
+            salida.full_clean()
+
+    def test_entre_vendidas_y_usadas_no_pasan_de_lo_que_salio(self):
+        articulo = self.crear_articulo()
+        self.mover(articulo, MovimientoVenta.TipoDocumento.INGRESO, 5)
+        salida = self.mover(articulo, MovimientoVenta.TipoDocumento.SALIDA, 2)
+        salida.cantidad_vendida = 1
+        salida.cantidad_usada = 2
+        with self.assertRaisesMessage(ValidationError, 'Entre vendidas y usadas'):
             salida.full_clean()
 
 

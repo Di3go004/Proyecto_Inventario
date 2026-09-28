@@ -175,7 +175,7 @@
         {% else %}Carga inicial{% endif %}
       </td>
       <td data-etiqueta="Fecha de ingreso" class="columna-secundaria">
-        {{ u.movimiento_ingreso.fecha|date:"d/m/Y"|default:"—" }}
+        {{ u.movimiento_ingreso.fecha|date:"DATE_FORMAT"|default:"—" }}
       </td>
       <td></td>
       <td></td>

@@ -14,17 +14,26 @@ DECIMAL_SEPARATOR = '.'
 THOUSAND_SEPARATOR = ','
 NUMBER_GROUPING = 3
 
-# Las boletas y los formatos en papel de la empresa usan día/mes/año.
-DATE_FORMAT = 'd/m/Y'
-DATETIME_FORMAT = 'd/m/Y H:i'
-SHORT_DATE_FORMAT = 'd/m/Y'
-SHORT_DATETIME_FORMAT = 'd/m/Y H:i'
+# El estándar de la empresa es año-mes-día: la ISO 8601 (2026-09-28). Es el
+# único lugar donde se define. Las pantallas lo toman con |date:"DATE_FORMAT"
+# y los PDF, los mensajes y el Excel con core/fechas.py, así que cambiarlo acá
+# lo cambia en todo el sistema.
+#
+# Entre la fecha y la hora va un espacio y no la "T" de la norma: la ISO lo
+# permite por acuerdo, y "2026-09-28 08:31" se lee mejor en una boleta que
+# "2026-09-28T08:31".
+DATE_FORMAT = 'Y-m-d'
+DATETIME_FORMAT = 'Y-m-d H:i'
+SHORT_DATE_FORMAT = 'Y-m-d'
+SHORT_DATETIME_FORMAT = 'Y-m-d H:i'
 
-# Cómo se acepta una fecha escrita a mano en un formulario.
-DATE_INPUT_FORMATS = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y']
+# Cómo se acepta una fecha escrita a mano en un formulario. Se sigue aceptando
+# día/mes/año por si alguien la escribe como antes: no hay forma de
+# confundirlas, porque nunca se acepta mes/día.
+DATE_INPUT_FORMATS = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']
 DATETIME_INPUT_FORMATS = [
     '%Y-%m-%dT%H:%M',      # el que manda <input type="datetime-local">
-    '%d/%m/%Y %H:%M',
     '%Y-%m-%d %H:%M:%S',
     '%Y-%m-%d %H:%M',
+    '%d/%m/%Y %H:%M',
 ]

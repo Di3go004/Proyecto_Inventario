@@ -84,12 +84,12 @@
       </td>
       <td data-etiqueta="Código" class="code columna-secundaria">{{ p.activo.codigo_interno }}</td>
       <td data-etiqueta="Solicitante" class="truncate">{{ p.solicitante }}</td>
-      <td data-etiqueta="Salida" class="num" style="text-align:left;">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
+      <td data-etiqueta="Salida" class="num" style="text-align:left;">{{ p.fecha_salida|date:"DATETIME_FORMAT" }}</td>
       <td data-etiqueta="Estado al salir">
         <span class="chip {{ p.estado_al_salir|clase_estado }}">{{ p.get_estado_al_salir_display }}</span>
       </td>
       <td data-etiqueta="Regreso" class="num" style="text-align:left;">
-        {% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}
+        {% if p.fecha_regreso %}{{ p.fecha_regreso|date:"DATETIME_FORMAT" }}
         {% else %}<span class="chip chip-warn">Afuera</span>{% endif %}
       </td>
       <td data-etiqueta="Estado al regresar">

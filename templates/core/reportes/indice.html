@@ -34,7 +34,7 @@
     <h2>Movimientos por período</h2>
     <p>Qué entró y qué salió entre dos fechas, con el total por tipo.</p>
     <p class="reporte-dato">{{ movimientos_del_mes }}</p>
-    <span class="reporte-pie">este mes (desde el {{ inicio_de_mes|date:"d/m" }})</span>
+    <span class="reporte-pie">este mes (desde el {{ inicio_de_mes|date:"DATE_FORMAT" }})</span>
   </a>
 
   <a href="{% url 'reporte_prestamos' %}" class="reporte-tarjeta">

@@ -16,7 +16,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
-from core import pdf
+from core import fechas, pdf
 
 from .models import Activo
 
@@ -38,7 +38,7 @@ ALTO_FILA = 14 * mm
 
 
 def _fecha(valor):
-    return timezone.localtime(valor).strftime('%d/%m/%Y') if valor else ''
+    return fechas.fecha(valor)
 
 
 def _herramienta(prestamo):
@@ -89,7 +89,7 @@ def _pagina(prestamos, numero, total, cuantos):
         Paragraph(
             f'No. ______________ &nbsp;&nbsp;·&nbsp;&nbsp; Página {numero} de {total} '
             f'&nbsp;&nbsp;·&nbsp;&nbsp; {cuantos} préstamo(s) '
-            f'&nbsp;&nbsp;·&nbsp;&nbsp; impreso el {timezone.localtime():%d/%m/%Y %H:%M}',
+            f'&nbsp;&nbsp;·&nbsp;&nbsp; impreso el {fechas.fecha_hora(timezone.now())}',
             pdf.CELDA_DERECHA,
         ),
         Spacer(1, 2 * mm),

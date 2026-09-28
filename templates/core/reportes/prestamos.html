@@ -49,7 +49,7 @@
       <td data-etiqueta="Qué" class="truncate celda-principal">{{ f.que }}</td>
       <td data-etiqueta="Cantidad" class="num">{{ f.cantidad }}</td>
       <td data-etiqueta="Quién lo tiene" class="truncate">{{ f.quien }}</td>
-      <td data-etiqueta="Salió el" class="num" style="text-align:left;">{{ f.desde|date:"d/m/Y" }}</td>
+      <td data-etiqueta="Salió el" class="num" style="text-align:left;">{{ f.desde|date:"DATE_FORMAT" }}</td>
       <td data-etiqueta="Días">
         {% if f.dias >= 30 %}<span class="chip chip-critical">{{ f.dias }} días</span>
         {% elif f.dias >= 7 %}<span class="chip chip-warn">{{ f.dias }} días</span>

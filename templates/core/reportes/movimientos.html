@@ -101,7 +101,7 @@
   <tbody>
     {% for m in pagina %}
     <tr {% if m.folio %}data-href="{% url 'documento_detalle' m.folio %}"{% endif %}>
-      <td data-etiqueta="Fecha" class="num" style="text-align:left;">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+      <td data-etiqueta="Fecha" class="num" style="text-align:left;">{{ m.fecha|date:"DATETIME_FORMAT" }}</td>
       <td data-etiqueta="Boleta" class="code">{{ m.folio|default:"—" }}</td>
       <td data-etiqueta="Movimiento">
         {% if m.tipo_documento == 'ingreso' %}<span class="chip chip-good">Ingreso</span>

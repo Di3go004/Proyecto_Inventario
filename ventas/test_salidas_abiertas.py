@@ -21,6 +21,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from core import fechas
 from core.models import Bodega
 from usuarios.models import Usuario
 from ventas import boletas, documentos
@@ -318,6 +319,8 @@ class ResultadoPorCantidadTests(BaseSalidasAbiertas):
                                    fecha_regreso='2020-01-01T08:00')
 
         self.assertContains(respuesta, 'no puede ser anterior')
+        # La fecha del mensaje, en año-mes-día como todo el sistema.
+        self.assertContains(respuesta, fechas.fecha_hora(self.hace_una_semana))
         self.assertFalse(salida.devoluciones.exists())
 
     def test_no_se_deshace_el_regreso_de_algo_que_volvio_a_salir(self):

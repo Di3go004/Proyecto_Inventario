@@ -13,6 +13,8 @@ import io
 from datetime import date, datetime
 
 from django.utils import timezone
+
+from core import fechas
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -22,7 +24,12 @@ EMPRESA = 'SOLUCIONES EXACTAS, S.A.'
 AZUL = '202199'
 BLANCO = 'FFFFFF'
 FORMATO_MONEDA = '"Q" #,##0.00'
-FORMATO_FECHA = 'DD/MM/YYYY HH:MM'
+# Año-mes-día, el estándar de la empresa (ISO 8601). Es el mismo de
+# config/formats/es/formats.py escrito como lo entiende Excel, que no lee el
+# de Django: si uno cambia, hay que cambiar el otro. La celda sigue siendo una
+# fecha de verdad —se ordena y se filtra como fecha—; esto solo cambia cómo
+# se ve.
+FORMATO_FECHA = 'YYYY-MM-DD HH:MM'
 
 # Tres filas de titulo, una en blanco, y la tabla arranca aqui.
 FILA_ENCABEZADO = 5
@@ -59,7 +66,7 @@ def _escribir_hoja(hoja, titulo, encabezados, filas, subtitulo='', formatos=None
     # encabezado, el panel fijo, el rango del filtro) termina una fila corrido.
     hoja.cell(row=1, column=1, value=EMPRESA).font = Font(bold=True, size=13)
     hoja.cell(row=2, column=1, value=titulo).font = Font(bold=True, size=11)
-    pie = f'Generado el {timezone.localtime():%d/%m/%Y %H:%M}'
+    pie = f'Generado el {fechas.fecha_hora(timezone.now())}'
     hoja.cell(
         row=3, column=1, value=f'{subtitulo} · {pie}' if subtitulo else pie,
     ).font = Font(italic=True, size=9, color='666666')

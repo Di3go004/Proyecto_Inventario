@@ -47,7 +47,7 @@
   <p class="aviso-prestado">
     Hay <strong>{{ activo.cantidad_afuera }}</strong> unidad(es) afuera
     {% if activo.cantidad_afuera == 1 %}con <strong>{{ prestamo_abierto.solicitante }}</strong>
-    desde el {{ prestamo_abierto.fecha_salida|date:"d/m/Y H:i" }}{% endif %}.
+    desde el {{ prestamo_abierto.fecha_salida|date:"DATETIME_FORMAT" }}{% endif %}.
     Quedan <strong>{{ activo.disponibles }}</strong> en bodega.
   </p>
 {% endif %}
@@ -110,11 +110,11 @@
     </div>
     <div>
       <dt>Dado de alta</dt>
-      <dd>{{ activo.fecha_creacion|date:"d/m/Y" }}</dd>
+      <dd>{{ activo.fecha_creacion|date:"DATE_FORMAT" }}</dd>
     </div>
     <div>
       <dt>Última actualización</dt>
-      <dd>{{ activo.fecha_actualizacion|date:"d/m/Y H:i" }}</dd>
+      <dd>{{ activo.fecha_actualizacion|date:"DATETIME_FORMAT" }}</dd>
     </div>
     {% comment %}
       A todo lo ancho y de últimas: es texto libre de varios renglones —el
@@ -148,9 +148,9 @@
             {% for p in prestamos %}
             <tr>
               <td data-etiqueta="Solicitante" class="celda-principal">{{ p.solicitante }}</td>
-              <td data-etiqueta="Salida">{{ p.fecha_salida|date:"d/m/Y H:i" }}</td>
+              <td data-etiqueta="Salida">{{ p.fecha_salida|date:"DATETIME_FORMAT" }}</td>
               <td data-etiqueta="Estado al salir"><span class="chip {{ p.estado_al_salir|clase_estado }}">{{ p.get_estado_al_salir_display }}</span></td>
-              <td data-etiqueta="Regreso">{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"d/m/Y H:i" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
+              <td data-etiqueta="Regreso">{% if p.fecha_regreso %}{{ p.fecha_regreso|date:"DATETIME_FORMAT" }}{% else %}<span class="chip chip-warn">Afuera</span>{% endif %}</td>
               <td data-etiqueta="Estado al regresar">
                 {% if p.estado_al_regresar %}<span class="chip {{ p.estado_al_regresar|clase_estado }}">{{ p.get_estado_al_regresar_display }}</span>
                 {% else %}—{% endif %}

@@ -110,7 +110,7 @@
       <li>
         <span class="row">
           <span class="truncate" style="flex:1;" title="{{ p.activo.nombre_producto }}">{{ p.activo.nombre_producto }}</span>
-          <span style="color:var(--text-muted); flex:none;">{{ p.solicitante }} · {{ p.fecha_salida|date:"d/m" }}</span>
+          <span style="color:var(--text-muted); flex:none;">{{ p.solicitante }} · {{ p.fecha_salida|date:"DATE_FORMAT" }}</span>
         </span>
       </li>
       {% endfor %}

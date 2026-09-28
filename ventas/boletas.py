@@ -21,7 +21,6 @@ tecnica/boletas.py.
 import io
 from dataclasses import dataclass
 
-from django.utils import timezone
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -29,7 +28,7 @@ from reportlab.platypus import (
     KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
 )
 
-from core import pdf
+from core import fechas, pdf
 
 from . import documentos
 from .models import MovimientoVenta
@@ -264,7 +263,7 @@ def devuelto_por(lineas):
 
 def _datos_y_casillas(cabecera, es_ingreso, marcadas):
     """El folio y los campos de arriba, con el bloque de casillas a la derecha."""
-    fecha = timezone.localtime(cabecera.fecha).strftime('%d/%m/%Y')
+    fecha = fechas.fecha(cabecera.fecha)
 
     izquierda = [
         Paragraph(f'No. {cabecera.folio}', pdf.FOLIO_CHICO),

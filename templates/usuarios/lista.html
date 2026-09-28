@@ -83,7 +83,7 @@
         {{ u.movimientos|add:u.prestamos }}
       </td>
       <td data-etiqueta="Última entrada" class="columna-secundaria">
-        {{ u.last_login|date:"d/m/Y H:i"|default:"Nunca" }}
+        {{ u.last_login|date:"DATETIME_FORMAT"|default:"Nunca" }}
       </td>
       <td class="celda-acciones">
         <span class="actions">

@@ -8,6 +8,7 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
+from core import fechas
 from core.models import UMBRALES_EN_ORDEN, Bodega, Categoria, Proveedor
 
 # Cómo se escribe "no tiene número de serie". Es la abreviatura que ya usan
@@ -937,7 +938,7 @@ def registrar_resultado(
             if fecha_regreso < salida.fecha:
                 raise ValidationError(
                     'El regreso no puede ser anterior a la salida '
-                    f'({timezone.localtime(salida.fecha):%d/%m/%Y %H:%M}).'
+                    f'({fechas.fecha_hora(salida.fecha)}).'
                 )
             if not (devuelto_por or '').strip():
                 raise ValidationError('Falta quién lo devolvió.')

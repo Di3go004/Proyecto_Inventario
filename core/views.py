@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from core import exportar, reportes
+from core import exportar, fechas, reportes
 from core.forms import CategoriaForm, ProveedorForm
 from core.models import Bodega, Categoria, Proveedor
 from core.paginacion import paginar
@@ -298,7 +298,7 @@ def reporte_movimientos(request):
     filas = reportes.desglosar_movimientos(detalle)
 
     if request.GET.get('formato') == 'excel':
-        rango = ' a '.join(f'{f:%d/%m/%Y}' for f in (desde, hasta) if f) or 'todo el historial'
+        rango = ' a '.join(fechas.fecha(f) for f in (desde, hasta) if f) or 'todo el historial'
         return _excel(
             'movimientos',
             'Movimientos de Bodega 1 y 2',

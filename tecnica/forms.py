@@ -3,6 +3,7 @@ from django.core.files.uploadedfile import UploadedFile
 from django.db.models import Sum
 from django.utils import timezone
 
+from core import fechas
 from core.forms import CampoProveedor, solo_el_nombre
 from ventas.forms import EntradaFechaHora
 
@@ -257,7 +258,7 @@ class RegresoForm(forms.ModelForm):
         if fecha < self.instance.fecha_salida:
             raise forms.ValidationError(
                 'El regreso no puede ser anterior a la salida '
-                f'({timezone.localtime(self.instance.fecha_salida):%d/%m/%Y %H:%M}).'
+                f'({fechas.fecha_hora(self.instance.fecha_salida)}).'
             )
         return fecha
 

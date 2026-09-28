@@ -194,12 +194,13 @@ class FormatoGuatemalaTests(SimpleTestCase):
             '1,004,087.00',
         )
 
-    def test_las_fechas_van_en_dia_mes_ano(self):
+    def test_las_fechas_van_en_ano_mes_dia(self):
+        """El estándar de la empresa: ISO 8601."""
         import datetime
 
         self.assertEqual(
             self.render('{{ f }}', {'f': datetime.date(2026, 8, 25)}),
-            '25/08/2026',
+            '2026-08-25',
         )
 
     def test_los_formularios_siguen_recibiendo_numeros_crudos(self):

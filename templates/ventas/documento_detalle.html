@@ -44,7 +44,7 @@
   </p>
 {% elif estado_boleta == 'cerrada' %}
   <p class="aviso-cerrada">
-    Cerrada el {{ cabecera.fecha_cierre|date:"d/m/Y H:i" }}
+    Cerrada el {{ cabecera.fecha_cierre|date:"DATETIME_FORMAT" }}
     por {{ cabecera.cerrada_por.get_full_name|default:cabecera.cerrada_por.username }}.
     Sus resultados ya no se pueden cambiar.
   </p>
@@ -54,7 +54,7 @@
   <dl class="detail-grid">
     <div>
       <dt>Fecha</dt>
-      <dd>{{ cabecera.fecha|date:"d/m/Y H:i" }}</dd>
+      <dd>{{ cabecera.fecha|date:"DATETIME_FORMAT" }}</dd>
     </div>
     <div>
       <dt>Tipo de movimiento</dt>

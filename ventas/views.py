@@ -693,6 +693,7 @@ def documento_detalle(request, folio):
         'lineas_pendientes': sum(1 for linea in lineas if linea.tiene_pendientes),
         'lineas': lineas,
         'total_unidades': total_unidades,
+        'total_devueltas': documentos.total_devueltas(lineas),
         'total_quetzales': total_quetzales,
         'lleva_tecnica': any(linea.es_tecnica for linea in lineas),
     })

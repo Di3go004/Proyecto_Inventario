@@ -69,7 +69,7 @@ class Migration(migrations.Migration):
                     ('con_tecnico', 'Con el técnico'),
                     ('repuestos', 'Repuestos'),
                     ('materiales_otro', 'Materiales / Otro'),
-                    ('devolucion', 'Devolución'),
+                    ('devolucion', 'Devuelto'),
                     ('ajuste_inicial', 'Ajuste / Saldo inicial'),
                 ],
                 max_length=20,

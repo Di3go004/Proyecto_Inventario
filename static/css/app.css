@@ -740,6 +740,13 @@ form.card > .errorlist,
 .serial-chip.serial-devuelta { background: var(--state-neutral-bg); color: var(--state-neutral-fg); }
 .serial-chip.serial-pendiente { background: var(--state-warn-bg); color: var(--state-warn-fg); }
 
+/* Debajo del subtotal de una línea de la que algo regresó: explica por qué
+   no es cantidad × precio. */
+.nota-subtotal {
+  display: block; margin-top: 2px; font-family: var(--font-body);
+  color: var(--text-muted); font-size: .75rem; white-space: nowrap;
+}
+
 /* Los radios del resultado por aparato, centrados en su columna, y sus
    títulos encima de ellos. */
 .tabla-resultado td:not(.celda-principal),

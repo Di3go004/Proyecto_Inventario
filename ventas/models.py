@@ -323,7 +323,10 @@ class MovimientoVenta(models.Model):
         MATERIALES_OTRO = 'materiales_otro', 'Materiales / Otro'
         # Lo que regresó de una salida. No se registra en una boleta de
         # ingreso: nace al registrar el resultado de la línea que salió.
-        DEVOLUCION = 'devolucion', 'Devolución'
+        # Se lee "Devuelto" y no "Devolución": en comercio una devolución es
+        # el cliente regresando algo que salió malo, y esto es lo que el
+        # técnico trae de regreso — el "DEVUELTO POR" del FO-SE-012.
+        DEVOLUCION = 'devolucion', 'Devuelto'
         # Saldo inicial al crear un artículo nuevo por carga masiva desde
         # Excel (RF-09) — no es una compra real, es "así arrancó el conteo".
         AJUSTE_INICIAL = 'ajuste_inicial', 'Ajuste / Saldo inicial'

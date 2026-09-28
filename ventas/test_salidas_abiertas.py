@@ -647,3 +647,77 @@ class BoletaImpresaTests(BaseSalidasAbiertas):
 
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+
+
+class LoQueRegresoNoSeCobraTests(BaseSalidasAbiertas):
+    """
+    El subtotal de la boleta no cuenta lo que regresó a bodega. Lo encontró
+    Diego probando: 4 cables a Q 1,250, de los que regresaron 2, seguían
+    diciendo Q 5,000. La existencia siempre estuvo bien; lo que mentía era la
+    pantalla.
+    """
+
+    def test_el_subtotal_no_cuenta_lo_que_regreso(self):
+        salida = self.salida(self.celda, 4)          # Q 800 c/u
+        registrar_resultado(salida, usuario=self.operador, vendidas=3, devueltas=1,
+                            fecha_regreso=timezone.now(), devuelto_por='Pedro')
+
+        linea = documentos.lineas_del_documento('SAL-00001')[0]
+
+        self.assertEqual(linea.subtotal, Decimal('2400'), '3 × Q 800, no 4')
+
+    def test_lo_pendiente_si_cuenta(self):
+        """Sigue fuera de bodega: es lo que la boleta está moviendo."""
+        self.salida(self.celda, 4)
+
+        linea = documentos.lineas_del_documento('SAL-00001')[0]
+
+        self.assertEqual(linea.subtotal, Decimal('3200'))
+
+    def test_el_total_descuenta_lo_que_regreso(self):
+        cables = self.salida(self.celda, 4)
+        self.salida(self.celda, 1, tipo=VENTA)
+        registrar_resultado(cables, usuario=self.operador, vendidas=2, devueltas=2,
+                            fecha_regreso=timezone.now(), devuelto_por='Pedro')
+        lineas = documentos.lineas_del_documento('SAL-00001')
+
+        unidades, quetzales = documentos.totales(lineas)
+
+        self.assertEqual(unidades, 5, 'el papel dice que salieron 5')
+        self.assertEqual(quetzales, Decimal('2400'), '(2 + 1) × Q 800')
+        self.assertEqual(documentos.total_devueltas(lineas), 2)
+
+    def test_la_pantalla_explica_por_que_no_es_cantidad_por_precio(self):
+        salida = self.salida(self.celda, 4)
+        registrar_resultado(salida, usuario=self.operador, vendidas=2, devueltas=2,
+                            fecha_regreso=timezone.now(), devuelto_por='Pedro')
+
+        respuesta = self.client.get(reverse('documento_detalle', args=['SAL-00001']))
+
+        self.assertContains(respuesta, 'no cuentan 2 que regresaron')
+        self.assertContains(respuesta, 'salieron 4 · regresaron 2')
+
+    def test_el_ingreso_sigue_siendo_precio_por_cantidad(self):
+        linea = documentos.lineas_del_documento('ING-00001')[0]
+
+        self.assertEqual(linea.subtotal, linea.precio_unitario * 10)
+
+
+class ElRegresoSeLlamaDevueltoTests(BaseSalidasAbiertas):
+    """
+    "Devolución" suena a cliente regresando algo que salió malo. Esto es lo
+    que el técnico trae de regreso: el "DEVUELTO POR" del FO-SE-012.
+    """
+
+    def test_se_lee_devuelto(self):
+        self.assertEqual(TIPO.DEVOLUCION.label, 'Devuelto')
+
+    def test_el_kardex_lo_dice_asi(self):
+        salida = self.salida(self.celda, 2)
+        registrar_resultado(salida, usuario=self.operador, devueltas=1,
+                            fecha_regreso=timezone.now(), devuelto_por='Pedro')
+
+        respuesta = self.client.get(reverse('kardex_articulo', args=[self.celda.pk]))
+
+        self.assertContains(respuesta, 'Devuelto')
+        self.assertNotContains(respuesta, 'Devolución')

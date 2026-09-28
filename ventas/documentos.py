@@ -80,8 +80,25 @@ class LineaDocumento:
         return self.movimiento.precio_unitario
 
     @property
+    def devueltas(self):
+        """Cuántas de esta línea regresaron a bodega. Solo una salida regresa."""
+        return 0 if self.es_tecnica else self.movimiento.devueltas
+
+    @property
     def subtotal(self):
-        return self.precio_unitario * self.cantidad
+        """
+        Lo que vale lo que salió y no regresó.
+
+        Lo que regresó a bodega no cuenta: ni se vendió ni se quedó afuera.
+        Contarlo inflaba la boleta — 4 cables a Q 1,250 decían Q 5,000 aunque
+        2 hubieran regresado. Lo pendiente sí cuenta, porque sigue fuera de
+        bodega (con el técnico o en demo) y es lo que la boleta está moviendo.
+        Cerrada la boleta ya no queda nada pendiente, así que el subtotal
+        termina siendo lo vendido.
+
+        En un ingreso no hay regresos: es precio × cantidad, como siempre.
+        """
+        return self.precio_unitario * (self.cantidad - self.devueltas)
 
     @property
     def seriales(self):
@@ -202,11 +219,21 @@ def estado_de_boleta(lineas):
 
 
 def totales(lineas):
-    """Unidades y quetzales del documento completo."""
+    """
+    Unidades y quetzales del documento completo.
+
+    Las unidades son las que dice el papel —las que salieron o entraron—; los
+    quetzales, la suma de los subtotales, que ya descuentan lo que regresó.
+    """
     return (
         sum(linea.cantidad for linea in lineas),
         sum((linea.subtotal for linea in lineas), Decimal('0')),
     )
+
+
+def total_devueltas(lineas):
+    """Cuántas de las que salieron ya regresaron a bodega."""
+    return sum(linea.devueltas for linea in lineas)
 
 
 # ---------------------------------------------------------------------------

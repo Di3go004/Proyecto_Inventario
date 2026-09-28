@@ -169,7 +169,14 @@
       {% endif %}
       <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
       <td data-etiqueta="Precio unitario" class="num">Q {{ linea.precio_unitario|floatformat:2 }}</td>
-      <td data-etiqueta="Subtotal" class="num">Q {{ linea.subtotal|floatformat:2 }}</td>
+      {% comment %}
+        El subtotal no cuenta lo que regresó a bodega. Se dice debajo para que
+        no parezca una multiplicación mal hecha: 4 × Q 1,250 no da Q 2,500.
+      {% endcomment %}
+      <td data-etiqueta="Subtotal" class="num">
+        Q {{ linea.subtotal|floatformat:2 }}
+        {% if linea.devueltas %}<span class="nota-subtotal">no cuenta{{ linea.devueltas|pluralize:"n" }} {{ linea.devueltas }} que regres{{ linea.devueltas|pluralize:"ó,aron" }}</span>{% endif %}
+      </td>
       <td data-etiqueta="{% if es_ingreso %}Estado{% else %}Resultado{% endif %}">
         {% if es_ingreso %}—{% else %}{% include "componentes/resultado_salida.html" with partes=linea.resultado %}{% endif %}
       </td>
@@ -200,7 +207,11 @@
 {% endcomment %}
 <div class="totales-documento">
   <span>Total del documento</span>
-  <span class="num">{{ total_unidades }} unidad(es)</span>
+  {% if total_devueltas %}
+    <span class="num">salieron {{ total_unidades }} · regres{{ total_devueltas|pluralize:"ó,aron" }} {{ total_devueltas }}</span>
+  {% else %}
+    <span class="num">{{ total_unidades }} unidad(es)</span>
+  {% endif %}
   <span class="num totales-monto">Q {{ total_quetzales|floatformat:2 }}</span>
 </div>
 

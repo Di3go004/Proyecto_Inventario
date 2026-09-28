@@ -55,7 +55,7 @@
         {{ m.usuario.get_full_name|default:m.usuario.username }}
       </td>
       <td data-etiqueta="Detalle" class="truncate" title="{{ m.cliente_nombre|default:m.solicitado_por }}">
-        {% if m.esta_afuera %}<span class="chip chip-warn">Afuera</span>{% endif %}
+        {% if m.tiene_pendientes %}<span class="chip chip-warn">{{ m.pendientes }} pendiente{{ m.pendientes|pluralize }}</span>{% endif %}
         {{ m.cliente_nombre|default:m.solicitado_por|default:"—" }}
       </td>
     </tr>

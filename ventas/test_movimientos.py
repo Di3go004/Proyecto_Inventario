@@ -61,13 +61,20 @@ class BaseMovimientos(TestCase):
         return self.client.post(reverse('movimiento_ingreso'), datos)
 
     def registrar_salida(self, lineas, **extra):
+        """
+        En la salida el tipo va por línea. Por defecto venta, que es lo que
+        querían decir estas pruebas cuando el tipo iba en el encabezado.
+        """
+        tipo = extra.pop('tipo_transaccion', MovimientoVenta.TipoTransaccion.VENTA)
         datos = self.cabecera(**extra)
+        datos.pop('tipo_transaccion')
         datos.setdefault('entregado_por', 'Bodega')
         datos.setdefault('cliente_nombre', 'Cliente X')
         datos.setdefault('envio_recibo', '')
         datos['linea_articulo'] = [str(a.pk) for a, _c in lineas]
         datos['linea_cantidad'] = [str(c) for _a, c in lineas]
         datos['linea_texto'] = [a.codigo_interno for a, _c in lineas]
+        datos['linea_tipo'] = [tipo for _linea in lineas]
         return self.client.post(reverse('movimiento_salida'), datos)
 
 
@@ -218,59 +225,57 @@ class DevolucionDemoTests(BaseMovimientos):
             tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
         )
 
+    def regresar(self, prestamo, devueltas, fecha=None, devuelto_por='Ivan Leiva'):
+        return self.client.post(reverse('salida_resultado', args=[prestamo.pk]), {
+            'vendidas': '0', 'devueltas': str(devueltas),
+            'fecha_regreso': fecha or timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            'devuelto_por': devuelto_por, 'observacion': '',
+        })
+
     def test_registrar_la_devolucion_regresa_el_stock(self):
         prestamo = self.prestar(cantidad=2)
         self.bascula.refresh_from_db()
         self.assertEqual(self.bascula.stock_actual, 8)
 
-        self.client.post(reverse('devolucion_demo', args=[prestamo.pk]), {
-            'fecha_devolucion': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
-            'devuelto_por': 'Ivan Leiva',
-            'observacion': '',
-        })
+        self.regresar(prestamo, 2)
 
         self.bascula.refresh_from_db()
         prestamo.refresh_from_db()
         self.assertEqual(self.bascula.stock_actual, 10)
-        self.assertIsNotNone(prestamo.fecha_devolucion)
-        self.assertEqual(prestamo.devuelto_por, 'Ivan Leiva')
+        self.assertEqual(prestamo.devueltas, 2)
+        self.assertEqual(prestamo.devoluciones.get().devuelto_por, 'Ivan Leiva')
 
     def test_la_devolucion_no_puede_ser_anterior_a_la_salida(self):
         prestamo = self.prestar()
 
-        respuesta = self.client.post(reverse('devolucion_demo', args=[prestamo.pk]), {
-            'fecha_devolucion': '2020-01-01T08:00',
-            'devuelto_por': 'Ivan Leiva',
-            'observacion': '',
-        })
+        respuesta = self.regresar(prestamo, 2, fecha='2020-01-01T08:00')
 
         prestamo.refresh_from_db()
         self.assertEqual(respuesta.status_code, 200)
-        self.assertIsNone(prestamo.fecha_devolucion, 'el préstamo sigue abierto')
+        self.assertEqual(prestamo.devueltas, 0, 'el préstamo sigue pendiente')
 
-    def test_no_se_puede_cerrar_dos_veces_el_mismo_prestamo(self):
+    def test_guardar_dos_veces_el_mismo_resultado_no_duplica_el_regreso(self):
+        """
+        Se escribe el resultado completo, no lo que cambió: mandar otra vez
+        "regresaron 2" no es un segundo regreso.
+        """
         prestamo = self.prestar()
-        ahora = timezone.localtime().strftime('%Y-%m-%dT%H:%M')
-        self.client.post(reverse('devolucion_demo', args=[prestamo.pk]), {
-            'fecha_devolucion': ahora, 'devuelto_por': 'Ivan', 'observacion': '',
-        })
+        self.regresar(prestamo, 2, devuelto_por='Ivan')
+        self.regresar(prestamo, 2, devuelto_por='Otro')
 
-        respuesta = self.client.post(reverse('devolucion_demo', args=[prestamo.pk]), {
-            'fecha_devolucion': ahora, 'devuelto_por': 'Otro', 'observacion': '',
-        })
-
-        self.assertRedirects(respuesta, reverse('movimientos_ventas'))
         prestamo.refresh_from_db()
-        self.assertEqual(prestamo.devuelto_por, 'Ivan', 'el primer cierre es el que vale')
+        self.bascula.refresh_from_db()
+        self.assertEqual(prestamo.devoluciones.count(), 1)
+        self.assertEqual(prestamo.devoluciones.get().devuelto_por, 'Ivan')
+        self.assertEqual(self.bascula.stock_actual, 10)
 
-    def test_una_venta_normal_no_ofrece_devolucion(self):
+    def test_una_venta_nace_resuelta(self):
         self.registrar_ingreso([(self.bascula, 5)])
         self.registrar_salida([(self.bascula, 1)])
         venta = MovimientoVenta.objects.get(tipo_documento=MovimientoVenta.TipoDocumento.SALIDA)
 
-        respuesta = self.client.get(reverse('devolucion_demo', args=[venta.pk]))
-
-        self.assertRedirects(respuesta, reverse('movimientos_ventas'))
+        self.assertEqual(venta.cantidad_vendida, 1)
+        self.assertFalse(venta.tiene_pendientes)
 
 
 class KardexYDocumentoTests(BaseMovimientos):
@@ -295,7 +300,7 @@ class KardexYDocumentoTests(BaseMovimientos):
         # 2 × 1500 + 3 × 400 = 4200
         self.assertEqual(int(respuesta.context['total_quetzales']), 4200)
 
-    def test_el_historial_filtra_solo_los_prestamos_afuera(self):
+    def test_el_historial_filtra_lo_que_tiene_pendiente(self):
         self.registrar_ingreso([(self.bascula, 10)])
         self.registrar_salida([(self.bascula, 1)])
         self.registrar_salida(
@@ -303,11 +308,11 @@ class KardexYDocumentoTests(BaseMovimientos):
             tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
         )
 
-        respuesta = self.client.get(reverse('movimientos_ventas'), {'afuera': 'si'})
+        respuesta = self.client.get(reverse('movimientos_ventas'), {'estado': 'pendientes'})
         movimientos = list(respuesta.context['movimientos'])
 
         self.assertEqual(len(movimientos), 1)
-        self.assertTrue(movimientos[0].esta_afuera)
+        self.assertTrue(movimientos[0].tiene_pendientes)
 
 
 class StockAlBorrarMovimientosTests(BaseMovimientos):

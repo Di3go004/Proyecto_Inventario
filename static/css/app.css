@@ -721,3 +721,34 @@ form.card > .errorlist,
 .fila-unidad { background: var(--surface-alt); }
 .fila-unidad td { color: var(--text-muted); }
 .unidad-marca { color: var(--text-faint); padding-left: 6px; }
+
+/* --- Salidas abiertas ---------------------------------------------------- */
+
+/* Una boleta cerrada ya no pide nada: el aviso va en gris, no en amarillo. */
+.aviso-cerrada {
+  margin: 0 0 16px; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--state-neutral-bg); color: var(--state-neutral-fg); font-size: .88rem;
+}
+
+/* El botón de cerrar es un formulario (va por POST), pero se acomoda junto a
+   los enlaces del encabezado como uno más. */
+.form-en-linea { display: inline; margin: 0; }
+
+/* Qué pasó con cada serial de una salida. El color es de apoyo: el título
+   del chip lo dice en palabras. */
+.serial-chip.serial-vendida { background: var(--state-good-bg); color: var(--state-good-fg); }
+.serial-chip.serial-devuelta { background: var(--state-neutral-bg); color: var(--state-neutral-fg); }
+.serial-chip.serial-pendiente { background: var(--state-warn-bg); color: var(--state-warn-fg); }
+
+/* Los radios del resultado por aparato, centrados en su columna, y sus
+   títulos encima de ellos. */
+.tabla-resultado td:not(.celda-principal),
+.tabla-resultado th:not(:first-child) { text-align: center; }
+.opcion-resultado { display: inline-flex; padding: 6px; cursor: pointer; }
+.opcion-resultado input { width: 18px; height: 18px; cursor: pointer; }
+
+/* Cómo sale cada línea de la salida, debajo del producto. El ancho mínimo es
+   el de "Préstamo / Demo", la opción más larga: más angosto, se cortaba. */
+.linea-tipo-campo { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.linea-tipo-rotulo { color: var(--text-muted); font-size: .82rem; white-space: nowrap; }
+.linea-tipo-campo .linea-tipo { width: auto; min-width: 176px; padding-top: 6px; padding-bottom: 6px; }

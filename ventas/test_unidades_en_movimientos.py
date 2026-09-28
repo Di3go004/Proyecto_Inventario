@@ -71,7 +71,11 @@ class BaseUnidadesEnMovimientos(TestCase):
         return self.client.post(reverse('movimiento_ingreso'), datos)
 
     def sacar(self, lineas, **extra):
+        """En la salida el tipo va por línea; por defecto, venta."""
+        tipo = extra.pop('tipo_transaccion', MovimientoVenta.TipoTransaccion.VENTA)
         datos = self.cabecera(**extra)
+        datos.pop('tipo_transaccion')
+        datos['linea_tipo'] = [tipo for _linea in lineas]
         datos.setdefault('entregado_por', 'Bodega')
         datos.setdefault('cliente_nombre', 'Cliente X')
         datos.setdefault('envio_recibo', '')
@@ -281,10 +285,15 @@ class DemoQueVaYVuelveTests(BaseUnidadesEnMovimientos):
         )
 
     def devolver(self, movimiento):
-        return self.client.post(reverse('devolucion_demo', args=[movimiento.pk]), {
-            'fecha_devolucion': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+        """Registra que regresaron todos los aparatos de esa línea."""
+        datos = {
+            f'unidad_{unidad.pk}': 'devuelta' for unidad in movimiento.unidades.all()
+        }
+        datos.update({
+            'fecha_regreso': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             'devuelto_por': 'Ivan Leiva', 'observacion': '',
         })
+        return self.client.post(reverse('salida_resultado', args=[movimiento.pk]), datos)
 
     def test_mientras_esta_afuera_no_esta_en_bodega(self):
         self.prestar('A-1001', 'SAL-00001')
@@ -294,9 +303,9 @@ class DemoQueVaYVuelveTests(BaseUnidadesEnMovimientos):
 
     def test_al_devolverlo_vuelve_a_bodega_solo(self):
         """
-        Nadie destilda nada: la devolución vuelve el movimiento neto cero, y
-        con eso la unidad vuelve a contar. Es la misma regla que ya devolvía
-        la existencia del producto.
+        Nadie destilda nada: la devolución es un ingreso más de la unidad, y
+        con eso vuelve a contar. Es la misma regla que ya devolvía la
+        existencia del producto.
         """
         self.prestar('A-1001', 'SAL-00001')
         movimiento = MovimientoVenta.objects.get(folio='SAL-00001')
@@ -606,10 +615,12 @@ class LaFilaDeLaUnidadLlevaASuBoletaTests(BaseUnidadesEnMovimientos):
             tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
         )
         movimiento = MovimientoVenta.objects.get(folio='SAL-00070')
-        self.client.post(reverse('devolucion_demo', args=[movimiento.pk]), {
-            'fecha_devolucion': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+        datos = {f'unidad_{u.pk}': 'devuelta' for u in movimiento.unidades.all()}
+        datos.update({
+            'fecha_regreso': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             'devuelto_por': 'Ivan Leiva', 'observacion': '',
         })
+        self.client.post(reverse('salida_resultado', args=[movimiento.pk]), datos)
 
         self.assertEqual(self.fila_de('A-1001').boleta_de_referencia, 'ING-00070')
 

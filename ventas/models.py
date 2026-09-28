@@ -179,7 +179,12 @@ class Articulo(models.Model):
         se edita o se borra (cosa posible desde el panel de administración),
         el stock vuelve a cuadrar solo en vez de quedar desincronizado.
 
-          ingresos - salidas + salidas de préstamo/demo ya devueltas
+          ingresos - salidas
+
+        Lo que regresa de una salida es un ingreso más (una devolución), con
+        su propia fecha. Antes el regreso de un préstamo se anotaba en la
+        misma salida y la volvía cero, y eso reescribía el pasado: el kardex
+        pasaba a decir que el equipo nunca había salido.
         """
         from django.db.models import Case, IntegerField, Sum, When
 
@@ -187,13 +192,6 @@ class Articulo(models.Model):
             total=Sum(
                 Case(
                     When(tipo_documento=MovimientoVenta.TipoDocumento.INGRESO, then=models.F('cantidad')),
-                    # Un préstamo/demo ya devuelto salió y volvió: neto cero.
-                    When(
-                        tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
-                        tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
-                        fecha_devolucion__isnull=False,
-                        then=0,
-                    ),
                     When(tipo_documento=MovimientoVenta.TipoDocumento.SALIDA, then=-models.F('cantidad')),
                     default=0,
                     output_field=IntegerField(),
@@ -263,12 +261,52 @@ def _ultimo_folio(modelo, prefijo):
         # cuántos hay en vez de reventar.
         return modelo.objects.filter(folio__startswith=f'{prefijo}-').count()
 
+class MovimientoQuerySet(models.QuerySet):
+    """Preguntas sobre las salidas que dependen de sus devoluciones."""
+
+    def con_devueltas(self):
+        # `suma_devuelta` y no `devueltas`: ese nombre ya es una propiedad del
+        # modelo, y Django no puede escribir la columna anotada encima de ella.
+        return self.annotate(
+            suma_devuelta=models.functions.Coalesce(
+                models.Sum('devoluciones__cantidad'), 0,
+            ),
+        )
+
+    def salidas_pendientes(self):
+        """Líneas de salida a las que todavía les falta resultado."""
+        return (
+            self.filter(tipo_documento=MovimientoVenta.TipoDocumento.SALIDA)
+            .con_devueltas()
+            .filter(cantidad__gt=models.F('cantidad_vendida') + models.F('suma_devuelta'))
+        )
+
+    def salidas_por_cerrar(self):
+        """Líneas ya resueltas de boletas que el administrador no ha cerrado."""
+        return (
+            self.filter(
+                tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+                fecha_cierre__isnull=True,
+            )
+            .con_devueltas()
+            .filter(cantidad=models.F('cantidad_vendida') + models.F('suma_devuelta'))
+        )
+
+
 class MovimientoVenta(models.Model):
     """
     Reemplaza FO-SE-013 (ingreso) y FO-SE-012 (salida) en una sola tabla.
-    Una salida de tipo préstamo/demo se "cierra" completando
-    fecha_devolucion/devuelto_por en la misma fila (RF-06), igual que el
-    patrón de una sola fila que ya usan en FO-SE-066.
+
+    **Una salida nace abierta.** Cuando el técnico se lleva algo, nadie sabe
+    todavía si se va a instalar o si va a regresar: eso se sabe cuando vuelve.
+    Por eso cada línea sale como pendiente y después se le registra su
+    resultado —cuántas se vendieron y cuántas regresaron—, y cuando ya no le
+    falta nada a ninguna línea, el administrador cierra la boleta.
+
+    Lo que regresa no se anota en la salida: es su propio movimiento, un
+    ingreso de devolución amarrado a la línea (`devolucion_de`), con la fecha
+    en que regresó. Así el regreso puede ser parcial —de 4 celdas regresa 1—
+    y el kardex conserva el día en que salieron.
     """
 
     class TipoDocumento(models.TextChoices):
@@ -278,11 +316,25 @@ class MovimientoVenta(models.Model):
     class TipoTransaccion(models.TextChoices):
         VENTA = 'venta', 'Venta'
         PRESTAMO_DEMO = 'prestamo_demo', 'Préstamo / Demo'
+        # Lo que se lleva el técnico sin saber si lo va a usar: se resuelve
+        # cuando regresa. No es lo mismo que un demo, que va a un cliente.
+        CON_TECNICO = 'con_tecnico', 'Con el técnico'
         REPUESTOS = 'repuestos', 'Repuestos'
         MATERIALES_OTRO = 'materiales_otro', 'Materiales / Otro'
+        # Lo que regresó de una salida. No se registra en una boleta de
+        # ingreso: nace al registrar el resultado de la línea que salió.
+        DEVOLUCION = 'devolucion', 'Devolución'
         # Saldo inicial al crear un artículo nuevo por carga masiva desde
         # Excel (RF-09) — no es una compra real, es "así arrancó el conteo".
         AJUSTE_INICIAL = 'ajuste_inicial', 'Ajuste / Saldo inicial'
+
+    # Cómo puede salir cada línea de una boleta FO-SE-012. Repuestos y
+    # materiales ya no se ofrecen al salir: si se usaron, se vendieron.
+    TIPOS_DE_SALIDA = (
+        TipoTransaccion.CON_TECNICO,
+        TipoTransaccion.PRESTAMO_DEMO,
+        TipoTransaccion.VENTA,
+    )
 
     # Un mismo folio agrupa todas las líneas de un documento: una boleta
     # FO-SE-013/012 lleva varios productos en la misma hoja. Por eso no es
@@ -330,9 +382,33 @@ class MovimientoVenta(models.Model):
     envio_recibo = models.CharField(max_length=100, blank=True)
     observacion = models.TextField(blank=True)
 
-    # Cierre de préstamo/demo (equivalente a "DEVUELTO POR" en FO-SE-012):
-    fecha_devolucion = models.DateTimeField(null=True, blank=True)
+    # --- El resultado de una línea de salida -------------------------------
+    #
+    # Cuántas de esta línea se confirmaron vendidas. Las que regresaron no van
+    # acá: son sus devoluciones. Lo que falta para completar la cantidad está
+    # pendiente. Un repuesto que se usó en un trabajo cuenta como vendido: se
+    # lo llevó el cliente.
+    cantidad_vendida = models.PositiveIntegerField(default=0)
+
+    # En una devolución, la línea de salida de la que regresó.
+    devolucion_de = models.ForeignKey(
+        'self', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='devoluciones',
+    )
+    # Quién trajo de regreso lo que salió: el "DEVUELTO POR" del FO-SE-012.
+    # Va en la devolución, que es la que registra el regreso.
     devuelto_por = models.CharField(max_length=150, blank=True)
+
+    # Cuándo y quién cerró la boleta. Se escribe en todas las líneas del folio
+    # a la vez, igual que el resto del encabezado. Cerrada, ya no se le puede
+    # cambiar ningún resultado.
+    fecha_cierre = models.DateTimeField(null=True, blank=True)
+    cerrada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='boletas_cerradas',
+    )
+
+    objects = MovimientoQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'Movimiento de venta'
@@ -340,6 +416,16 @@ class MovimientoVenta(models.Model):
         ordering = ['-fecha']
         constraints = [
             models.CheckConstraint(check=models.Q(cantidad__gt=0), name='chk_mov_venta_cantidad_positiva'),
+            models.CheckConstraint(
+                check=models.Q(cantidad_vendida__lte=models.F('cantidad')),
+                name='chk_mov_venta_vendidas_hasta_cantidad',
+                violation_error_message='No se pueden vender más unidades de las que salieron.',
+            ),
+            # Una devolución es algo que entra: nunca una salida.
+            models.CheckConstraint(
+                check=models.Q(devolucion_de__isnull=True) | models.Q(tipo_documento='ingreso'),
+                name='chk_mov_venta_devolucion_es_ingreso',
+            ),
         ]
         indexes = [
             models.Index(fields=['articulo', 'fecha']),
@@ -375,30 +461,99 @@ class MovimientoVenta(models.Model):
         return f'{prefijo}-{numero:05d}'
 
     @property
-    def esta_afuera(self):
-        """Préstamo/demo que ya salió y todavía no regresa (RF-06)."""
-        return (
-            self.tipo_documento == self.TipoDocumento.SALIDA
-            and self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO
-            and self.fecha_devolucion is None
-        )
+    def es_salida(self):
+        return self.tipo_documento == self.TipoDocumento.SALIDA
+
+    @property
+    def es_devolucion(self):
+        return self.devolucion_de_id is not None
+
+    @property
+    def es_demo(self):
+        return self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO
+
+    @property
+    def devueltas(self):
+        """
+        Cuántas de esta línea regresaron, sumando sus devoluciones.
+
+        Se suma en Python para aprovechar el prefetch de `devoluciones`: las
+        pantallas preguntan esto por cada línea de la lista.
+        """
+        if not self.es_salida:
+            return 0
+        return sum(devolucion.cantidad for devolucion in self.devoluciones.all())
+
+    @property
+    def pendientes(self):
+        """Lo que falta resolver: ni confirmado vendido ni regresado."""
+        if not self.es_salida:
+            return 0
+        return self.cantidad - self.cantidad_vendida - self.devueltas
+
+    @property
+    def tiene_pendientes(self):
+        return self.pendientes > 0
+
+    @property
+    def esta_cerrada(self):
+        return self.fecha_cierre is not None
+
+    @property
+    def resultado(self):
+        """
+        Cómo va la línea, en partes: [('vendidas', 3), ('devueltas', 1)].
+
+        En partes porque una línea puede terminar repartida: de 4 celdas se
+        instalan 3 y regresa 1. Solo trae las partes que no son cero.
+        """
+        if not self.es_salida:
+            return []
+        partes = [
+            ('vendidas', self.cantidad_vendida),
+            ('devueltas', self.devueltas),
+            ('pendientes', self.pendientes),
+        ]
+        return [(nombre, cuantas) for nombre, cuantas in partes if cuantas]
 
     @property
     def signo(self):
-        """+1 si suma al stock, -1 si resta, 0 si es un préstamo ya devuelto.
+        """+1 si suma al stock, -1 si resta.
 
         Es la misma regla que aplica calcular_stock_desde_movimientos, pero
-        en Python, para pintar el kardex sin volver a consultar la base.
+        en Python, para pintar el kardex sin volver a consultar la base. Ya
+        no hay caso especial para los préstamos: lo que regresa es su propio
+        ingreso.
         """
         if self.tipo_documento == self.TipoDocumento.INGRESO:
             return 1
-        if self.tipo_transaccion == self.TipoTransaccion.PRESTAMO_DEMO and self.fecha_devolucion:
-            return 0
         return -1
 
-    def clean(self):
-        if self.tipo_transaccion != self.TipoTransaccion.PRESTAMO_DEMO and (self.fecha_devolucion or self.devuelto_por):
-            raise ValidationError('Solo un movimiento de tipo "Préstamo / Demo" puede tener datos de devolución.')
+    def estado_de_unidades(self):
+        """
+        Qué pasó con cada aparato de esta línea de salida:
+        [(unidad, 'vendida' | 'devuelta' | 'pendiente'), ...].
+
+        Devuelta si está en alguna devolución de esta línea; vendida si su
+        paso por esta salida quedó marcado así; si no, sigue pendiente.
+        """
+        devueltas = {
+            unidad.pk
+            for devolucion in self.devoluciones.all()
+            for unidad in devolucion.unidades.all()
+        }
+        vendidas = {
+            paso.unidad_id for paso in self.pasos_de_unidad.all() if paso.vendida
+        }
+        estados = []
+        for unidad in self.unidades.all():
+            if unidad.pk in devueltas:
+                estados.append((unidad, 'devuelta'))
+            elif unidad.pk in vendidas:
+                estados.append((unidad, 'vendida'))
+            else:
+                estados.append((unidad, 'pendiente'))
+        return estados
 
     def save(self, *args, **kwargs):
         """
@@ -456,18 +611,12 @@ def _recuadrar_stock_al_borrar(sender, instance, **kwargs):
 
 # Dónde está una unidad: +1 en bodega, 0 fuera. Es la misma regla que
 # Articulo.calcular_stock_desde_movimientos aplicada a un solo aparato —un
-# ingreso la mete, una salida la saca, y un demo devuelto salió y volvió, o
-# sea neto cero. Escrita una sola vez para que la existencia del producto y
-# el paradero de sus unidades no puedan contradecirse.
+# ingreso la mete y una salida la saca—. Si regresa, entra con su devolución,
+# que es otro ingreso. Escrita una sola vez para que la existencia del
+# producto y el paradero de sus unidades no puedan contradecirse.
 SALDO_DE_UNIDAD = models.Sum(
     models.Case(
         models.When(movimientos__tipo_documento='ingreso', then=1),
-        models.When(
-            movimientos__tipo_documento='salida',
-            movimientos__tipo_transaccion='prestamo_demo',
-            movimientos__fecha_devolucion__isnull=False,
-            then=0,
-        ),
         models.When(movimientos__tipo_documento='salida', then=-1),
         default=0,
         output_field=models.IntegerField(),
@@ -617,6 +766,10 @@ class MovimientoUnidad(models.Model):
     unidad = models.ForeignKey(
         UnidadArticulo, on_delete=models.CASCADE, related_name='pasos',
     )
+    # Solo en las salidas: este aparato se confirmó vendido. Hace falta por
+    # unidad porque en una línea con seriales hay que saber cuál se vendió y
+    # cuál sigue pendiente, no solo cuántos.
+    vendida = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Unidad del movimiento'
@@ -659,17 +812,19 @@ def ingresar_unidades(movimiento, seriales):
     return unidades
 
 
-def sacar_unidades(movimiento, unidades):
+def sacar_unidades(movimiento, unidades, vendidas=False):
     """
     Ata a este movimiento las unidades que salen con él.
 
     La unidad no se marca ni se borra: queda registrada en el movimiento, y
-    de ahí se deduce que ya no está en bodega. Si el movimiento se borra o
-    —siendo un demo— se devuelve, la unidad vuelve sola, sin que nadie tenga
+    de ahí se deduce que ya no está en bodega. Si el movimiento se borra, o
+    si la unidad regresa con su devolución, vuelve sola, sin que nadie tenga
     que acordarse de destildar nada.
+
+    `vendidas` es para la línea que sale ya vendida: nace resuelta.
     """
     MovimientoUnidad.objects.bulk_create([
-        MovimientoUnidad(movimiento=movimiento, unidad=unidad)
+        MovimientoUnidad(movimiento=movimiento, unidad=unidad, vendida=vendidas)
         for unidad in unidades
     ])
 
@@ -692,3 +847,213 @@ def unidades_con_serial(seriales):
         .annotate(serial_mayus=models.functions.Upper('numero_serie'))
         .filter(serial_mayus__in=[serial.upper() for serial in seriales])
     )
+
+
+# ---------------------------------------------------------------------------
+# El resultado de una salida
+#
+# Una salida nace abierta y se resuelve después, cuando regresa el técnico.
+# Estas dos funciones son las únicas que lo hacen: la pantalla, las pruebas y
+# cualquier corrección futura pasan por acá, igual que las unidades pasan por
+# ingresar_unidades y sacar_unidades.
+# ---------------------------------------------------------------------------
+
+def registrar_resultado(
+    salida, *, usuario, vendidas=0, devueltas=0,
+    unidades_vendidas=(), unidades_devueltas=(),
+    fecha_regreso=None, devuelto_por='', observacion='',
+):
+    """
+    Dice qué pasó con una línea de salida: cuántas se vendieron y cuántas
+    regresaron. Lo que no sea ninguna de las dos sigue pendiente.
+
+    Recibe el resultado **completo** de la línea, no solo lo que cambió. Así
+    la misma pantalla sirve para registrarlo por partes —hoy regresa una, en
+    dos semanas regresa el demo— y para corregir un dato mal puesto mientras
+    la boleta siga abierta.
+
+    Lo que regresa de más entra como una devolución nueva, con la fecha en que
+    regresó. Si ahora regresaron menos que antes (se corrigió un error), se
+    deshace empezando por la devolución más reciente.
+
+    En una línea con seriales no se dan cantidades sino las unidades: hay que
+    saber cuál aparato regresó, no solo cuántos.
+    """
+    with transaction.atomic():
+        salida = (
+            MovimientoVenta.objects.select_for_update()
+            .select_related('articulo').get(pk=salida.pk)
+        )
+        if salida.tipo_documento != MovimientoVenta.TipoDocumento.SALIDA:
+            raise ValidationError('Solo una línea de salida lleva resultado.')
+        if salida.esta_cerrada:
+            raise ValidationError(
+                f'La boleta {salida.folio} ya está cerrada: sus resultados no se '
+                'pueden cambiar.'
+            )
+        # Se bloquea el artículo desde el principio: la existencia se revisa
+        # antes de tocar nada, y nadie más debe moverla mientras tanto.
+        articulo = Articulo.objects.select_for_update().get(pk=salida.articulo_id)
+
+        unidades = list(salida.unidades.all())
+        con_serial = bool(unidades)
+        if con_serial:
+            de_la_linea = {unidad.pk for unidad in unidades}
+            ids_vendidas = {unidad.pk for unidad in unidades_vendidas}
+            ids_devueltas = {unidad.pk for unidad in unidades_devueltas}
+            if not (ids_vendidas | ids_devueltas) <= de_la_linea:
+                raise ValidationError('Alguna de esas unidades no salió en esta línea.')
+            if ids_vendidas & ids_devueltas:
+                raise ValidationError('Una unidad no puede quedar vendida y devuelta a la vez.')
+            vendidas, devueltas = len(ids_vendidas), len(ids_devueltas)
+
+        if vendidas < 0 or devueltas < 0:
+            raise ValidationError('Las cantidades no pueden ser negativas.')
+        if vendidas + devueltas > salida.cantidad:
+            raise ValidationError(
+                f'Salieron {salida.cantidad}: no pueden ser {vendidas} vendidas '
+                f'y {devueltas} devueltas.'
+            )
+
+        devoluciones = list(
+            salida.devoluciones.order_by('-fecha', '-id').prefetch_related('unidades')
+        )
+        if con_serial:
+            ya_devueltas = {u.pk for d in devoluciones for u in d.unidades.all()}
+            por_regresar = [u for u in unidades if u.pk in ids_devueltas - ya_devueltas]
+            por_deshacer = [u for u in unidades if u.pk in ya_devueltas - ids_devueltas]
+            cuantas_regresan = len(por_regresar)
+        else:
+            ya = sum(d.cantidad for d in devoluciones)
+            cuantas_regresan = max(devueltas - ya, 0)
+            cuantas_se_deshacen = max(ya - devueltas, 0)
+
+        if cuantas_regresan:
+            if fecha_regreso is None:
+                raise ValidationError('Falta la fecha en que regresó.')
+            if fecha_regreso < salida.fecha:
+                raise ValidationError(
+                    'El regreso no puede ser anterior a la salida '
+                    f'({timezone.localtime(salida.fecha):%d/%m/%Y %H:%M}).'
+                )
+            if not (devuelto_por or '').strip():
+                raise ValidationError('Falta quién lo devolvió.')
+
+        # Deshacer el regreso de algo que ya volvió a salir dejaría la
+        # existencia en negativo. Se revisa antes de tocar nada: si se dejara
+        # para el final, la base lo rechazaría a medio camino con un error
+        # técnico en vez de este mensaje.
+        if not con_serial and cuantas_se_deshacen:
+            if articulo.calcular_stock_desde_movimientos() < cuantas_se_deshacen:
+                raise ValidationError(
+                    'No se puede deshacer ese regreso: lo que regresó de '
+                    f'"{articulo.nombre_producto}" ya volvió a salir con otra boleta.'
+                )
+
+        # Primero se deshace lo que ya no regresó, después se registra lo que
+        # sí: al revés, el stock subiría de más a mitad de camino.
+        if con_serial:
+            for unidad in por_deshacer:
+                if not unidad.en_bodega:
+                    salio_con = unidad.movimiento_salida
+                    con_boleta = (
+                        f' con la boleta {salio_con.folio}'
+                        if salio_con is not None and salio_con.folio else ''
+                    )
+                    raise ValidationError(
+                        f'El {unidad.numero_serie} ya volvió a salir{con_boleta}: '
+                        'no se puede deshacer su regreso.'
+                    )
+            ids_por_deshacer = {unidad.pk for unidad in por_deshacer}
+            for devolucion in devoluciones:
+                quitar = [u.pk for u in devolucion.unidades.all() if u.pk in ids_por_deshacer]
+                if not quitar:
+                    continue
+                MovimientoUnidad.objects.filter(
+                    movimiento=devolucion, unidad_id__in=quitar,
+                ).delete()
+                quedan = devolucion.cantidad - len(quitar)
+                if quedan:
+                    devolucion.cantidad = quedan
+                    devolucion.save()
+                else:
+                    devolucion.delete()
+        else:
+            for devolucion in devoluciones:
+                if not cuantas_se_deshacen:
+                    break
+                if devolucion.cantidad <= cuantas_se_deshacen:
+                    cuantas_se_deshacen -= devolucion.cantidad
+                    devolucion.delete()
+                else:
+                    devolucion.cantidad -= cuantas_se_deshacen
+                    cuantas_se_deshacen = 0
+                    devolucion.save()
+
+        if cuantas_regresan:
+            devolucion = MovimientoVenta.objects.create(
+                folio=salida.folio,
+                tipo_documento=MovimientoVenta.TipoDocumento.INGRESO,
+                tipo_transaccion=MovimientoVenta.TipoTransaccion.DEVOLUCION,
+                articulo=salida.articulo,
+                cantidad=cuantas_regresan,
+                fecha=fecha_regreso,
+                usuario=usuario,
+                # Regresa al precio con que salió: es el mismo equipo.
+                precio_unitario=salida.precio_unitario,
+                cliente_nombre=salida.cliente_nombre,
+                devolucion_de=salida,
+                devuelto_por=devuelto_por.strip(),
+                observacion=(observacion or '').strip(),
+            )
+            if con_serial:
+                MovimientoUnidad.objects.bulk_create([
+                    MovimientoUnidad(movimiento=devolucion, unidad=unidad)
+                    for unidad in por_regresar
+                ])
+
+        # update() y no save(): lo vendido no mueve la existencia, así que no
+        # hay nada que recalcular. La restricción de la base sigue cuidando
+        # que no se vendan más de las que salieron.
+        MovimientoVenta.objects.filter(pk=salida.pk).update(cantidad_vendida=vendidas)
+        if con_serial:
+            pasos = MovimientoUnidad.objects.filter(movimiento=salida)
+            pasos.update(vendida=False)
+            pasos.filter(unidad_id__in=ids_vendidas).update(vendida=True)
+
+        articulo.recalcular_stock()
+
+
+def cerrar_boleta(folio, usuario):
+    """
+    Cierra una boleta de salida: desde ahí ningún resultado se puede cambiar.
+
+    Solo se cierra si a ninguna línea le falta resultado. El cierre se escribe
+    en todas las líneas del folio, igual que el resto del encabezado.
+    """
+    with transaction.atomic():
+        bloqueadas = list(
+            MovimientoVenta.objects.select_for_update().filter(
+                folio=folio, tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+            )
+        )
+        if not bloqueadas:
+            raise ValidationError(f'No hay ninguna boleta de salida con el número {folio}.')
+        if any(linea.esta_cerrada for linea in bloqueadas):
+            raise ValidationError(f'La boleta {folio} ya estaba cerrada.')
+
+        lineas = MovimientoVenta.objects.filter(
+            pk__in=[linea.pk for linea in bloqueadas],
+        ).prefetch_related('devoluciones')
+        sin_resultado = [linea for linea in lineas if linea.tiene_pendientes]
+        if sin_resultado:
+            raise ValidationError(
+                f'Todavía hay {len(sin_resultado)} línea(s) sin resultado. '
+                'La boleta se cierra cuando ya se sabe qué pasó con todo.'
+            )
+
+        ahora = timezone.now()
+        MovimientoVenta.objects.filter(
+            pk__in=[linea.pk for linea in bloqueadas],
+        ).update(fecha_cierre=ahora, cerrada_por=usuario)
+        return ahora

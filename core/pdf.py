@@ -197,15 +197,17 @@ def campo(etiqueta, valor, ancho_linea=55 * mm, alto=6.5 * mm, compacto=False, a
 def casillas(opciones, marcada, compacto=False):
     """
     El bloque de casillas del papel (Equipo venta / Equipo préstamo /
-    Repuestos / Materiales-Otro), con una X en la que corresponde al tipo de
-    movimiento registrado.
+    Repuestos / Materiales-Otro), con una X en las que corresponden.
 
-    `opciones` es una lista de (clave, etiqueta); `marcada` es la clave.
+    `opciones` es una lista de (clave, etiqueta); `marcada` es una clave o
+    varias. Varias porque una boleta de salida puede llevar líneas de tipos
+    distintos, y en el papel se marcan todas las casillas que apliquen.
     """
+    marcadas = {marcada} if isinstance(marcada, str) else set(marcada or ())
     estilo_texto = META_CHICA if compacto else META
     estilo_marca = CELDA_CHICA_CENTRADA if compacto else CELDA_CENTRADA
     filas = [
-        [Paragraph(etiqueta, estilo_texto), Paragraph('X' if clave == marcada else '', estilo_marca)]
+        [Paragraph(etiqueta, estilo_texto), Paragraph('X' if clave in marcadas else '', estilo_marca)]
         for clave, etiqueta in opciones
     ]
     anchos = [22 * mm, 6 * mm] if compacto else [28 * mm, 8 * mm]

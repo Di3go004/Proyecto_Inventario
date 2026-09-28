@@ -7,8 +7,9 @@
     <p class="eyebrow">Reportes</p>
     <h1 class="page-title">Fuera de bodega</h1>
     <p class="page-sub">
-      Equipo en demo y herramienta prestada que todavía no regresa, de los dos
-      módulos junto. Lo que lleva más tiempo afuera va primero.
+      Lo que salió de Bodega 1 y 2 y todavía no tiene resultado —con el
+      técnico o en demo con un cliente—, y la herramienta prestada que no ha
+      regresado. Lo que lleva más tiempo afuera va primero.
     </p>
   </div>
   <div class="page-acciones">
@@ -19,7 +20,7 @@
 
 <div class="kpi-row" style="margin-bottom:20px;">
   <div class="kpi-tile">
-    <div class="kpi-label">Pendientes de regreso</div>
+    <div class="kpi-label">Pendientes</div>
     <div class="kpi-value">{{ cuantos }}</div>
   </div>
   <div class="kpi-tile">
@@ -57,7 +58,7 @@
       {% if user.puede_editar %}
       <td class="celda-acciones">
         <span class="actions">
-          <a href="{{ f.url }}" class="btn btn-sm btn-primary">Registrar regreso</a>
+          <a href="{{ f.url }}" class="btn btn-sm btn-primary">{{ f.accion }}</a>
         </span>
       </td>
       {% endif %}

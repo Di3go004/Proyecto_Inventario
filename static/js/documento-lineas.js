@@ -63,6 +63,12 @@
 
     function agregarFila() {
       var fila = plantilla.content.firstElementChild.cloneNode(true);
+      // Una línea nueva sale igual que la de arriba: si la boleta entera es
+      // un demo, se elige una vez y las demás lo siguen. Solo se cambian las
+      // que son distintas.
+      var anteriores = cuerpo.querySelectorAll('tr.linea .linea-tipo');
+      var tipo = fila.querySelector('.linea-tipo');
+      if (tipo && anteriores.length) tipo.value = anteriores[anteriores.length - 1].value;
       cuerpo.appendChild(fila);
       window.iniciarAutocompletar(fila);
       if (window.iniciarSeriales) window.iniciarSeriales(fila.querySelector('.seriales'));

@@ -107,14 +107,15 @@ def _recortar(texto, ancho_columna, estilo):
     return texto.rstrip() + '…'
 
 
-def _descripcion(linea, ancho_columna, serial=''):
+def _descripcion(linea, ancho_columna, serial='', etiqueta=''):
     """
     Producto, marca/modelo y código en un solo renglón — la columna del papel
     se llama justamente "DESCRIPCIÓN Y CÓDIGO".
 
     Cuando el renglón es de una unidad con serial, el serial va al final y es
     lo último que se recorta: se le descuenta su ancho al resto. Un serial a
-    medias no identifica ningún aparato, que es justo para lo que sirve.
+    medias no identifica ningún aparato, que es justo para lo que sirve. Lo
+    mismo con la etiqueta del resultado (VENDIDO, REGRESÓ...), que va después.
     """
     producto = linea.producto
     # capacidad solo la tienen los artículos de venta; la herramienta no.
@@ -127,10 +128,10 @@ def _descripcion(linea, ancho_columna, serial=''):
     partes.append(producto.codigo_interno)
     texto = ' · '.join(partes)
 
-    if not serial:
+    sufijo = (f' · S/N {serial}' if serial else '') + (f' · {etiqueta}' if etiqueta else '')
+    if not sufijo:
         return _recortar(texto, ancho_columna, pdf.CELDA_CHICA)
 
-    sufijo = f' · S/N {serial}'
     ancho_sufijo = stringWidth(sufijo, pdf.CELDA_CHICA.fontName, pdf.CELDA_CHICA.fontSize)
     return _recortar(texto, ancho_columna - ancho_sufijo, pdf.CELDA_CHICA) + sufijo
 
@@ -142,6 +143,16 @@ class Renglon:
     linea: object
     cantidad: int
     serial: str
+    etiqueta: str = ''
+
+
+# Cómo se imprime el resultado de un renglón de salida.
+ETIQUETA_DE_ESTADO = {'vendida': 'VENDIDO', 'devuelta': 'REGRESÓ'}
+ETIQUETA_DE_PARTE = {'vendidas': 'VENDIDO', 'devueltas': 'REGRESÓ'}
+
+
+def _pendiente(linea):
+    return 'DEMO' if linea.es_demo else 'PENDIENTE'
 
 
 def renglones_de(lineas):
@@ -153,14 +164,34 @@ def renglones_de(lineas):
     seriales no caben en la columna, y recortarlos deja el documento sin el
     dato por el que se lleva serie. Se reparte antes de paginar para que las
     hojas sigan saliendo de nueve renglones, como el talonario.
+
+    En una salida, además, una línea se parte según su resultado: de 4 celdas,
+    un renglón de 3 VENDIDO y otro de 1 REGRESÓ. Las etiquetas solo se
+    imprimen si la boleta mezcla resultados; si todo va igual, lo dice la
+    casilla de arriba y los renglones quedan como en el papel.
     """
     renglones = []
     for linea in lineas:
-        seriales = linea.seriales
-        if seriales:
-            renglones += [Renglon(linea, 1, serial) for serial in seriales]
+        es_salida = not linea.es_tecnica and linea.movimiento.es_salida
+        if es_salida and linea.seriales:
+            renglones += [
+                Renglon(linea, 1, unidad.numero_serie,
+                        ETIQUETA_DE_ESTADO.get(estado) or _pendiente(linea))
+                for unidad, estado in linea.movimiento.estado_de_unidades()
+            ]
+        elif es_salida:
+            renglones += [
+                Renglon(linea, cuantas, '', ETIQUETA_DE_PARTE.get(parte) or _pendiente(linea))
+                for parte, cuantas in linea.resultado
+            ]
+        elif linea.seriales:
+            renglones += [Renglon(linea, 1, serial) for serial in linea.seriales]
         else:
             renglones.append(Renglon(linea, linea.cantidad, ''))
+
+    if len({renglon.etiqueta for renglon in renglones}) <= 1:
+        for renglon in renglones:
+            renglon.etiqueta = ''
     return renglones
 
 
@@ -172,7 +203,7 @@ def _filas(renglones, es_ingreso):
         return [
             [
                 Paragraph(str(renglon.cantidad), pdf.CELDA_CHICA_CENTRADA),
-                Paragraph(_descripcion(renglon.linea, ancho_descripcion, renglon.serial),
+                Paragraph(_descripcion(renglon.linea, ancho_descripcion, renglon.serial, renglon.etiqueta),
                           pdf.CELDA_CHICA),
                 # El precio del MOVIMIENTO, no el del catálogo: reimprimir esta
                 # boleta después de un cambio de precio tenía que dar el mismo
@@ -191,7 +222,7 @@ def _filas(renglones, es_ingreso):
     return [
         [
             Paragraph(str(renglon.cantidad), pdf.CELDA_CHICA_CENTRADA),
-            Paragraph(_descripcion(renglon.linea, ancho_descripcion, renglon.serial),
+            Paragraph(_descripcion(renglon.linea, ancho_descripcion, renglon.serial, renglon.etiqueta),
                       pdf.CELDA_CHICA),
             Paragraph(_recortar(renglon.linea.cliente_nombre or '', anchos[2], pdf.CELDA_CHICA),
                       pdf.CELDA_CHICA),
@@ -200,7 +231,38 @@ def _filas(renglones, es_ingreso):
     ]
 
 
-def _datos_y_casillas(cabecera, es_ingreso):
+def casillas_marcadas(lineas, es_ingreso):
+    """
+    Qué casillas del papel van con X.
+
+    En el ingreso, la del tipo del encabezado. En la salida, las de todas sus
+    líneas —una boleta puede llevar un demo y una venta— más "Equipo venta"
+    en cuanto algo que salió con el técnico se confirma vendido. Lo que sigue
+    con el técnico no marca ninguna: todavía no se sabe qué va a ser.
+    """
+    if es_ingreso:
+        return {getattr(lineas[0].movimiento, 'tipo_transaccion', '')}
+    marcadas = {linea.movimiento.tipo_transaccion for linea in lineas}
+    if any(linea.movimiento.cantidad_vendida for linea in lineas):
+        marcadas.add(MovimientoVenta.TipoTransaccion.VENTA)
+    return marcadas
+
+
+def devuelto_por(lineas):
+    """
+    Quiénes trajeron de regreso lo que salió, para el "DEVUELTO POR" del pie.
+    Sale de las devoluciones de la boleta, sin repetir nombres.
+    """
+    nombres = [
+        devolucion.devuelto_por
+        for linea in lineas if not linea.es_tecnica
+        for devolucion in linea.movimiento.devoluciones.all()
+        if devolucion.devuelto_por
+    ]
+    return ', '.join(dict.fromkeys(nombres))
+
+
+def _datos_y_casillas(cabecera, es_ingreso, marcadas):
     """El folio y los campos de arriba, con el bloque de casillas a la derecha."""
     fecha = timezone.localtime(cabecera.fecha).strftime('%d/%m/%Y')
 
@@ -222,12 +284,12 @@ def _datos_y_casillas(cabecera, es_ingreso):
         # Un ingreso solo de Bodega Técnica no trae tipo de transacción (esas
         # casillas son de la boleta de venta): quedan todas sin marcar, como
         # en el papel cuando no aplica ninguna.
-        [[izquierda, pdf.casillas(OPCIONES_TIPO, getattr(cabecera, 'tipo_transaccion', ''), compacto=True)]],
+        [[izquierda, pdf.casillas(OPCIONES_TIPO, marcadas, compacto=True)]],
         colWidths=[ANCHO_UTIL - ancho_casillas, ancho_casillas],
     ))
 
 
-def _pie_de_salida(cabecera):
+def _pie_de_salida(cabecera, quien_devolvio):
     """
     Solo FO-SE-012 lo trae. En el papel son dos columnas de tres renglones:
     a la izquierda factura/envío/devuelto por, a la derecha las tres firmas.
@@ -244,7 +306,7 @@ def _pie_de_salida(cabecera):
                   alto=ALTO_PIE, compacto=True, ancho_etiqueta=24 * mm),
         pdf.campo('ENVÍO Y/O RECIBO', cabecera.envio_recibo, ancho_linea=ancho_linea,
                   alto=ALTO_PIE, compacto=True, ancho_etiqueta=24 * mm),
-        pdf.campo('DEVUELTO POR:', cabecera.devuelto_por, ancho_linea=ancho_linea,
+        pdf.campo('DEVUELTO POR:', quien_devolvio, ancho_linea=ancho_linea,
                   alto=ALTO_PIE, compacto=True, ancho_etiqueta=24 * mm),
     ]
     # Las firmas son campos vacíos con su rótulo: en el papel se llenan a mano
@@ -266,7 +328,7 @@ def _pie_de_salida(cabecera):
     ]
 
 
-def _pagina(cabecera, renglones, es_ingreso, numero, total):
+def _pagina(cabecera, renglones, es_ingreso, numero, total, marcadas=(), quien_devolvio=''):
     titulo = 'INGRESO A BODEGA' if es_ingreso else 'SALIDA DE BODEGA'
     codigo = 'FO-SE-013' if es_ingreso else 'FO-SE-012'
     encabezados, anchos = COLUMNAS_INGRESO if es_ingreso else COLUMNAS_SALIDA
@@ -282,7 +344,7 @@ def _pagina(cabecera, renglones, es_ingreso, numero, total):
             compacto=True,
         ),
         Spacer(1, 2 * mm),
-        _datos_y_casillas(cabecera, es_ingreso),
+        _datos_y_casillas(cabecera, es_ingreso, marcadas),
         Spacer(1, 2 * mm),
         pdf.tabla_de_detalle(
             encabezados, _filas(renglones, es_ingreso), anchos,
@@ -299,7 +361,7 @@ def _pagina(cabecera, renglones, es_ingreso, numero, total):
         ]
 
     if not es_ingreso and numero == total:
-        elementos += _pie_de_salida(cabecera)
+        elementos += _pie_de_salida(cabecera, quien_devolvio)
 
     return elementos
 
@@ -330,12 +392,14 @@ def boleta_documento(folio):
     # los nueve del talonario.
     grupos = agrupar_en_paginas(renglones_de(lineas))
     total = len(grupos)
+    marcadas = casillas_marcadas(lineas, es_ingreso)
+    quien_devolvio = '' if es_ingreso else devuelto_por(lineas)
 
     flujo = []
     for numero, grupo in enumerate(grupos, start=1):
         if numero > 1:
             flujo.append(PageBreak())
-        flujo.extend(_pagina(cabecera, grupo, es_ingreso, numero, total))
+        flujo.extend(_pagina(cabecera, grupo, es_ingreso, numero, total, marcadas, quien_devolvio))
 
     memoria = io.BytesIO()
     documento = SimpleDocTemplate(

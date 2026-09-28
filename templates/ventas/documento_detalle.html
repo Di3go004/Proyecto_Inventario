@@ -8,17 +8,47 @@
     </p>
     <h1 class="page-title">Boleta {{ folio }}</h1>
     <p class="page-sub">
-      {% if cabecera.get_tipo_transaccion_display %}{{ cabecera.get_tipo_transaccion_display }} · {% endif %}
+      {% if tipos %}{{ tipos|join:" · " }} · {% endif %}
       registrado por {{ cabecera.usuario.get_full_name|default:cabecera.usuario.username }}
     </p>
   </div>
   <div class="page-acciones">
     <a href="{% url 'movimientos_ventas' %}" class="btn">← Volver al historial</a>
+    {% comment %}
+      Cerrar es del administrador y es un paso aparte: así hay un momento
+      para revisar los resultados antes de que ya no se puedan cambiar.
+    {% endcomment %}
+    {% if estado_boleta == 'por_cerrar' and user.es_administrador %}
+      <form method="post" action="{% url 'cerrar_boleta_salida' folio %}" class="form-en-linea"
+            onsubmit="return confirm('Cerrada, ningún resultado de esta boleta se va a poder cambiar. ¿Cerrarla?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Cerrar boleta</button>
+      </form>
+    {% endif %}
     <a href="{% url 'documento_pdf' folio %}" class="btn btn-primary" target="_blank" rel="noopener">
       Imprimir boleta (PDF)
     </a>
   </div>
 </div>
+
+{% if estado_boleta == 'abierta' %}
+  <p class="aviso-prestado">
+    <strong>Boleta abierta.</strong>
+    {{ lineas_pendientes }} línea{{ lineas_pendientes|pluralize }} todavía sin resultado:
+    cuando regrese lo que salió, registrá qué se vendió y qué regresó.
+  </p>
+{% elif estado_boleta == 'por_cerrar' %}
+  <p class="aviso-prestado">
+    <strong>Ya se sabe qué pasó con todo.</strong>
+    {% if user.es_administrador %}Revisá los resultados y cerrá la boleta.{% else %}Falta que el administrador la cierre.{% endif %}
+  </p>
+{% elif estado_boleta == 'cerrada' %}
+  <p class="aviso-cerrada">
+    Cerrada el {{ cabecera.fecha_cierre|date:"d/m/Y H:i" }}
+    por {{ cabecera.cerrada_por.get_full_name|default:cabecera.cerrada_por.username }}.
+    Sus resultados ya no se pueden cambiar.
+  </p>
+{% endif %}
 
 <div class="card" style="margin-bottom:16px;">
   <dl class="detail-grid">
@@ -34,7 +64,7 @@
         {% else %}
           <span class="chip chip-critical">Salida</span>
         {% endif %}
-        {{ cabecera.get_tipo_transaccion_display|default:"" }}
+        {{ tipos|join:" · " }}
       </dd>
     </div>
     <div>
@@ -86,9 +116,9 @@
     <tr>
       <th style="width:44px;">#</th><th>Producto</th>
       <th class="columna-secundaria">Bodega</th>
-      {% if es_ingreso %}<th>Proveedor</th>{% endif %}
+      {% if es_ingreso %}<th>Proveedor</th>{% else %}<th>Tipo</th>{% endif %}
       <th>Cantidad</th>
-      <th>Precio unitario</th><th>Subtotal</th><th>Estado</th>
+      <th>Precio unitario</th><th>Subtotal</th><th>{% if es_ingreso %}Estado{% else %}Resultado{% endif %}</th>
       {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
     </tr>
   </thead>
@@ -108,9 +138,13 @@
           movimiento, así que la boleta dice siempre los mismos, aunque esos
           equipos hayan vuelto a salir después con otro documento.
         {% endcomment %}
+        {% comment %}
+          En la salida cada serial dice también qué pasó con él: en una línea
+          de varios aparatos hay que saber cuál se vendió y cuál regresó.
+        {% endcomment %}
         {% if linea.seriales %}
           <span class="seriales-del-documento">
-            {% for serial in linea.seriales %}<span class="serial-chip"><span class="serial-chip-texto">{{ serial }}</span></span>{% endfor %}
+            {% for serial, estado in linea.unidades_con_estado %}<span class="serial-chip{% if estado %} serial-{{ estado }}{% endif %}"{% if estado %} title="{% if estado == 'vendida' %}Vendida{% elif estado == 'devuelta' %}Regresó{% else %}Pendiente{% endif %}"{% endif %}><span class="serial-chip-texto">{{ serial }}</span></span>{% endfor %}
           </span>
         {% endif %}
       </td>
@@ -130,24 +164,26 @@
             <span class="sin-dato" title="Este artículo no tiene proveedor en el catálogo">Sin proveedor</span>
           {% endif %}
         </td>
+      {% else %}
+        <td data-etiqueta="Tipo">{{ linea.tipo }}</td>
       {% endif %}
       <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
       <td data-etiqueta="Precio unitario" class="num">Q {{ linea.precio_unitario|floatformat:2 }}</td>
       <td data-etiqueta="Subtotal" class="num">Q {{ linea.subtotal|floatformat:2 }}</td>
-      <td data-etiqueta="Estado">
-        {% if linea.esta_afuera %}
-          <span class="chip chip-warn">Afuera</span>
-        {% elif linea.fecha_devolucion %}
-          <span class="chip chip-neutral">Devuelto {{ linea.fecha_devolucion|date:"d/m/Y" }}</span>
-        {% else %}
-          —
-        {% endif %}
+      <td data-etiqueta="{% if es_ingreso %}Estado{% else %}Resultado{% endif %}">
+        {% if es_ingreso %}—{% else %}{% include "componentes/resultado_salida.html" with partes=linea.resultado %}{% endif %}
       </td>
       {% if user.puede_editar %}
       <td class="celda-acciones">
         <span class="actions">
-          {% if linea.esta_afuera %}
-            <a href="{% url 'devolucion_demo' linea.pk %}" class="btn btn-sm btn-primary">Registrar regreso</a>
+          {% comment %}
+            Mientras la boleta siga abierta el resultado se puede completar o
+            corregir, también en las líneas que ya lo tienen.
+          {% endcomment %}
+          {% if not es_ingreso and estado_boleta != 'cerrada' %}
+            <a href="{% url 'salida_resultado' linea.pk %}" class="btn btn-sm{% if linea.tiene_pendientes %} btn-primary{% endif %}">
+              {% if linea.tiene_pendientes %}Registrar resultado{% else %}Cambiar resultado{% endif %}
+            </a>
           {% endif %}
         </span>
       </td>

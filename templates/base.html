@@ -56,7 +56,7 @@
 
         {% if not user.es_practicante %}
           <p class="app-sidebar-grupo">Movimientos</p>
-          <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|devolucion_demo' %}active{% endif %}">Entradas y salidas</a>
+          <a href="{% url 'movimientos_ventas' %}" class="{% if request.resolver_match.url_name in 'movimientos_ventas|movimiento_ingreso|movimiento_salida|documento_detalle|salida_resultado' %}active{% endif %}">Entradas y salidas</a>
           <a href="{% url 'prestamos_tecnica' %}" class="{% if request.resolver_match.url_name in 'prestamos_tecnica|prestamo_nuevo|prestamo_regreso' %}active{% endif %}">Préstamos de herramienta</a>
         {% endif %}
 

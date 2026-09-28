@@ -136,11 +136,18 @@ class DocumentoMovimientoForm(forms.Form):
     el folio; las líneas se leen aparte con leer_lineas().
     """
 
-    # "Ajuste / Saldo inicial" no se ofrece: lo pone la carga masiva al
-    # importar (RF-09), no es algo que se registre a mano en una boleta.
+    # Los tipos de un ingreso. "Ajuste / Saldo inicial" no se ofrece: lo pone
+    # la carga masiva al importar (RF-09), no es algo que se registre a mano
+    # en una boleta. Tampoco "Devolución", que nace al registrar el resultado
+    # de una salida, ni los que son solo de la salida.
     TIPOS_VISIBLES = [
         (valor, etiqueta) for valor, etiqueta in MovimientoVenta.TipoTransaccion.choices
-        if valor != MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL
+        if valor not in (
+            MovimientoVenta.TipoTransaccion.AJUSTE_INICIAL,
+            MovimientoVenta.TipoTransaccion.DEVOLUCION,
+            MovimientoVenta.TipoTransaccion.CON_TECNICO,
+            MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
+        )
     ]
 
     # Campos que solo existen en uno de los dos documentos.
@@ -179,12 +186,35 @@ class DocumentoMovimientoForm(forms.Form):
         if es_ingreso:
             for nombre in self.SOLO_SALIDA:
                 del self.fields[nombre]
+        else:
+            # En la salida el tipo va en cada línea: una misma boleta puede
+            # llevar lo que sale con el técnico, un demo y una venta.
+            del self.fields['tipo_transaccion']
 
         if not self.is_bound:
             # Por defecto "ahora", que es el caso normal; el operador solo la
             # cambia cuando está digitando una boleta de días anteriores.
             self.fields['fecha'].initial = timezone.now()
             self.fields['folio'].initial = folio_sugerido
+
+    def clean_folio(self):
+        """
+        Una boleta de salida no se puede registrar dos veces.
+
+        Con las salidas que se cierran, repetir el número ya no es inofensivo:
+        agregaría líneas nuevas a una boleta cerrada y la volvería a abrir. Si
+        lo que se quiere es resolver sus líneas, eso se hace desde la boleta.
+        """
+        folio = (self.cleaned_data.get('folio') or '').strip()
+        es_salida = self.tipo_documento == MovimientoVenta.TipoDocumento.SALIDA
+        if folio and es_salida and MovimientoVenta.objects.filter(
+            folio__iexact=folio, tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+        ).exists():
+            raise forms.ValidationError(
+                f'La boleta {folio} ya está registrada. Para ver o resolver sus '
+                'líneas, abrila desde Entradas y salidas.'
+            )
+        return folio
 
     def datos_para_movimiento(self):
         """Los campos de cabecera tal como se guardan en cada línea."""
@@ -194,32 +224,79 @@ class DocumentoMovimientoForm(forms.Form):
         return datos
 
 
-class DevolucionDemoForm(forms.Form):
+class ResultadoSalidaForm(forms.Form):
     """
-    RF-06: cierra una salida de préstamo/demo. Al guardarse, el artículo
-    vuelve a contar en el stock porque el equipo regresó físicamente.
+    Qué pasó con una línea de salida cuando regresó el técnico.
+
+    Se escribe el resultado **completo** —cuántas van vendidas y cuántas
+    regresaron en total—, no lo que cambió desde la última vez. Así sirve para
+    registrarlo por partes y para corregir un dato mal puesto mientras la
+    boleta siga abierta. Lo que no sume ninguna de las dos queda pendiente.
+
+    En una línea con seriales las cantidades no se escriben: se elige el
+    resultado de cada aparato (ver la vista), porque hay que saber cuál
+    regresó.
     """
 
-    fecha_devolucion = forms.DateTimeField(label='Fecha de devolución', widget=EntradaFechaHora())
-    devuelto_por = forms.CharField(max_length=150, label='Devuelto por')
+    ESTADOS_DE_UNIDAD = [
+        ('pendiente', 'Pendiente'),
+        ('vendida', 'Vendida'),
+        ('devuelta', 'Regresó'),
+    ]
+
+    vendidas = forms.IntegerField(min_value=0, label='Vendidas', required=False)
+    devueltas = forms.IntegerField(min_value=0, label='Regresaron', required=False)
+    fecha_regreso = forms.DateTimeField(
+        label='Fecha en que regresó', widget=EntradaFechaHora(), required=False,
+    )
+    devuelto_por = forms.CharField(max_length=150, label='Devuelto por', required=False)
     observacion = forms.CharField(
         required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
     )
 
-    def __init__(self, *args, movimiento=None, **kwargs):
+    def __init__(self, *args, salida, **kwargs):
         super().__init__(*args, **kwargs)
-        self.movimiento = movimiento
-        if not self.is_bound:
-            self.fields['fecha_devolucion'].initial = timezone.now()
+        self.salida = salida
+        self.unidades = [unidad for unidad, _estado in salida.estado_de_unidades()]
+        self.con_serial = bool(self.unidades)
 
-    def clean_fecha_devolucion(self):
-        fecha = self.cleaned_data['fecha_devolucion']
-        if self.movimiento and fecha < self.movimiento.fecha:
-            raise forms.ValidationError(
-                'La devolución no puede ser anterior a la salida '
-                f'({timezone.localtime(self.movimiento.fecha):%d/%m/%Y %H:%M}).'
-            )
-        return fecha
+        if self.con_serial:
+            del self.fields['vendidas']
+            del self.fields['devueltas']
+            for unidad, estado in salida.estado_de_unidades():
+                self.fields[f'unidad_{unidad.pk}'] = forms.ChoiceField(
+                    choices=self.ESTADOS_DE_UNIDAD, initial=estado,
+                    label=unidad.numero_serie, widget=forms.RadioSelect,
+                )
+        elif not self.is_bound:
+            self.fields['vendidas'].initial = salida.cantidad_vendida
+            self.fields['devueltas'].initial = salida.devueltas
+
+        if not self.is_bound:
+            self.fields['fecha_regreso'].initial = timezone.now()
+
+    def campos_de_unidad(self):
+        """Los radios de cada serial, para pintarlos en una tabla."""
+        return [self[f'unidad_{unidad.pk}'] for unidad in self.unidades]
+
+    def resultado(self):
+        """Los argumentos para models.registrar_resultado, ya leídos."""
+        datos = self.cleaned_data
+        argumentos = {
+            'fecha_regreso': datos.get('fecha_regreso'),
+            'devuelto_por': datos.get('devuelto_por') or '',
+            'observacion': datos.get('observacion') or '',
+        }
+        if self.con_serial:
+            elegidos = {
+                unidad: datos.get(f'unidad_{unidad.pk}') for unidad in self.unidades
+            }
+            argumentos['unidades_vendidas'] = [u for u, e in elegidos.items() if e == 'vendida']
+            argumentos['unidades_devueltas'] = [u for u, e in elegidos.items() if e == 'devuelta']
+        else:
+            argumentos['vendidas'] = datos.get('vendidas') or 0
+            argumentos['devueltas'] = datos.get('devueltas') or 0
+        return argumentos
 
 
 LIMITE_LINEAS = 40
@@ -373,6 +450,8 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
     textos = post.getlist('linea_texto')
     precios = post.getlist('linea_precio')
     seriales = post.getlist('linea_seriales')
+    # Solo la salida lleva tipo por línea; el ingreso lo trae en el encabezado.
+    tipos = post.getlist('linea_tipo')
 
     # Del documento completo: un mismo serial no puede ir en dos líneas.
     ya_vistos = set()
@@ -384,6 +463,7 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
         texto = (textos[indice] if indice < len(textos) else '').strip()
         precio_texto = (precios[indice] if indice < len(precios) else '').strip()
         seriales_texto = (seriales[indice] if indice < len(seriales) else '').strip()
+        tipo = (tipos[indice] if indice < len(tipos) else '').strip()
 
         # Fila completamente vacía: se ignora en silencio (siempre queda una
         # de más al final para poder seguir agregando).
@@ -397,7 +477,16 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
             'precio_texto': precio_texto, 'precio': None,
             'seriales_texto': seriales_texto, 'seriales': [], 'unidades': [],
             'lleva_serie': False, 'disponibles_json': '[]',
+            'tipo': None,
         }
+
+        if not es_ingreso:
+            # Sin tipo, pendiente: es el error que menos daño hace. Una línea
+            # pendiente por olvido sigue a la vista y la boleta abierta; si
+            # arrancara en venta, el olvido registraría una venta que no pasó.
+            tipo = tipo or MovimientoVenta.TipoTransaccion.CON_TECNICO
+            tipo_valido = tipo in MovimientoVenta.TIPOS_DE_SALIDA
+            linea['tipo'] = tipo if tipo_valido else MovimientoVenta.TipoTransaccion.CON_TECNICO
 
         producto, es_tecnica = _resolver_producto(identificador, texto, incluir_tecnica)
 
@@ -411,6 +500,9 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
             linea['articulo_id'] = identificador_de(producto, es_tecnica)
             linea['texto'] = texto or producto.codigo_interno
             linea['lleva_serie'] = not es_tecnica and getattr(producto, 'lleva_serie', False)
+
+        if not es_ingreso and not tipo_valido and not linea['error']:
+            linea['error'] = 'Elegí cómo sale: con el técnico, como demo o vendido.'
 
         if not linea['error']:
             try:

@@ -58,10 +58,11 @@
         </select>
       </label>
       <label class="filtro">
-        <span>Préstamos</span>
-        <select name="afuera">
-          <option value="">Todos</option>
-          <option value="si" {% if afuera == 'si' %}selected{% endif %}>Solo los que están afuera</option>
+        <span>Resultado de salidas</span>
+        <select name="estado">
+          <option value="">Todas</option>
+          <option value="pendientes" {% if estado == 'pendientes' %}selected{% endif %}>Con algo pendiente</option>
+          <option value="por_cerrar" {% if estado == 'por_cerrar' %}selected{% endif %}>Resueltas, por cerrar</option>
         </select>
       </label>
       <label class="filtro">
@@ -121,19 +122,13 @@
         {% else %}—{% endif %}
       </td>
       <td data-etiqueta="Estado">
-        {% if m.esta_afuera %}
-          <span class="chip chip-warn">Afuera</span>
-        {% elif m.fecha_devolucion %}
-          <span class="chip chip-neutral">Devuelto</span>
-        {% else %}
-          —
-        {% endif %}
+        {% include "componentes/resultado_salida.html" with partes=m.resultado %}
       </td>
       {% if user.puede_editar %}
       <td class="celda-acciones">
         <span class="actions">
-          {% if m.esta_afuera %}
-            <a href="{% url 'devolucion_demo' m.pk %}" class="btn btn-sm btn-primary">Registrar regreso</a>
+          {% if m.tiene_pendientes and not m.esta_cerrada %}
+            <a href="{% url 'salida_resultado' m.pk %}" class="btn btn-sm btn-primary">Registrar resultado</a>
           {% endif %}
         </span>
       </td>

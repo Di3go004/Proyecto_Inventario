@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from core.models import Bodega
 from usuarios.models import Usuario
-from ventas.models import Articulo, MovimientoVenta
+from ventas.models import Articulo, MovimientoVenta, registrar_resultado
 
 
 class BaseVentas(TestCase):
@@ -109,7 +109,7 @@ class StockTests(BaseVentas):
 
 
 class PrestamoDemoTests(BaseVentas):
-    """RF-06: una salida de préstamo/demo espera regreso; al cerrarla el
+    """RF-06: una salida de préstamo/demo espera regreso; cuando regresa, el
     equipo vuelve físicamente a la bodega y el stock se restaura."""
 
     def test_prestamo_descuenta_mientras_esta_afuera(self):
@@ -130,22 +130,34 @@ class PrestamoDemoTests(BaseVentas):
             tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
         )
 
-        prestamo.fecha_devolucion = timezone.now()
-        prestamo.devuelto_por = 'Ivan Leiva'
-        prestamo.save()
+        registrar_resultado(
+            prestamo, usuario=self.usuario, devueltas=2,
+            fecha_regreso=timezone.now(), devuelto_por='Ivan Leiva',
+        )
 
         articulo.refresh_from_db()
         self.assertEqual(articulo.stock_actual, 10)
 
-    def test_solo_prestamo_demo_admite_datos_de_devolucion(self):
+    def test_una_devolucion_nunca_es_una_salida(self):
+        """Lo que regresa entra: la base no acepta una salida que diga ser devolución."""
         articulo = self.crear_articulo()
+        self.mover(articulo, MovimientoVenta.TipoDocumento.INGRESO, 5)
+        salida = self.mover(articulo, MovimientoVenta.TipoDocumento.SALIDA, 1)
         movimiento = MovimientoVenta(
             articulo=articulo, tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
             tipo_transaccion=MovimientoVenta.TipoTransaccion.VENTA, cantidad=1,
-            usuario=self.usuario, fecha_devolucion=timezone.now(),
+            usuario=self.usuario, devolucion_de=salida,
         )
         with self.assertRaises(ValidationError):
-            movimiento.clean()
+            movimiento.full_clean()
+
+    def test_no_se_venden_mas_de_las_que_salieron(self):
+        articulo = self.crear_articulo()
+        self.mover(articulo, MovimientoVenta.TipoDocumento.INGRESO, 5)
+        salida = self.mover(articulo, MovimientoVenta.TipoDocumento.SALIDA, 2)
+        salida.cantidad_vendida = 3
+        with self.assertRaisesMessage(ValidationError, 'No se pueden vender más'):
+            salida.full_clean()
 
 
 class NivelAlertaTests(BaseVentas):

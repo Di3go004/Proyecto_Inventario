@@ -54,10 +54,10 @@ def resumen(request):
         total=Sum(F('precio') * F('existencia'))
     )['total'] or 0
 
-    prestamos_demo_abiertos = MovimientoVenta.objects.filter(
-        tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
-        fecha_devolucion__isnull=True,
-    ).count()
+    # Por boleta y no por línea: es el papel que hay que ir a completar.
+    boletas_abiertas = len({
+        salida.folio for salida in MovimientoVenta.objects.salidas_pendientes()
+    })
 
     activos_prestados = PrestamoActivo.objects.filter(fecha_regreso__isnull=True).select_related('activo')
 
@@ -76,7 +76,7 @@ def resumen(request):
         'alertas_tecnica_total': len(alertas_tecnica),
         'valorizacion_ventas': valorizacion_ventas,
         'valorizacion_tecnica': valorizacion_tecnica,
-        'prestamos_demo_abiertos': prestamos_demo_abiertos,
+        'boletas_abiertas': boletas_abiertas,
         'activos_prestados': activos_prestados,
     }
     return render(request, 'core/resumen.html', contexto)

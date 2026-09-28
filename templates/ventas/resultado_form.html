@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Resultado · {{ salida.articulo.nombre_producto }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Bodega 1 y 2 · Boleta {{ salida.folio|default:"sin número" }}</p>
+    <h1 class="page-title">¿Qué pasó con lo que salió?</h1>
+    <p class="page-sub">
+      Lo que se vendió se queda fuera de bodega; lo que regresó vuelve a la
+      existencia con la fecha en que regresó. Lo que todavía no se sabe queda
+      pendiente y se completa después.
+    </p>
+  </div>
+  {% if salida.folio %}
+    <a href="{% url 'documento_detalle' salida.folio %}" class="btn">← Volver a la boleta</a>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Producto</dt>
+      <dd><a href="{% url 'articulo_detalle' salida.articulo.pk %}">{{ salida.articulo.nombre_producto }}</a></dd>
+    </div>
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ salida.articulo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>Salió</dt>
+      <dd>{{ salida.cantidad }} · {{ salida.get_tipo_transaccion_display }}</dd>
+    </div>
+    <div>
+      <dt>Fecha de salida</dt>
+      <dd>{{ salida.fecha|date:"d/m/Y H:i" }}</dd>
+    </div>
+    <div>
+      <dt>Cliente</dt>
+      <dd>{{ salida.cliente_nombre|default:"—" }}</dd>
+    </div>
+    <div>
+      <dt>Cómo va</dt>
+      <dd>{% include "componentes/resultado_salida.html" with partes=salida.resultado %}</dd>
+    </div>
+  </dl>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {% comment %}
+    Se escribe el resultado completo de la línea, no lo que cambió desde la
+    última vez: así la misma pantalla sirve para completarlo por partes y
+    para corregir un dato mal puesto mientras la boleta siga abierta.
+  {% endcomment %}
+  {% if form.con_serial %}
+    <h2 class="card-titulo">Cada aparato</h2>
+    <p class="hint" style="margin:6px 0 14px;">
+      Marcá qué pasó con cada uno: hay que saber cuál regresó, no solo cuántos.
+    </p>
+    <div class="table-wrap" style="box-shadow:none; margin-bottom:16px;">
+      <table class="tabla-responsiva tabla-resultado">
+        <thead>
+          <tr><th>N.º de serie</th><th>Pendiente</th><th>Vendida</th><th>Regresó</th></tr>
+        </thead>
+        <tbody>
+          {% for campo in form.campos_de_unidad %}
+          <tr>
+            <td data-etiqueta="N.º de serie" class="code celda-principal">{{ campo.label }}</td>
+            {% for opcion in campo %}
+              <td data-etiqueta="{{ opcion.choice_label }}">
+                <label class="opcion-resultado">{{ opcion.tag }} <span class="visualmente-oculto">{{ opcion.choice_label }}</span></label>
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="form-grid">
+      <div class="field">
+        <label for="{{ form.vendidas.id_for_label }}">{{ form.vendidas.label }}</label>
+        {{ form.vendidas }}
+        <span class="hint">Se quedaron con el cliente. Un repuesto que se usó también cuenta.</span>
+        {% for e in form.vendidas.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="field">
+        <label for="{{ form.devueltas.id_for_label }}">{{ form.devueltas.label }}</label>
+        {{ form.devueltas }}
+        <span class="hint">Volvieron a bodega. Salieron {{ salida.cantidad }}; lo que falte queda pendiente.</span>
+        {% for e in form.devueltas.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <h2 class="card-titulo" style="margin-top:22px;">Si algo regresó</h2>
+  <p class="hint" style="margin:6px 0 14px;">
+    Solo hace falta cuando regresa algo nuevo. Es lo que va en "Devuelto por"
+    del FO-SE-012.
+  </p>
+  <div class="form-grid">
+    <div class="field">
+      <label for="{{ form.fecha_regreso.id_for_label }}">{{ form.fecha_regreso.label }}</label>
+      {{ form.fecha_regreso }}
+      {% for e in form.fecha_regreso.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.devuelto_por.id_for_label }}">{{ form.devuelto_por.label }}</label>
+      {{ form.devuelto_por }}
+      {% for e in form.devuelto_por.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="field span-2">
+      <label for="{{ form.observacion.id_for_label }}">{{ form.observacion.label }}</label>
+      {{ form.observacion }}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Guardar resultado</button>
+    {% if salida.folio %}
+      <a href="{% url 'documento_detalle' salida.folio %}" class="btn">Cancelar</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

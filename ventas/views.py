@@ -21,11 +21,11 @@ from usuarios.models import Usuario
 
 from . import boletas, documentos, importador
 from .forms import (
-    ArticuloForm, DevolucionDemoForm, DocumentoMovimientoForm, identificador_de, leer_lineas,
+    ArticuloForm, DocumentoMovimientoForm, ResultadoSalidaForm, identificador_de, leer_lineas,
 )
 from .models import (
-    Articulo, MovimientoVenta, ingresar_unidades, limpiar_serial, sacar_unidades,
-    unidades_con_serial,
+    Articulo, MovimientoVenta, cerrar_boleta, ingresar_unidades, limpiar_serial,
+    registrar_resultado, sacar_unidades, unidades_con_serial,
 )
 
 CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importaciones')
@@ -138,7 +138,7 @@ def articulo_detalle(request, pk):
     )
     # Los últimos movimientos, para no tener que ir al kardex completo solo
     # para ver qué pasó hace poco con este producto.
-    movimientos = articulo.movimientos.select_related('usuario').order_by('-fecha', '-id')[:8]
+    movimientos = articulo.movimientos.select_related('usuario').prefetch_related('devoluciones').order_by('-fecha', '-id')[:8]
     # Las unidades solo existen en los productos que llevan serie. En los
     # demás la lista sale vacía y la ficha no la pinta.
     unidades = (
@@ -500,12 +500,19 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
                 **{campo: cabecera[campo] for campo in CABECERA_TECNICA if campo in cabecera},
             )
         else:
+            es_salida = tipo_documento == MovimientoVenta.TipoDocumento.SALIDA
+            # En la salida cada línea trae su tipo; en el ingreso manda el
+            # encabezado. Lo que sale ya vendido nace resuelto; lo demás queda
+            # pendiente hasta que se registre qué pasó con ello.
+            tipo_de_la_linea = linea['tipo'] if es_salida else tipo_transaccion
+            sale_vendida = es_salida and tipo_de_la_linea == MovimientoVenta.TipoTransaccion.VENTA
             movimiento = MovimientoVenta.objects.create(
                 folio=folio,
                 tipo_documento=tipo_documento,
-                tipo_transaccion=tipo_transaccion,
+                tipo_transaccion=tipo_de_la_linea,
                 articulo=linea['articulo'],
                 cantidad=linea['cantidad'],
+                cantidad_vendida=linea['cantidad'] if sale_vendida else 0,
                 precio_unitario=precio,
                 usuario=usuario,
                 **cabecera,
@@ -517,7 +524,7 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
                 if tipo_documento == MovimientoVenta.TipoDocumento.INGRESO:
                     ingresar_unidades(movimiento, linea['seriales'])
                 else:
-                    sacar_unidades(movimiento, linea['unidades'])
+                    sacar_unidades(movimiento, linea['unidades'], vendidas=sale_vendida)
 
 
 def _registrar_documento(request, tipo_documento):
@@ -554,7 +561,8 @@ def _registrar_documento(request, tipo_documento):
                     if not folio:
                         folio = MovimientoVenta.siguiente_folio(tipo_documento)
                     _guardar_documento(
-                        cabecera, form.cleaned_data['tipo_transaccion'], folio,
+                        # La salida no trae tipo en el encabezado: va por línea.
+                        cabecera, form.cleaned_data.get('tipo_transaccion'), folio,
                         lineas, tipo_documento, request.user,
                     )
             except ValidationError as error:
@@ -564,7 +572,7 @@ def _registrar_documento(request, tipo_documento):
             else:
                 messages.success(
                     request,
-                    f"{'Ingreso' if es_ingreso else 'Salida'} registrado con la boleta {folio} "
+                    f"{'Ingreso registrado' if es_ingreso else 'Salida registrada'} con la boleta {folio} "
                     f"({len(lineas)} {'línea' if len(lineas) == 1 else 'líneas'}).",
                 )
                 return redirect('documento_detalle', folio=folio)
@@ -580,6 +588,10 @@ def _registrar_documento(request, tipo_documento):
         'folio_siguiente': folio_siguiente,
         'tipo_documento': tipo_documento,
         'incluir_tecnica': es_ingreso,
+        # Con el técnico va primero: es el valor que trae una línea nueva.
+        'tipos_de_salida': [
+            (tipo.value, tipo.label) for tipo in MovimientoVenta.TIPOS_DE_SALIDA
+        ],
     })
 
 
@@ -623,17 +635,19 @@ def movimientos_ventas(request):
     hasta = request.GET.get('hasta', '').strip()
     hasta = hasta if hasta and parse_date(hasta) else ''
 
-    afuera = request.GET.get('afuera', '').strip()
+    estado = request.GET.get('estado', '').strip()
+    if estado not in ('pendientes', 'por_cerrar'):
+        estado = ''
 
     filas = documentos.filas_de_historial(
         q=q, tipo=tipo, transaccion=transaccion, bodega_id=bodega_id,
         desde=parse_date(desde) if desde else None,
         hasta=parse_date(hasta) if hasta else None,
-        afuera=afuera,
+        estado=estado,
     )
 
     pagina = paginar(request, filas)
-    filtros_activos = len([f for f in (tipo, transaccion, bodega_id, desde, hasta, afuera) if f])
+    filtros_activos = len([f for f in (tipo, transaccion, bodega_id, desde, hasta, estado) if f])
 
     return render(request, 'ventas/movimientos.html', {
         'movimientos': pagina,
@@ -642,7 +656,7 @@ def movimientos_ventas(request):
         'bodegas': Bodega.objects.all(),
         'transacciones': MovimientoVenta.TipoTransaccion.choices,
         'q': q, 'tipo': tipo, 'transaccion': transaccion,
-        'bodega_id': bodega_id, 'desde': desde, 'hasta': hasta, 'afuera': afuera,
+        'bodega_id': bodega_id, 'desde': desde, 'hasta': hasta, 'estado': estado,
     })
 
 
@@ -658,13 +672,25 @@ def documento_detalle(request, folio):
         return redirect('movimientos_ventas')
 
     total_unidades, total_quetzales = documentos.totales(lineas)
+    es_ingreso = documentos.es_ingreso(lineas)
+    cabecera = lineas[0].movimiento
+
+    # En la salida cada línea trae su tipo, así que el encabezado dice todos
+    # los que lleva la boleta, sin repetir y en el orden en que aparecen.
+    if es_ingreso:
+        tipos = [cabecera.get_tipo_transaccion_display()] if getattr(cabecera, 'tipo_transaccion', '') else []
+    else:
+        tipos = list(dict.fromkeys(linea.tipo for linea in lineas))
 
     return render(request, 'ventas/documento_detalle.html', {
         'folio': folio,
-        'es_ingreso': documentos.es_ingreso(lineas),
+        'es_ingreso': es_ingreso,
         # La cabecera sale del primer movimiento: los datos del encabezado
         # (fecha, solicitado por, factura) se repiten en todas las líneas.
-        'cabecera': lineas[0].movimiento,
+        'cabecera': cabecera,
+        'tipos': tipos,
+        'estado_boleta': documentos.estado_de_boleta(lineas),
+        'lineas_pendientes': sum(1 for linea in lineas if linea.tiene_pendientes),
         'lineas': lineas,
         'total_unidades': total_unidades,
         'total_quetzales': total_quetzales,
@@ -714,7 +740,7 @@ def kardex_articulo(request, pk):
         # Qué aparatos movió cada boleta. Acá no se desglosa en una fila por
         # unidad como en los otros reportes: la columna de saldo es del
         # movimiento entero, y partirlo la dejaría sin sentido.
-        .prefetch_related('unidades')
+        .prefetch_related('unidades', 'devoluciones')
         .order_by('fecha', 'id')
     )
     saldo = 0
@@ -733,36 +759,69 @@ def kardex_articulo(request, pk):
 
 
 @rol_requerido(Usuario.Rol.ADMINISTRADOR, Usuario.Rol.OPERADOR)
-def devolucion_demo(request, pk):
-    """RF-06: cierra un préstamo/demo y devuelve el equipo al stock."""
-    movimiento = get_object_or_404(
-        MovimientoVenta.objects.select_related('articulo'), pk=pk,
+def salida_resultado(request, pk):
+    """
+    Qué pasó con una línea de salida: cuántas se vendieron y cuántas
+    regresaron. Reemplaza a "Registrar regreso", que solo sabía decir que
+    regresó todo.
+
+    Lo registra quien registra las salidas. Cerrar la boleta, no: eso es del
+    administrador (ver cerrar_boleta_salida).
+    """
+    salida = get_object_or_404(
+        MovimientoVenta.objects
+        .select_related('articulo', 'articulo__bodega')
+        .prefetch_related('unidades', 'pasos_de_unidad', 'devoluciones__unidades'),
+        pk=pk, tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
     )
-    if not movimiento.esta_afuera:
-        messages.error(request, 'Ese movimiento no es un préstamo/demo pendiente de regreso.')
-        return redirect('movimientos_ventas')
+    if salida.esta_cerrada:
+        messages.error(
+            request, f'La boleta {salida.folio} ya está cerrada: sus resultados no se pueden cambiar.',
+        )
+        return redirect('documento_detalle', folio=salida.folio)
 
     if request.method == 'POST':
-        form = DevolucionDemoForm(request.POST, movimiento=movimiento)
+        form = ResultadoSalidaForm(request.POST, salida=salida)
         if form.is_valid():
-            movimiento.fecha_devolucion = form.cleaned_data['fecha_devolucion']
-            movimiento.devuelto_por = form.cleaned_data['devuelto_por']
-            observacion = form.cleaned_data['observacion']
-            if observacion:
-                movimiento.observacion = f"{movimiento.observacion}\n{observacion}".strip()
-            movimiento.save()
-            messages.success(
-                request,
-                f'Devolución registrada: "{movimiento.articulo.nombre_producto}" '
-                f'vuelve al stock ({movimiento.cantidad} unidad(es)).',
-            )
-            return redirect('movimientos_ventas')
+            try:
+                registrar_resultado(salida, usuario=request.user, **form.resultado())
+            except ValidationError as error:
+                form.add_error(None, error.messages[0])
+            else:
+                salida.refresh_from_db()
+                messages.success(
+                    request,
+                    f'Resultado registrado: "{salida.articulo.nombre_producto}".',
+                )
+                if salida.folio:
+                    return redirect('documento_detalle', folio=salida.folio)
+                return redirect('movimientos_ventas')
     else:
-        form = DevolucionDemoForm(movimiento=movimiento)
+        form = ResultadoSalidaForm(salida=salida)
 
-    return render(request, 'ventas/devolucion_form.html', {
-        'form': form, 'movimiento': movimiento,
+    return render(request, 'ventas/resultado_form.html', {
+        'form': form, 'salida': salida,
     })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def cerrar_boleta_salida(request, folio):
+    """
+    El administrador cierra la boleta cuando ya se sabe qué pasó con todo.
+    Cerrada, ningún resultado se puede cambiar.
+
+    Es un paso aparte, y no automático al resolver la última línea, para que
+    haya un momento de revisar: si un resultado quedó mal, se corrige antes.
+    """
+    if request.method != 'POST':
+        return redirect('documento_detalle', folio=folio)
+    try:
+        cerrar_boleta(folio, request.user)
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(request, f'Boleta {folio} cerrada.')
+    return redirect('documento_detalle', folio=folio)
 
 
 @login_required

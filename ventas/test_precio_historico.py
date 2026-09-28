@@ -219,6 +219,7 @@ class SeCapturaEnElIngresoTests(BasePrecio):
 
         self.client.post(reverse('movimiento_salida'), self.datos(
             folio='SAL-00010', linea_precio=['75.00'],
+            linea_tipo=[MovimientoVenta.TipoTransaccion.VENTA],
         ))
 
         movimiento = MovimientoVenta.objects.get(folio='SAL-00010')

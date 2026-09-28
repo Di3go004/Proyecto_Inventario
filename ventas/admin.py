@@ -21,7 +21,7 @@ class ArticuloAdmin(admin.ModelAdmin):
 class MovimientoVentaAdmin(admin.ModelAdmin):
     list_display = (
         'fecha', 'tipo_documento', 'tipo_transaccion', 'articulo', 'cantidad',
-        'usuario', 'fecha_devolucion',
+        'usuario', 'cantidad_vendida', 'fecha_cierre',
     )
     list_filter = ('tipo_documento', 'tipo_transaccion')
     search_fields = ('articulo__codigo_interno', 'articulo__nombre_producto', 'folio', 'no_factura')

@@ -1,0 +1,8 @@
+{% comment %}
+  Cómo va una línea de salida, en partes: "3 vendidas · 1 regresó · 1
+  pendiente". Una sola pieza para que la boleta, el historial y la pantalla
+  del resultado lo digan igual.
+
+  Recibe `partes`, que es MovimientoVenta.resultado. Sin partes, una raya.
+{% endcomment %}
+{% for nombre, cuantas in partes %}{% if nombre == 'vendidas' %}<span class="chip chip-good">{{ cuantas }} vendida{{ cuantas|pluralize }}</span>{% elif nombre == 'devueltas' %}<span class="chip chip-neutral">{{ cuantas }} regres{{ cuantas|pluralize:"ó,aron" }}</span>{% else %}<span class="chip chip-warn">{{ cuantas }} pendiente{{ cuantas|pluralize }}</span>{% endif %} {% empty %}—{% endfor %}

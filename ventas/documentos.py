@@ -30,13 +30,45 @@ class LineaDocumento:
     proveedor: Optional[object]
     no_factura: str
     cliente_nombre: str
-    esta_afuera: bool
-    fecha_devolucion: object
     orden: tuple
 
     @property
     def pk(self):
         return self.movimiento.pk
+
+    # Lo que sigue es de las salidas de Bodega 1 y 2: una línea de Bodega
+    # Técnica nunca sale en una boleta FO-SE-012, así que no tiene resultado.
+
+    @property
+    def tipo(self):
+        """Cómo salió: con el técnico, como demo o ya vendida."""
+        if self.es_tecnica:
+            return ''
+        return self.movimiento.get_tipo_transaccion_display()
+
+    @property
+    def resultado(self):
+        return [] if self.es_tecnica else self.movimiento.resultado
+
+    @property
+    def tiene_pendientes(self):
+        return not self.es_tecnica and self.movimiento.tiene_pendientes
+
+    @property
+    def es_demo(self):
+        return not self.es_tecnica and self.movimiento.es_demo
+
+    @property
+    def unidades_con_estado(self):
+        """[(serial, estado)] en una salida; en un ingreso, el estado va vacío."""
+        if self.es_tecnica:
+            return []
+        if self.movimiento.es_salida:
+            return [
+                (unidad.numero_serie, estado)
+                for unidad, estado in self.movimiento.estado_de_unidades()
+            ]
+        return [(serial, '') for serial in self.seriales]
 
     @property
     def precio_unitario(self):
@@ -82,8 +114,6 @@ def _de_venta(movimiento):
         proveedor=movimiento.proveedor,
         no_factura=movimiento.no_factura,
         cliente_nombre=movimiento.cliente_nombre,
-        esta_afuera=movimiento.esta_afuera,
-        fecha_devolucion=movimiento.fecha_devolucion,
         # Las de venta van primero dentro de la misma fecha, para que la
         # boleta salga siempre en el mismo orden y no cambie entre impresiones.
         orden=(movimiento.fecha, 0, movimiento.pk),
@@ -100,8 +130,6 @@ def _de_tecnica(movimiento):
         no_factura=movimiento.no_factura,
         # Bodega Técnica no vende: estas columnas del FO-SE-012 no aplican.
         cliente_nombre='',
-        esta_afuera=False,
-        fecha_devolucion=None,
         orden=(movimiento.fecha, 1, movimiento.pk),
     )
 
@@ -116,10 +144,16 @@ def lineas_del_documento(folio):
     lineas = [
         _de_venta(movimiento)
         for movimiento in MovimientoVenta.objects
-        .filter(folio=folio)
-        .select_related('articulo', 'articulo__bodega', 'articulo__proveedor', 'usuario', 'proveedor')
-        # Los seriales que movió cada línea, de una sola consulta.
-        .prefetch_related('unidades')
+        # Las devoluciones comparten el folio de su salida, pero no son
+        # líneas del papel: son el resultado de una línea, y se enseñan ahí.
+        .filter(folio=folio, devolucion_de__isnull=True)
+        .select_related(
+            'articulo', 'articulo__bodega', 'articulo__proveedor', 'usuario',
+            'proveedor', 'cerrada_por',
+        )
+        # Los seriales que movió cada línea y lo que regresó de ella, de una
+        # sola consulta cada cosa.
+        .prefetch_related('unidades', 'pasos_de_unidad', 'devoluciones__unidades')
     ]
     lineas += [
         _de_tecnica(movimiento)
@@ -145,6 +179,26 @@ def es_ingreso(lineas):
         return True
     cabecera = lineas[0].movimiento
     return getattr(cabecera, 'tipo_documento', 'ingreso') == 'ingreso'
+
+
+def estado_de_boleta(lineas):
+    """
+    Dónde va una boleta de salida: 'abierta', 'por_cerrar' o 'cerrada'.
+
+    Abierta mientras a alguna línea le falte resultado; por cerrar cuando ya
+    se sabe qué pasó con todo pero el administrador no la ha cerrado. Se
+    deduce de las líneas, salvo el cierre, que es una decisión de alguien y
+    por eso sí se guarda.
+
+    Un ingreso no se abre ni se cierra: devuelve ''.
+    """
+    if not lineas or es_ingreso(lineas):
+        return ''
+    if any(linea.movimiento.esta_cerrada for linea in lineas):
+        return 'cerrada'
+    if any(linea.tiene_pendientes for linea in lineas):
+        return 'abierta'
+    return 'por_cerrar'
 
 
 def totales(lineas):
@@ -175,12 +229,23 @@ class FilaHistorial:
     tono: str              # clase del chip
     signo: int             # +1 o -1, para pintar la cantidad
     transaccion: str
-    esta_afuera: bool
-    fecha_devolucion: object
 
     @property
     def pk(self):
         return self.movimiento.pk
+
+    @property
+    def resultado(self):
+        """Cómo va una línea de salida, en partes. Vacío en lo demás."""
+        return [] if self.es_tecnica else self.movimiento.resultado
+
+    @property
+    def tiene_pendientes(self):
+        return not self.es_tecnica and self.movimiento.tiene_pendientes
+
+    @property
+    def esta_cerrada(self):
+        return not self.es_tecnica and self.movimiento.esta_cerrada
 
     @property
     def fecha(self):
@@ -235,8 +300,6 @@ def _fila_de_venta(movimiento):
         tono='chip-good' if es_ingreso else 'chip-critical',
         signo=1 if es_ingreso else -1,
         transaccion=movimiento.get_tipo_transaccion_display(),
-        esta_afuera=movimiento.esta_afuera,
-        fecha_devolucion=movimiento.fecha_devolucion,
     )
 
 
@@ -252,12 +315,10 @@ def _fila_de_tecnica(movimiento):
         # En Bodega Técnica el motivo ocupa el lugar del tipo de transacción:
         # es lo que explica por qué se movió.
         transaccion=movimiento.get_motivo_display() if movimiento.motivo else '',
-        esta_afuera=False,
-        fecha_devolucion=None,
     )
 
 
-def filas_de_historial(q='', tipo='', transaccion='', bodega_id='', desde=None, hasta=None, afuera=''):
+def filas_de_historial(q='', tipo='', transaccion='', bodega_id='', desde=None, hasta=None, estado=''):
     """
     El historial de las tres bodegas, ya filtrado y ordenado por fecha.
 
@@ -269,6 +330,8 @@ def filas_de_historial(q='', tipo='', transaccion='', bodega_id='', desde=None, 
     ventas = (
         MovimientoVenta.objects
         .select_related('articulo', 'articulo__bodega', 'usuario', 'proveedor')
+        # Para saber cuánto le falta a cada salida sin una consulta por fila.
+        .prefetch_related('devoluciones')
     )
     tecnica = (
         MovimientoActivo.objects
@@ -319,14 +382,13 @@ def filas_de_historial(q='', tipo='', transaccion='', bodega_id='', desde=None, 
         ventas = ventas.filter(fecha__date__lte=hasta)
         tecnica = tecnica.filter(fecha__date__lte=hasta)
 
-    if afuera == 'si':
-        # Préstamos/demo sin devolución (RF-06): solo los hay en venta. Los de
-        # Bodega Técnica se ven en su propia pantalla de préstamos.
-        ventas = ventas.filter(
-            tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
-            tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
-            fecha_devolucion__isnull=True,
-        )
+    # Las salidas de Bodega 1 y 2 según su resultado. En Bodega Técnica no hay
+    # salidas que resolver: sus préstamos tienen su propia pantalla.
+    if estado == 'pendientes':
+        ventas = ventas.salidas_pendientes()
+        tecnica = tecnica.none()
+    elif estado == 'por_cerrar':
+        ventas = ventas.salidas_por_cerrar()
         tecnica = tecnica.none()
 
     filas = [_fila_de_venta(m) for m in ventas] + [_fila_de_tecnica(m) for m in tecnica]

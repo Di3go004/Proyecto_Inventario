@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from django.db.models import Count, F, Prefetch, Q, Sum
+from django.urls import reverse
 from django.utils import timezone
 
 from tecnica.models import Activo, PrestamoActivo
@@ -241,14 +242,12 @@ def prestamos_abiertos():
     dos módulos junto, y desde hace cuántos días. Es la pregunta que hoy el
     Excel no puede responder.
     """
-    demos = (
-        MovimientoVenta.objects
-        .filter(
-            tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
-            tipo_transaccion=MovimientoVenta.TipoTransaccion.PRESTAMO_DEMO,
-            fecha_devolucion__isnull=True,
-        )
+    # En Bodega 1 y 2, toda línea de salida a la que todavía le falta
+    # resultado: lo que anda con el técnico y los demos con un cliente.
+    pendientes = (
+        MovimientoVenta.objects.salidas_pendientes()
         .select_related('articulo', 'articulo__bodega')
+        .prefetch_related('devoluciones')
         .order_by('fecha')
     )
     herramienta = (
@@ -259,17 +258,20 @@ def prestamos_abiertos():
     )
 
     filas = []
-    for demo in demos:
+    for salida in pendientes:
         filas.append({
             'origen': 'Bodega 1 y 2',
-            'codigo': demo.articulo.codigo_interno,
-            'que': demo.articulo.nombre_producto,
-            'cantidad': demo.cantidad,
-            'quien': demo.cliente_nombre or demo.solicitado_por or '—',
-            'desde': demo.fecha,
-            'dias': _dias_afuera(demo.fecha),
-            'referencia': demo.folio or '—',
-            'url': f'/movimientos/ventas/{demo.pk}/devolucion/',
+            'codigo': salida.articulo.codigo_interno,
+            'que': salida.articulo.nombre_producto,
+            # Lo que falta resolver, no lo que salió: si de 4 ya regresó 1,
+            # afuera sin resultado quedan 3.
+            'cantidad': salida.pendientes,
+            'quien': salida.cliente_nombre or salida.solicitado_por or '—',
+            'desde': salida.fecha,
+            'dias': _dias_afuera(salida.fecha),
+            'referencia': f'{salida.folio or "—"} · {salida.get_tipo_transaccion_display()}',
+            'url': reverse('salida_resultado', args=[salida.pk]),
+            'accion': 'Registrar resultado',
         })
     for prestamo in herramienta:
         filas.append({
@@ -282,6 +284,7 @@ def prestamos_abiertos():
             'dias': _dias_afuera(prestamo.fecha_salida),
             'referencia': prestamo.get_estado_al_salir_display(),
             'url': f'/movimientos/tecnica/{prestamo.pk}/regreso/',
+            'accion': 'Registrar regreso',
         })
 
     # Lo que lleva más tiempo afuera primero: es lo que hay que ir a buscar.

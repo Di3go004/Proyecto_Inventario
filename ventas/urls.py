@@ -19,7 +19,9 @@ urlpatterns = [
     path('movimientos/ventas/salida/', views.movimiento_salida, name='movimiento_salida'),
     path('movimientos/ventas/documento/<str:folio>/', views.documento_detalle, name='documento_detalle'),
     path('movimientos/ventas/documento/<str:folio>/pdf/', views.documento_pdf, name='documento_pdf'),
-    path('movimientos/ventas/<int:pk>/devolucion/', views.devolucion_demo, name='devolucion_demo'),
+    path('movimientos/ventas/documento/<str:folio>/cerrar/', views.cerrar_boleta_salida, name='cerrar_boleta_salida'),
+    # Qué pasó con una línea de salida: vendida, regresó, o todavía pendiente.
+    path('movimientos/ventas/<int:pk>/resultado/', views.salida_resultado, name='salida_resultado'),
 
     # RF-13 — sugerencias del buscador (lo consume static/js/autocompletar.js)
     path('api/ventas/articulos/', views.api_buscar_articulos, name='api_buscar_articulos'),

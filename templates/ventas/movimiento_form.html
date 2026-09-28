@@ -12,7 +12,9 @@
         el mismo formato para todas. Una misma boleta puede llevar varias líneas,
         igual que la boleta de papel.
       {% else %}
-        Productos que salen de Bodega 1 o 2. Si es préstamo o demo, el equipo se descuenta ahora y vuelve al stock al registrar su devolución.
+        Productos que salen de Bodega 1 o 2. Lo que se lleva el técnico o sale
+        como demo queda pendiente: cuando regrese, en la boleta se registra qué
+        se vendió y qué volvió a bodega.
       {% endif %}
     </p>
   </div>
@@ -64,6 +66,22 @@
                 <input type="hidden" class="autocompletar-valor" name="linea_articulo" value="{{ linea.articulo_id }}">
               </div>
               <span class="linea-info">{% if linea.articulo %}{{ linea.articulo.bodega.nombre }} · existencia {{ linea.articulo.stock_actual }}{% endif %}</span>
+              {% comment %}
+                En la salida cada línea dice cómo sale: una misma boleta puede
+                llevar lo que se lleva el técnico, un demo y una venta. Va
+                debajo del producto por lo mismo que los seriales: como columna
+                aparte, en una laptop el campo del producto quedaba de 83 px.
+              {% endcomment %}
+              {% if not es_ingreso %}
+                <label class="linea-tipo-campo">
+                  <span class="linea-tipo-rotulo">Sale como</span>
+                  <select class="linea-tipo" name="linea_tipo">
+                    {% for valor, etiqueta in tipos_de_salida %}
+                      <option value="{{ valor }}"{% if linea.tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              {% endif %}
               {% comment %}
                 Los seriales van debajo del producto y no en su propia columna:
                 son de esa línea, y una columna más dejaba la tabla impasable
@@ -153,6 +171,16 @@
         <input type="hidden" class="autocompletar-valor" name="linea_articulo" value="">
       </div>
       <span class="linea-info"></span>
+      {% if not es_ingreso %}
+        <label class="linea-tipo-campo">
+          <span class="linea-tipo-rotulo">Sale como</span>
+          <select class="linea-tipo" name="linea_tipo">
+            {% for valor, etiqueta in tipos_de_salida %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      {% endif %}
       <div class="seriales linea-seriales" data-modo="{% if es_ingreso %}libre{% else %}elegir{% endif %}"
            data-url-verificar="{% url 'api_seriales_ocupados' %}"
            data-disponibles="[]" hidden>

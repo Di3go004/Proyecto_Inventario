@@ -542,9 +542,30 @@ class BoletaYListasTests(BaseSalidasAbiertas):
         self.assertContains(respuesta, 'Con el técnico')
         self.assertContains(respuesta, 'Préstamo / Demo')
         self.assertContains(respuesta, '3 vendidas')
-        self.assertContains(respuesta, '1 regresó')
+        self.assertContains(respuesta, '1 devuelta · ')
         self.assertContains(respuesta, '1 pendiente')
         self.assertContains(respuesta, 'Boleta abierta')
+
+    def test_cada_devolucion_dice_su_fecha(self):
+        """
+        Es lo que el papel no guardaba: solo se sabía que había regresado, no
+        cuándo. Si se devolvió por partes, cada parte con la suya.
+        """
+        salida = self.salida(self.celda, 4)
+        primera = timezone.make_aware(timezone.datetime(2031, 3, 10, 9, 0))
+        segunda = timezone.make_aware(timezone.datetime(2031, 3, 17, 15, 0))
+        registrar_resultado(salida, usuario=self.operador, devueltas=1,
+                            fecha_regreso=primera, devuelto_por='Pedro')
+        registrar_resultado(salida, usuario=self.operador, devueltas=3,
+                            fecha_regreso=segunda, devuelto_por='Ana')
+
+        respuesta = self.client.get(reverse('documento_detalle', args=['SAL-00001']))
+        texto = respuesta.content.decode()
+
+        self.assertIn('1 devuelta · 2031-03-10', texto)
+        self.assertIn('2 devueltas · 2031-03-17', texto)
+        self.assertLess(texto.index('2031-03-10'), texto.index('2031-03-17'), 'en el orden en que pasaron')
+        self.assertIn('title="Devuelto por Ana"', texto)
 
     def test_el_historial_separa_lo_pendiente_de_lo_por_cerrar(self):
         self.boleta_mezclada()
@@ -610,7 +631,7 @@ class BoletaImpresaTests(BaseSalidasAbiertas):
         renglones = boletas.renglones_de(documentos.lineas_del_documento('SAL-00001'))
 
         self.assertEqual([(r.cantidad, r.etiqueta) for r in renglones],
-                         [(3, 'VENDIDO'), (1, 'REGRESÓ')])
+                         [(3, 'VENDIDO'), (1, 'DEVUELTO')])
 
     def test_si_todo_va_igual_no_lleva_etiquetas(self):
         """Lo dice la casilla de arriba; los renglones quedan como en el papel."""
@@ -697,8 +718,8 @@ class LoQueRegresoNoSeCobraTests(BaseSalidasAbiertas):
 
         respuesta = self.client.get(reverse('documento_detalle', args=['SAL-00001']))
 
-        self.assertContains(respuesta, 'no cuentan 2 que regresaron')
-        self.assertContains(respuesta, 'salieron 4 · regresaron 2')
+        self.assertContains(respuesta, 'no cuentan 2 devueltas')
+        self.assertContains(respuesta, 'salieron 4 · 2 devueltas')
 
     def test_el_ingreso_sigue_siendo_precio_por_cantidad(self):
         linea = documentos.lineas_del_documento('ING-00001')[0]

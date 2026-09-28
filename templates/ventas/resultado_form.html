@@ -6,8 +6,8 @@
     <p class="eyebrow">Bodega 1 y 2 · Boleta {{ salida.folio|default:"sin número" }}</p>
     <h1 class="page-title">¿Qué pasó con lo que salió?</h1>
     <p class="page-sub">
-      Lo que se vendió se queda fuera de bodega; lo que regresó vuelve a la
-      existencia con la fecha en que regresó. Lo que todavía no se sabe queda
+      Lo que se vendió se queda fuera de bodega; lo devuelto vuelve a la
+      existencia con la fecha en que se devolvió. Lo que todavía no se sabe queda
       pendiente y se completa después.
     </p>
   </div>
@@ -40,7 +40,7 @@
     </div>
     <div>
       <dt>Cómo va</dt>
-      <dd>{% include "componentes/resultado_salida.html" with partes=salida.resultado %}</dd>
+      <dd>{% include "componentes/resultado_salida.html" with salida=salida %}</dd>
     </div>
   </dl>
 </div>
@@ -59,12 +59,12 @@
   {% if form.con_serial %}
     <h2 class="card-titulo">Cada aparato</h2>
     <p class="hint" style="margin:6px 0 14px;">
-      Marcá qué pasó con cada uno: hay que saber cuál regresó, no solo cuántos.
+      Marcá qué pasó con cada uno: hay que saber cuál se devolvió, no solo cuántos.
     </p>
     <div class="table-wrap" style="box-shadow:none; margin-bottom:16px;">
       <table class="tabla-responsiva tabla-resultado">
         <thead>
-          <tr><th>N.º de serie</th><th>Pendiente</th><th>Vendida</th><th>Regresó</th></tr>
+          <tr><th>N.º de serie</th><th>Pendiente</th><th>Vendida</th><th>Devuelta</th></tr>
         </thead>
         <tbody>
           {% for campo in form.campos_de_unidad %}
@@ -97,9 +97,9 @@
     </div>
   {% endif %}
 
-  <h2 class="card-titulo" style="margin-top:22px;">Si algo regresó</h2>
+  <h2 class="card-titulo" style="margin-top:22px;">Si algo se devolvió</h2>
   <p class="hint" style="margin:6px 0 14px;">
-    Solo hace falta cuando regresa algo nuevo. Es lo que va en "Devuelto por"
+    Solo hace falta cuando se devuelve algo nuevo. Es lo que va en "Devuelto por"
     del FO-SE-012.
   </p>
   <div class="form-grid">

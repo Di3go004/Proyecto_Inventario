@@ -122,7 +122,7 @@
         {% else %}—{% endif %}
       </td>
       <td data-etiqueta="Estado">
-        {% include "componentes/resultado_salida.html" with partes=m.resultado %}
+        {% include "componentes/resultado_salida.html" with salida=m.movimiento %}
       </td>
       {% if user.puede_editar %}
       <td class="celda-acciones">

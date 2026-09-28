@@ -1,8 +1,15 @@
 {% comment %}
-  Cómo va una línea de salida, en partes: "3 vendidas · 1 regresó · 1
+  Cómo va una línea de salida: "3 vendidas · 1 devuelta · 2026-09-30 · 1
   pendiente". Una sola pieza para que la boleta, el historial y la pantalla
   del resultado lo digan igual.
 
-  Recibe `partes`, que es MovimientoVenta.resultado. Sin partes, una raya.
+  "Devuelta" y no "regresó": así lo manejan en la empresa —en las boletas de
+  papel le ponen "dev"—. Cada devolución lleva su fecha, porque eso es lo que
+  el papel no guardaba: solo se sabía que había regresado, no cuándo. Si una
+  línea se devolvió por partes, cada parte sale con la suya. Quién la trajo va
+  en el título, al pasarle el ratón encima.
+
+  Recibe `salida`, el MovimientoVenta de la línea. En lo que no es una salida
+  —un ingreso, una línea de Bodega Técnica, la propia devolución—, una raya.
 {% endcomment %}
-{% for nombre, cuantas in partes %}{% if nombre == 'vendidas' %}<span class="chip chip-good">{{ cuantas }} vendida{{ cuantas|pluralize }}</span>{% elif nombre == 'devueltas' %}<span class="chip chip-neutral">{{ cuantas }} regres{{ cuantas|pluralize:"ó,aron" }}</span>{% else %}<span class="chip chip-warn">{{ cuantas }} pendiente{{ cuantas|pluralize }}</span>{% endif %} {% empty %}—{% endfor %}
+{% if salida.es_salida %}{% if salida.cantidad_vendida %}<span class="chip chip-good">{{ salida.cantidad_vendida }} vendida{{ salida.cantidad_vendida|pluralize }}</span> {% endif %}{% for devolucion in salida.devoluciones_por_fecha %}<span class="chip chip-neutral"{% if devolucion.devuelto_por %} title="Devuelto por {{ devolucion.devuelto_por }}"{% endif %}>{{ devolucion.cantidad }} devuelta{{ devolucion.cantidad|pluralize }} · {{ devolucion.fecha|date:"DATE_FORMAT" }}</span> {% endfor %}{% if salida.pendientes %}<span class="chip chip-warn">{{ salida.pendientes }} pendiente{{ salida.pendientes|pluralize }}</span>{% endif %}{% else %}—{% endif %}

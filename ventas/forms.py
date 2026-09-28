@@ -241,13 +241,13 @@ class ResultadoSalidaForm(forms.Form):
     ESTADOS_DE_UNIDAD = [
         ('pendiente', 'Pendiente'),
         ('vendida', 'Vendida'),
-        ('devuelta', 'Regresó'),
+        ('devuelta', 'Devuelta'),
     ]
 
     vendidas = forms.IntegerField(min_value=0, label='Vendidas', required=False)
-    devueltas = forms.IntegerField(min_value=0, label='Regresaron', required=False)
+    devueltas = forms.IntegerField(min_value=0, label='Devueltas', required=False)
     fecha_regreso = forms.DateTimeField(
-        label='Fecha en que regresó', widget=EntradaFechaHora(), required=False,
+        label='Fecha en que se devolvió', widget=EntradaFechaHora(), required=False,
     )
     devuelto_por = forms.CharField(max_length=150, label='Devuelto por', required=False)
     observacion = forms.CharField(

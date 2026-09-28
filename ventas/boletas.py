@@ -114,7 +114,7 @@ def _descripcion(linea, ancho_columna, serial='', etiqueta=''):
     Cuando el renglón es de una unidad con serial, el serial va al final y es
     lo último que se recorta: se le descuenta su ancho al resto. Un serial a
     medias no identifica ningún aparato, que es justo para lo que sirve. Lo
-    mismo con la etiqueta del resultado (VENDIDO, REGRESÓ...), que va después.
+    mismo con la etiqueta del resultado (VENDIDO, DEVUELTO...), que va después.
     """
     producto = linea.producto
     # capacidad solo la tienen los artículos de venta; la herramienta no.
@@ -146,8 +146,10 @@ class Renglon:
 
 
 # Cómo se imprime el resultado de un renglón de salida.
-ETIQUETA_DE_ESTADO = {'vendida': 'VENDIDO', 'devuelta': 'REGRESÓ'}
-ETIQUETA_DE_PARTE = {'vendidas': 'VENDIDO', 'devueltas': 'REGRESÓ'}
+# DEVUELTO y no REGRESÓ: en las boletas de papel le ponen "dev", y el pie ya
+# dice "DEVUELTO POR".
+ETIQUETA_DE_ESTADO = {'vendida': 'VENDIDO', 'devuelta': 'DEVUELTO'}
+ETIQUETA_DE_PARTE = {'vendidas': 'VENDIDO', 'devueltas': 'DEVUELTO'}
 
 
 def _pendiente(linea):
@@ -165,7 +167,7 @@ def renglones_de(lineas):
     hojas sigan saliendo de nueve renglones, como el talonario.
 
     En una salida, además, una línea se parte según su resultado: de 4 celdas,
-    un renglón de 3 VENDIDO y otro de 1 REGRESÓ. Las etiquetas solo se
+    un renglón de 3 VENDIDO y otro de 1 DEVUELTO. Las etiquetas solo se
     imprimen si la boleta mezcla resultados; si todo va igual, lo dice la
     casilla de arriba y los renglones quedan como en el papel.
     """

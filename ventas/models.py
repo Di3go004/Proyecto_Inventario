@@ -489,6 +489,15 @@ class MovimientoVenta(models.Model):
         return sum(devolucion.cantidad for devolucion in self.devoluciones.all())
 
     @property
+    def devoluciones_por_fecha(self):
+        """
+        Las devoluciones de esta línea de la más vieja a la más nueva: una línea
+        puede devolverse por partes y en días distintos, y cada parte se enseña
+        con su fecha. Se ordena en Python para aprovechar el prefetch.
+        """
+        return sorted(self.devoluciones.all(), key=lambda d: (d.fecha, d.pk))
+
+    @property
     def pendientes(self):
         """Lo que falta resolver: ni confirmado vendido ni regresado."""
         if not self.es_salida:

@@ -35,7 +35,7 @@
   <p class="aviso-prestado">
     <strong>Boleta abierta.</strong>
     {{ lineas_pendientes }} línea{{ lineas_pendientes|pluralize }} todavía sin resultado:
-    cuando regrese lo que salió, registrá qué se vendió y qué regresó.
+    cuando regrese lo que salió, registrá qué se vendió y qué se devolvió.
   </p>
 {% elif estado_boleta == 'por_cerrar' %}
   <p class="aviso-prestado">
@@ -140,11 +140,11 @@
         {% endcomment %}
         {% comment %}
           En la salida cada serial dice también qué pasó con él: en una línea
-          de varios aparatos hay que saber cuál se vendió y cuál regresó.
+          de varios aparatos hay que saber cuál se vendió y cuál se devolvió.
         {% endcomment %}
         {% if linea.seriales %}
           <span class="seriales-del-documento">
-            {% for serial, estado in linea.unidades_con_estado %}<span class="serial-chip{% if estado %} serial-{{ estado }}{% endif %}"{% if estado %} title="{% if estado == 'vendida' %}Vendida{% elif estado == 'devuelta' %}Regresó{% else %}Pendiente{% endif %}"{% endif %}><span class="serial-chip-texto">{{ serial }}</span></span>{% endfor %}
+            {% for serial, estado in linea.unidades_con_estado %}<span class="serial-chip{% if estado %} serial-{{ estado }}{% endif %}"{% if estado %} title="{% if estado == 'vendida' %}Vendida{% elif estado == 'devuelta' %}Devuelta{% else %}Pendiente{% endif %}"{% endif %}><span class="serial-chip-texto">{{ serial }}</span></span>{% endfor %}
           </span>
         {% endif %}
       </td>
@@ -175,10 +175,10 @@
       {% endcomment %}
       <td data-etiqueta="Subtotal" class="num">
         Q {{ linea.subtotal|floatformat:2 }}
-        {% if linea.devueltas %}<span class="nota-subtotal">no cuenta{{ linea.devueltas|pluralize:"n" }} {{ linea.devueltas }} que regres{{ linea.devueltas|pluralize:"ó,aron" }}</span>{% endif %}
+        {% if linea.devueltas %}<span class="nota-subtotal">no cuenta{{ linea.devueltas|pluralize:"n" }} {{ linea.devueltas }} devuelta{{ linea.devueltas|pluralize }}</span>{% endif %}
       </td>
       <td data-etiqueta="{% if es_ingreso %}Estado{% else %}Resultado{% endif %}">
-        {% if es_ingreso %}—{% else %}{% include "componentes/resultado_salida.html" with partes=linea.resultado %}{% endif %}
+        {% if es_ingreso %}—{% else %}{% include "componentes/resultado_salida.html" with salida=linea.movimiento %}{% endif %}
       </td>
       {% if user.puede_editar %}
       <td class="celda-acciones">
@@ -208,7 +208,7 @@
 <div class="totales-documento">
   <span>Total del documento</span>
   {% if total_devueltas %}
-    <span class="num">salieron {{ total_unidades }} · regres{{ total_devueltas|pluralize:"ó,aron" }} {{ total_devueltas }}</span>
+    <span class="num">salieron {{ total_unidades }} · {{ total_devueltas }} devuelta{{ total_devueltas|pluralize }}</span>
   {% else %}
     <span class="num">{{ total_unidades }} unidad(es)</span>
   {% endif %}

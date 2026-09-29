@@ -21,10 +21,12 @@ from usuarios.models import Usuario
 
 from . import boletas, documentos, importador
 from .forms import (
-    ArticuloForm, DocumentoMovimientoForm, ResultadoSalidaForm, identificador_de, leer_lineas,
+    ArticuloForm, CorreccionSerialForm, DocumentoMovimientoForm, ResultadoSalidaForm,
+    identificador_de, leer_lineas,
 )
 from .models import (
-    Articulo, MovimientoVenta, cerrar_boleta, ingresar_unidades, limpiar_serial,
+    Articulo, MovimientoVenta, UnidadArticulo, cerrar_boleta, corregir_serial,
+    ingresar_unidades, limpiar_serial, por_que_no_se_puede_quitar, quitar_unidad,
     registrar_resultado, sacar_unidades, unidades_con_serial,
 )
 
@@ -846,3 +848,116 @@ def api_seriales_ocupados(request):
         for unidad in unidades_con_serial(seriales).select_related('articulo')
     }
     return JsonResponse({'ocupados': ocupados})
+
+
+# ---------------------------------------------------------------------------
+# Administración → Correcciones
+#
+# Para los errores de tipeo al cargar seriales. Va en su propia sección del
+# menú y no como un botón en cada ficha: las pantallas de todos los días
+# quedan limpias, y corregir se vuelve algo que se hace a propósito. Solo el
+# administrador.
+# ---------------------------------------------------------------------------
+
+# Cuántas unidades enseña la búsqueda. Buscar "ZM" en un catálogo grande no
+# debe volverse una lista de cientos: se pide afinar.
+LIMITE_UNIDADES_EN_CORRECCIONES = 50
+
+ACCIONES_DE_CORRECCION = ('serial', 'quitar')
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def correcciones(request):
+    """
+    Se elige qué corregir y se busca la unidad por su serial o por su
+    producto. Casi siempre el error se descubre por el serial —en la caja o
+    en la ficha—, así que se puede escribir directo, sin buscar primero el
+    producto.
+    """
+    accion = request.GET.get('accion', '')
+    if accion not in ACCIONES_DE_CORRECCION:
+        accion = 'serial'
+    q = request.GET.get('q', '').strip()
+
+    unidades, total = [], 0
+    if q:
+        encontradas = (
+            UnidadArticulo.objects
+            .select_related('articulo')
+            # Dónde está cada una y si se puede quitar, sin una consulta por fila.
+            .prefetch_related('movimientos__unidades')
+            .filter(
+                Q(numero_serie__icontains=q)
+                | Q(articulo__codigo_interno__icontains=q)
+                | Q(articulo__nombre_producto__icontains=q)
+            )
+            .order_by('articulo__nombre_producto', 'numero_serie')
+        )
+        total = encontradas.count()
+        unidades = list(encontradas[:LIMITE_UNIDADES_EN_CORRECCIONES])
+        if accion == 'quitar':
+            for unidad in unidades:
+                unidad.motivo_para_no_quitar = por_que_no_se_puede_quitar(unidad)
+
+    return render(request, 'ventas/correcciones/indice.html', {
+        'accion': accion, 'q': q, 'unidades': unidades, 'total': total,
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def correccion_serial(request, pk):
+    """Cambia el número de serie de una unidad por el correcto."""
+    unidad = get_object_or_404(
+        UnidadArticulo.objects.select_related('articulo').prefetch_related('movimientos'),
+        pk=pk,
+    )
+    anterior = unidad.numero_serie
+
+    if request.method == 'POST':
+        form = CorreccionSerialForm(request.POST)
+        if form.is_valid():
+            try:
+                corregir_serial(unidad, form.cleaned_data['numero_serie'])
+            except ValidationError as error:
+                form.add_error('numero_serie', error.messages[0])
+            else:
+                messages.success(request, f'Serial corregido: {anterior} → {unidad.numero_serie}.')
+                return redirect('articulo_detalle', pk=unidad.articulo_id)
+    else:
+        form = CorreccionSerialForm()
+
+    return render(request, 'ventas/correcciones/serial.html', {
+        'form': form, 'unidad': unidad,
+        # Si ya salió, el papel firmado dice el serial viejo: se avisa.
+        'salidas': [m for m in unidad.movimientos.all() if m.es_salida],
+    })
+
+
+@rol_requerido(Usuario.Rol.ADMINISTRADOR)
+def correccion_quitar(request, pk):
+    """Quita una unidad que se cargó en el producto equivocado."""
+    unidad = get_object_or_404(
+        UnidadArticulo.objects.select_related('articulo').prefetch_related('movimientos__unidades'),
+        pk=pk,
+    )
+    motivo = por_que_no_se_puede_quitar(unidad)
+    linea = None if motivo else unidad.movimientos.all()[0]
+
+    if request.method == 'POST' and not motivo:
+        serial, articulo = unidad.numero_serie, unidad.articulo
+        try:
+            linea = quitar_unidad(unidad)
+        except ValidationError as error:
+            motivo = error.messages[0]
+        else:
+            donde = f'la boleta {linea.folio}' if linea.folio else 'la carga inicial'
+            messages.success(
+                request,
+                f'Se quitó el serial {serial} de "{articulo.nombre_producto}". '
+                f'Su línea en {donde} quedó en {linea.cantidad}.',
+            )
+            return redirect('articulo_detalle', pk=articulo.pk)
+
+    return render(request, 'ventas/correcciones/quitar.html', {
+        'unidad': unidad, 'motivo': motivo, 'linea': linea,
+    })

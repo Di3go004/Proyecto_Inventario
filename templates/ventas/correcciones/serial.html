@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Corregir serial · {{ unidad.numero_serie }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Administración · Correcciones</p>
+    <h1 class="page-title">Corregir un número de serie</h1>
+    <p class="page-sub">
+      Se cambia solo el número: la unidad sigue siendo la misma, con sus
+      boletas, y la existencia no se mueve.
+    </p>
+  </div>
+  <a href="{% url 'correcciones' %}?accion=serial&amp;q={{ unidad.numero_serie|urlencode }}" class="btn">← Volver a Correcciones</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Serial actual</dt>
+      <dd class="code">{{ unidad.numero_serie }}</dd>
+    </div>
+    <div>
+      <dt>Producto</dt>
+      <dd><a href="{% url 'articulo_detalle' unidad.articulo.pk %}">{{ unidad.articulo.nombre_producto }}</a></dd>
+    </div>
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ unidad.articulo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>Estado</dt>
+      <dd>
+        {% if unidad.en_bodega %}<span class="chip chip-good">En bodega</span>
+        {% else %}<span class="chip chip-neutral">Fuera de bodega</span>{% endif %}
+      </dd>
+    </div>
+    <div>
+      <dt>Entró con</dt>
+      <dd class="code">{{ unidad.movimiento_ingreso.folio|default:"Carga inicial" }}</dd>
+    </div>
+  </dl>
+</div>
+
+{% comment %}
+  Si el aparato ya salió, esa boleta se firmó con el serial viejo. El sistema
+  va a decir el nuevo; el papel, el que se escribió.
+{% endcomment %}
+{% if salidas %}
+  <p class="aviso-prestado">
+    Este aparato ya salió con la boleta
+    {% for s in salidas %}<strong>{{ s.folio|default:"sin número" }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+    Si esa boleta ya se firmó, el papel va a seguir diciendo el serial viejo;
+    el sistema, y la boleta al reimprimirla, van a decir el corregido.
+  </p>
+{% endif %}
+
+<form method="post" class="card"
+      onsubmit="return confirm('¿Cambiar el serial {{ unidad.numero_serie|escapejs }} por el que escribiste? El anterior no queda guardado en ningún lado.');">
+  {% csrf_token %}
+  <div class="form-grid">
+    <div class="field">
+      <label for="{{ form.numero_serie.id_for_label }}">{{ form.numero_serie.label }}</label>
+      <input type="text" name="numero_serie" id="{{ form.numero_serie.id_for_label }}" maxlength="100"
+             value="{{ form.numero_serie.value|default:'' }}" autofocus required autocomplete="off"
+             class="code">
+      <span class="hint">Se rechaza si ya está registrado en cualquier producto.</span>
+      {% for e in form.numero_serie.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Guardar corrección</button>
+    <a href="{% url 'correcciones' %}?accion=serial&amp;q={{ unidad.numero_serie|urlencode }}" class="btn">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

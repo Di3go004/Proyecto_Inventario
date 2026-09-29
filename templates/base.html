@@ -65,6 +65,7 @@
           <a href="{% url 'lista_usuarios' %}" class="{% if 'usuario' in request.resolver_match.url_name %}active{% endif %}">Usuarios</a>
           <a href="{% url 'lista_categorias' %}" class="{% if 'categoria' in request.resolver_match.url_name %}active{% endif %}">Categorías</a>
           <a href="{% url 'lista_proveedores' %}" class="{% if 'proveedor' in request.resolver_match.url_name %}active{% endif %}">Proveedores</a>
+          <a href="{% url 'correcciones' %}" class="{% if 'correccion' in request.resolver_match.url_name %}active{% endif %}">Correcciones</a>
         {% endif %}
       </div>
     </nav>

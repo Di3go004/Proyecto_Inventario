@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Correcciones{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Administración</p>
+    <h1 class="page-title">Correcciones</h1>
+    <p class="page-sub">
+      Para los errores de tipeo al cargar seriales. Elegí qué vas a corregir y
+      buscá la unidad por su número de serie o por su producto.
+    </p>
+  </div>
+</div>
+
+{% comment %}
+  Las dos correcciones son enlaces y no pestañas de JavaScript: cada una es
+  una dirección propia, y la búsqueda se conserva al cambiar de una a otra.
+{% endcomment %}
+<div class="correcciones-opciones">
+  <a href="?accion=serial{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
+     class="btn{% if accion == 'serial' %} btn-primary{% endif %}">Corregir un número de serie</a>
+  <a href="?accion=quitar{% if q %}&amp;q={{ q|urlencode }}{% endif %}"
+     class="btn{% if accion == 'quitar' %} btn-primary{% endif %}">Quitar una unidad que no era de ese producto</a>
+</div>
+
+<p class="hint" style="margin:0 0 14px;">
+  {% if accion == 'serial' %}
+    Se cambia solo el número: la unidad sigue siendo la misma, con sus boletas,
+    y la existencia no se mueve.
+  {% else %}
+    Se quita como si nunca hubiera entrado: la línea de su boleta y la
+    existencia bajan en uno. Solo se puede con unidades que nunca salieron de
+    bodega.
+  {% endif %}
+</p>
+
+<form method="get" class="buscador">
+  <input type="hidden" name="accion" value="{{ accion }}">
+  <div class="buscador-principal">
+    <input class="search-input" type="text" name="q" value="{{ q }}" autofocus
+           placeholder="Número de serie, código o nombre del producto…" aria-label="Buscar unidad">
+    <button type="submit" class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+{% if q %}
+  {% if total > unidades|length %}
+    <p class="hint">Se muestran {{ unidades|length }} de {{ total }}. Escribí más del serial o del producto para afinar.</p>
+  {% endif %}
+  <div class="table-wrap">
+  <table class="tabla-responsiva">
+    <thead>
+      <tr>
+        <th>N.º de serie</th><th>Producto</th><th>Estado</th><th>Entró con</th>
+        <th><span class="visualmente-oculto">Corrección</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in unidades %}
+      {% if accion == 'serial' %}
+        <tr data-href="{% url 'correccion_serial' u.pk %}">
+      {% elif u.motivo_para_no_quitar %}
+        <tr>
+      {% else %}
+        <tr data-href="{% url 'correccion_quitar' u.pk %}">
+      {% endif %}
+        <td data-etiqueta="N.º de serie" class="code celda-principal">{{ u.numero_serie }}</td>
+        <td data-etiqueta="Producto">{{ u.articulo.nombre_producto }} <span class="code">{{ u.articulo.codigo_interno }}</span></td>
+        <td data-etiqueta="Estado">
+          {% if u.en_bodega %}<span class="chip chip-good">En bodega</span>
+          {% else %}<span class="chip chip-neutral">Fuera de bodega</span>{% endif %}
+        </td>
+        <td data-etiqueta="Entró con" class="code">{{ u.movimiento_ingreso.folio|default:"Carga inicial" }}</td>
+        <td class="celda-acciones">
+          <span class="actions">
+            {% if accion == 'serial' %}
+              <a href="{% url 'correccion_serial' u.pk %}" class="btn btn-sm btn-primary">Corregir</a>
+            {% elif u.motivo_para_no_quitar %}
+              <span class="motivo-no-se-puede">{{ u.motivo_para_no_quitar }}</span>
+            {% else %}
+              <a href="{% url 'correccion_quitar' u.pk %}" class="btn btn-sm btn-danger">Quitar</a>
+            {% endif %}
+          </span>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="fila-vacia"><td colspan="5">Ningún serial ni producto coincide con "{{ q }}".</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% endif %}
+{% endblock %}

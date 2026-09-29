@@ -304,6 +304,15 @@ class ResultadoSalidaForm(forms.Form):
         return argumentos
 
 
+class CorreccionSerialForm(forms.Form):
+    """
+    El serial correcto de una unidad. Las reglas —que no esté vacío, que no
+    exista ya— viven en models.corregir_serial, que es la única puerta.
+    """
+
+    numero_serie = forms.CharField(max_length=100, label='Número de serie correcto')
+
+
 LIMITE_LINEAS = 40
 
 # El buscador del FO-SE-013 ofrece los dos catálogos, así que el id de una

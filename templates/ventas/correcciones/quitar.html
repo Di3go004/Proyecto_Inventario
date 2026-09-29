@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Quitar unidad · {{ unidad.numero_serie }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="titles">
+    <p class="eyebrow">Administración · Correcciones</p>
+    <h1 class="page-title">Quitar una unidad que no era de este producto</h1>
+    <p class="page-sub">
+      Se quita como si nunca hubiera entrado. El serial queda libre para
+      ingresarlo en el producto al que sí pertenece.
+    </p>
+  </div>
+  <a href="{% url 'correcciones' %}?accion=quitar&amp;q={{ unidad.numero_serie|urlencode }}" class="btn">← Volver a Correcciones</a>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <dl class="detail-grid">
+    <div>
+      <dt>Serial</dt>
+      <dd class="code">{{ unidad.numero_serie }}</dd>
+    </div>
+    <div>
+      <dt>Producto</dt>
+      <dd><a href="{% url 'articulo_detalle' unidad.articulo.pk %}">{{ unidad.articulo.nombre_producto }}</a></dd>
+    </div>
+    <div>
+      <dt>Código interno</dt>
+      <dd class="code">{{ unidad.articulo.codigo_interno }}</dd>
+    </div>
+    <div>
+      <dt>Entró con</dt>
+      <dd class="code">{{ unidad.movimiento_ingreso.folio|default:"Carga inicial" }}</dd>
+    </div>
+  </dl>
+</div>
+
+{% if motivo %}
+  <p class="aviso-prestado"><strong>No se puede quitar.</strong> {{ motivo }}</p>
+  <a href="{% url 'correcciones' %}?accion=quitar&amp;q={{ unidad.numero_serie|urlencode }}" class="btn">← Volver a Correcciones</a>
+{% else %}
+  {% comment %}
+    Se dice exactamente qué va a cambiar antes de hacerlo: quitar una unidad
+    cambia la cantidad de una boleta y la existencia del producto.
+  {% endcomment %}
+  <form method="post" class="card"
+        onsubmit="return confirm('¿Quitar el serial {{ unidad.numero_serie|escapejs }} de este producto? No queda guardado en ningún lado.');">
+    {% csrf_token %}
+    <p style="margin-top:0;">Al quitarla:</p>
+    <ul class="lista-efectos">
+      <li>
+        Su línea en {% if linea.folio %}la boleta <strong>{{ linea.folio }}</strong>{% else %}la <strong>carga inicial</strong>{% endif %}
+        pasa de <strong>{{ linea.cantidad }}</strong> a <strong>{{ linea.cantidad|add:"-1" }}</strong>.
+      </li>
+      <li>
+        La existencia de "{{ unidad.articulo.nombre_producto }}" pasa de
+        <strong>{{ unidad.articulo.stock_actual }}</strong> a <strong>{{ unidad.articulo.stock_actual|add:"-1" }}</strong>.
+      </li>
+      <li>El serial <span class="code">{{ unidad.numero_serie }}</span> queda libre para ingresarlo donde sí va.</li>
+    </ul>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-danger">Quitar la unidad</button>
+      <a href="{% url 'correcciones' %}?accion=quitar&amp;q={{ unidad.numero_serie|urlencode }}" class="btn">Cancelar</a>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

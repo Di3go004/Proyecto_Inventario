@@ -144,6 +144,8 @@ class TablasCuadradasTests(TestCase):
             ('reporte de movimientos', reverse('reporte_movimientos')),
             ('reporte de técnica', reverse('reporte_tecnica')),
             ('reporte de préstamos', reverse('reporte_prestamos')),
+            ('correcciones: corregir serial', reverse('correcciones') + '?q=A-100'),
+            ('correcciones: quitar unidad', reverse('correcciones') + '?accion=quitar&q=A-100'),
         ]
 
     def test_ninguna_fila_tiene_mas_celdas_que_titulos(self):

@@ -20,6 +20,10 @@ urlpatterns = [
     path('movimientos/ventas/documento/<str:folio>/', views.documento_detalle, name='documento_detalle'),
     path('movimientos/ventas/documento/<str:folio>/pdf/', views.documento_pdf, name='documento_pdf'),
     path('movimientos/ventas/documento/<str:folio>/cerrar/', views.cerrar_boleta_salida, name='cerrar_boleta_salida'),
+    # Administración → Correcciones: errores de tipeo en los seriales.
+    path('correcciones/', views.correcciones, name='correcciones'),
+    path('correcciones/serial/<int:pk>/', views.correccion_serial, name='correccion_serial'),
+    path('correcciones/quitar/<int:pk>/', views.correccion_quitar, name='correccion_quitar'),
     # Qué pasó con una línea de salida: vendida, regresó, o todavía pendiente.
     path('movimientos/ventas/<int:pk>/resultado/', views.salida_resultado, name='salida_resultado'),
 

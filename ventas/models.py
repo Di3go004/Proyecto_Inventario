@@ -2,7 +2,7 @@ import re
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import functions  # noqa: F401  (models.functions.Upper)
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
@@ -1100,3 +1100,119 @@ def cerrar_boleta(folio, usuario):
             pk__in=[linea.pk for linea in bloqueadas],
         ).update(fecha_cierre=ahora, cerrada_por=usuario)
         return ahora
+
+
+# ---------------------------------------------------------------------------
+# Correcciones
+#
+# Para los errores de tipeo al cargar seriales. Solo el administrador, desde
+# Administración → Correcciones. Sin rastro, por decisión de la empresa: la
+# corrección deja el dato bien y nada más.
+#
+# Van acá, junto a las otras puertas de las unidades, y no en la vista: así
+# las reglas valen igual venga de donde venga la corrección.
+# ---------------------------------------------------------------------------
+
+def corregir_serial(unidad, nuevo):
+    """
+    Cambia el número de serie de una unidad por el correcto.
+
+    Solo el texto: la unidad sigue siendo la misma, con sus boletas, y la
+    existencia no se mueve. Toda boleta que la muestre dice el serial corregido
+    desde ahora, también al reimprimirla.
+
+    Se limpia igual que al capturarlo, y se rechaza si ya existe en cualquier
+    producto sin importar mayúsculas: el serial identifica un aparato físico.
+    """
+    serial = limpiar_serial(nuevo)
+    if not serial:
+        raise ValidationError('Escribí el número de serie correcto.')
+    if serial == unidad.numero_serie:
+        raise ValidationError('Es el mismo número de serie que ya tiene.')
+
+    repetida = (
+        unidades_con_serial([serial]).exclude(pk=unidad.pk)
+        .select_related('articulo').first()
+    )
+    if repetida:
+        raise ValidationError(
+            f'El serial "{repetida.numero_serie}" ya está registrado en '
+            f'"{repetida.articulo.nombre_producto}".'
+        )
+
+    try:
+        with transaction.atomic():
+            UnidadArticulo.objects.filter(pk=unidad.pk).update(numero_serie=serial)
+    except IntegrityError:
+        # Alguien registró ese mismo serial entre la revisión y el guardado.
+        raise ValidationError(f'El serial "{serial}" se acaba de registrar en otro lado.')
+    unidad.numero_serie = serial
+    return unidad
+
+
+def por_que_no_se_puede_quitar(unidad):
+    """
+    Vacío si la unidad se puede quitar; si no, el motivo en palabras.
+
+    Se quita solo lo que entró por error y nunca se movió. Una unidad que ya
+    salió aparece en otra boleta —aunque después haya regresado—, y quitarla
+    descuadraría esa boleta. Y la única unidad de una línea no se quita,
+    porque la línea quedaría en 0.
+
+    Aprovecha el prefetch de `movimientos__unidades` cuando lo hay: la lista
+    de Correcciones lo pregunta por cada unidad.
+    """
+    movimientos = sorted(unidad.movimientos.all(), key=lambda m: (m.fecha, m.pk))
+    salidas = [m for m in movimientos if m.tipo_documento == MovimientoVenta.TipoDocumento.SALIDA]
+    if salidas:
+        boleta = salidas[0].folio or 'sin número'
+        return (
+            f'Ya salió de bodega con la boleta {boleta}: quitarla descuadraría '
+            'esa boleta.'
+        )
+    if len(movimientos) != 1:
+        return 'Pasó por más de un movimiento. Eso se corrige por consola.'
+
+    linea = movimientos[0]
+    donde = f'la boleta {linea.folio}' if linea.folio else 'la carga inicial'
+    if linea.cantidad <= 1:
+        return (
+            f'Es la única unidad de su línea en {donde}: la línea quedaría en 0. '
+            'Eso se corrige por consola.'
+        )
+    if linea.cantidad != len(linea.unidades.all()):
+        return f'La línea de {donde} no cuadra con sus seriales. Eso se corrige por consola.'
+    return ''
+
+
+def quitar_unidad(unidad):
+    """
+    Quita una unidad que se cargó en el producto equivocado, como si nunca
+    hubiera entrado: la línea de su boleta baja en uno y la existencia
+    también. El serial queda libre para ingresarlo donde sí va.
+
+    Devuelve la línea de la boleta, ya con su cantidad nueva. Si algo no
+    cuadra al final, se deshace todo.
+    """
+    with transaction.atomic():
+        unidad = (
+            UnidadArticulo.objects.select_for_update()
+            .select_related('articulo').get(pk=unidad.pk)
+        )
+        articulo = Articulo.objects.select_for_update().get(pk=unidad.articulo_id)
+        motivo = por_que_no_se_puede_quitar(unidad)
+        if motivo:
+            raise ValidationError(motivo)
+
+        linea = MovimientoVenta.objects.select_for_update().get(pk=unidad.movimientos.get().pk)
+        unidad.delete()                       # se lleva su vínculo con la línea
+        linea.cantidad -= 1
+        linea.save(update_fields=['cantidad'])  # recalcula la existencia
+
+        articulo.refresh_from_db()
+        if (
+            articulo.stock_actual != articulo.calcular_stock_desde_movimientos()
+            or linea.unidades.count() != linea.cantidad
+        ):
+            raise ValidationError('La corrección no cuadró y no se guardó nada.')
+        return linea

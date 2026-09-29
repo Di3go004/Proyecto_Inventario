@@ -185,6 +185,8 @@ class AlcanceCompletoTests(BaseOperador):
         'lista_usuarios', 'usuario_nuevo', 'usuario_editar', 'usuario_eliminar',
         'lista_categorias', 'categoria_nueva', 'categoria_editar', 'categoria_eliminar',
         'lista_proveedores', 'proveedor_nuevo', 'proveedor_editar', 'proveedor_eliminar',
+        # Corregir seriales cambia boletas y existencia: solo el administrador.
+        'correcciones', 'correccion_serial', 'correccion_quitar',
         # El catálogo lo captura el practicante o el admin, no el operador.
         'articulo_nuevo', 'articulo_editar', 'articulo_eliminar',
         'activo_nuevo', 'activo_editar', 'activo_eliminar',

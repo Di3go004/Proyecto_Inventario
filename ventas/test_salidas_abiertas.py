@@ -887,3 +887,124 @@ class LaFechaDelRegresoAlMinutoTests(BaseSalidasAbiertas):
             registrar_resultado(salida, usuario=self.operador, devueltas=2,
                                 fecha_regreso=con_segundos.replace(second=0) - timedelta(minutes=1),
                                 devuelto_por='Pedro')
+
+
+def texto_del_pdf(contenido):
+    """
+    El texto que imprime una boleta, tal como se lee en el papel.
+
+    ReportLab guarda cada página en ASCII85 y comprimida; adentro, cada pedazo
+    de texto va entre paréntesis, con los paréntesis escapados y los acentos y
+    el "…" como códigos octales. Acá se deshace todo eso y se juntan los
+    pedazos: un texto con "<" sale partido en varios.
+    """
+    import base64
+    import re
+    import zlib
+
+    def desescapar(cadena):
+        cadena = re.sub(
+            r'\\([0-7]{3})',
+            lambda m: bytes([int(m.group(1), 8)]).decode('cp1252'),
+            cadena,
+        )
+        return re.sub(r'\\(.)', r'\1', cadena)
+
+    texto = contenido.decode('latin1')
+    pedazos = []
+    patron = r'/ASCII85Decode /FlateDecode \] /Length \d+\s*>>\s*stream\r?\n(.*?)endstream'
+    for cuerpo in re.findall(patron, texto, re.S):
+        cuerpo = cuerpo.strip()
+        try:
+            pagina = zlib.decompress(base64.a85decode(cuerpo, adobe=cuerpo.endswith('~>'))).decode('latin1')
+        except Exception:
+            continue
+        pedazos += [desescapar(p) for p in re.findall(r'\(((?:\\.|[^\\)])*)\)\s*Tj', pagina)]
+    return ''.join(pedazos)
+
+
+def cuantas_hojas(contenido):
+    import re
+    return len(re.findall(rb'/Type\s*/Page[^s]', contenido))
+
+
+class LaObservacionDeLoDevueltoTests(BaseSalidasAbiertas):
+    """
+    Lo que se escribe al registrar lo devuelto —"regresó sin el cable"— se
+    guardaba y no salía en ningún lado: ni en la boleta, ni en el PDF, ni en
+    el Excel. Un campo que pide información y después la esconde.
+    """
+
+    def devolver_con_nota(self, nota='regreso sin el cable de poder', cantidad=4):
+        salida = self.salida(self.celda, cantidad)
+        registrar_resultado(
+            salida, usuario=self.operador, vendidas=cantidad - 2, devueltas=2,
+            fecha_regreso=timezone.now(), devuelto_por='Juan', observacion=nota,
+        )
+        return salida
+
+    def test_la_boleta_la_muestra_completa(self):
+        self.devolver_con_nota()
+
+        respuesta = self.client.get(reverse('documento_detalle', args=['SAL-00001']))
+
+        self.assertContains(respuesta, f'{fechas.fecha(timezone.now())} · Juan: regreso sin el cable de poder')
+
+    def test_la_pantalla_del_resultado_tambien(self):
+        salida = self.devolver_con_nota()
+
+        respuesta = self.client.get(reverse('salida_resultado', args=[salida.pk]))
+
+        self.assertContains(respuesta, 'Juan: regreso sin el cable de poder')
+
+    def test_el_historial_no_la_trae(self):
+        """Es una lista compacta: un párrafo por fila la volvería ilegible."""
+        self.devolver_con_nota()
+
+        respuesta = self.client.get(reverse('movimientos_ventas'))
+
+        self.assertNotContains(respuesta, 'regreso sin el cable de poder')
+
+    def test_sale_en_la_boleta_impresa(self):
+        self.devolver_con_nota()
+
+        texto = texto_del_pdf(self.client.get(reverse('documento_pdf', args=['SAL-00001'])).content)
+
+        self.assertIn(f'Devuelto {fechas.fecha(timezone.now())} (Juan): regreso sin el cable de poder', texto)
+
+    def test_sin_nada_devuelto_no_se_tira_en_silencio(self):
+        salida = self.salida(self.celda, 2)
+
+        respuesta = self.resultado(salida, vendidas='2', devueltas='0', observacion='se vendio con descuento')
+
+        self.assertContains(respuesta, 'La observación va con lo devuelto')
+        salida.refresh_from_db()
+        self.assertEqual(salida.cantidad_vendida, 0, 'no se guardó nada')
+
+    def test_una_observacion_larga_no_manda_las_firmas_a_otra_hoja(self):
+        """
+        Cabe un solo renglón de observación: con dos, las firmas se van a otra
+        hoja. Si no cabe, se corta; completa está en la pantalla.
+        """
+        from ventas import boletas
+        larga = 'Equipo entregado para demostracion en planta del cliente, con su cable y manual. ' * 3
+        for _ in range(boletas.FILAS_POR_PAGINA - 1):
+            MovimientoVenta.objects.create(
+                articulo=self.celda, tipo_documento=MovimientoVenta.TipoDocumento.SALIDA,
+                tipo_transaccion=VENTA, cantidad=1, cantidad_vendida=1, usuario=self.operador,
+                folio='SAL-00001', fecha=self.hace_una_semana, observacion=larga,
+            )
+        self.devolver_con_nota(nota='Regreso con la caja golpeada y sin el manual de usuario. ' * 3, cantidad=2)
+
+        contenido = boletas.boleta_documento('SAL-00001')
+
+        self.assertEqual(cuantas_hojas(contenido), 1)
+        self.assertIn('…', texto_del_pdf(contenido), 'se cortó con "…"')
+
+    def test_lo_que_se_escriba_no_rompe_el_pdf(self):
+        self.devolver_con_nota(nota='cable <roto> & sin tapa')
+
+        respuesta = self.client.get(reverse('documento_pdf', args=['SAL-00001']))
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn('cable <roto> & sin tapa', texto_del_pdf(respuesta.content))

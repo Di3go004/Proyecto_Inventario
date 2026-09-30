@@ -40,7 +40,7 @@
     </div>
     <div>
       <dt>Cómo va</dt>
-      <dd>{% include "componentes/resultado_salida.html" with salida=salida %}</dd>
+      <dd>{% include "componentes/resultado_salida.html" with salida=salida con_notas=True %}</dd>
     </div>
   </dl>
 </div>
@@ -122,6 +122,8 @@
     <div class="field span-2">
       <label for="{{ form.observacion.id_for_label }}">{{ form.observacion.label }}</label>
       {{ form.observacion }}
+      <span class="hint">Se guarda con lo devuelto y sale en la boleta: en qué estado regresó, qué le faltaba.</span>
+      {% for e in form.observacion.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
     </div>
   </div>
 

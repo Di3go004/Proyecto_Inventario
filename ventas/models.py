@@ -979,6 +979,14 @@ def registrar_resultado(
                 )
             if not (devuelto_por or '').strip():
                 raise ValidationError('Falta quién lo devolvió.')
+        elif (observacion or '').strip():
+            # La observación se guarda con lo devuelto. Sin nada devuelto no
+            # hay dónde guardarla, y tirarla en silencio es perder lo que
+            # alguien se tomó el trabajo de escribir.
+            raise ValidationError(
+                'La observación va con lo devuelto: escribila cuando registres '
+                'algo que regresó.'
+            )
 
         # Deshacer el regreso de algo que ya volvió a salir dejaría la
         # existencia en negativo. Se revisa antes de tocar nada: si se dejara

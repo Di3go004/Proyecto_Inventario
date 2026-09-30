@@ -252,7 +252,8 @@ class ResultadoSalidaForm(forms.Form):
     )
     devuelto_por = forms.CharField(max_length=150, label='Devuelto por', required=False)
     observacion = forms.CharField(
-        required=False, label='Observación', widget=forms.Textarea(attrs={'rows': 2}),
+        required=False, label='Observación de lo devuelto',
+        widget=forms.Textarea(attrs={'rows': 2}),
     )
 
     def __init__(self, *args, salida, **kwargs):

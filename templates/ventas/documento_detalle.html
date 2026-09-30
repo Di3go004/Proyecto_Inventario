@@ -178,7 +178,7 @@
         {% if linea.devueltas %}<span class="nota-subtotal">no cuenta{{ linea.devueltas|pluralize:"n" }} {{ linea.devueltas }} devuelta{{ linea.devueltas|pluralize }}</span>{% endif %}
       </td>
       <td data-etiqueta="{% if es_ingreso %}Estado{% else %}Resultado{% endif %}">
-        {% if es_ingreso %}—{% else %}{% include "componentes/resultado_salida.html" with salida=linea.movimiento %}{% endif %}
+        {% if es_ingreso %}—{% else %}{% include "componentes/resultado_salida.html" with salida=linea.movimiento con_notas=True %}{% endif %}
       </td>
       {% if user.puede_editar %}
       <td class="celda-acciones">

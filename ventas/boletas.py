@@ -20,6 +20,7 @@ tecnica/boletas.py.
 
 import io
 from dataclasses import dataclass
+from xml.sax.saxutils import escape
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
@@ -266,6 +267,40 @@ def devuelto_por(lineas):
     return ', '.join(dict.fromkeys(nombres))
 
 
+def notas_de_devolucion(lineas):
+    """
+    Lo que se escribió al registrar cada devolución de la boleta, para el
+    renglón de observación: "Devuelto 2026-09-30 (Juan): regresó sin el cable".
+    """
+    notas = []
+    for linea in lineas:
+        if linea.es_tecnica:
+            continue
+        for devolucion in linea.movimiento.devoluciones_por_fecha:
+            if devolucion.observacion:
+                quien = f' ({devolucion.devuelto_por})' if devolucion.devuelto_por else ''
+                notas.append(f'Devuelto {fechas.fecha(devolucion.fecha)}{quien}: {devolucion.observacion}')
+    return notas
+
+
+ROTULO_OBSERVACION = 'OBSERVACIÓN:'
+
+
+def linea_de_observacion(partes):
+    """
+    El renglón de observación, en uno solo, siempre.
+
+    Un segundo renglón ya manda las firmas a otra hoja, y la hoja que se firma
+    tiene que ser una. Si no cabe, se corta con "…": completa está en la
+    pantalla de la boleta. Los saltos de línea se vuelven espacios, y el texto
+    se escapa — un "<" escrito por alguien rompería el PDF.
+    """
+    texto = ' · '.join(' '.join(parte.split()) for parte in partes)
+    ancho_rotulo = stringWidth(ROTULO_OBSERVACION + ' ', 'Helvetica-Bold', pdf.CELDA_CHICA.fontSize)
+    texto = _recortar(texto, ANCHO_UTIL - ancho_rotulo, pdf.CELDA_CHICA)
+    return f'<b>{ROTULO_OBSERVACION}</b> {escape(texto)}'
+
+
 def _datos_y_casillas(cabecera, es_ingreso, marcadas):
     """El folio y los campos de arriba, con el bloque de casillas a la derecha."""
     fecha = fechas.fecha(cabecera.fecha)
@@ -332,7 +367,8 @@ def _pie_de_salida(cabecera, quien_devolvio):
     ]
 
 
-def _pagina(cabecera, renglones, es_ingreso, numero, total, marcadas=(), quien_devolvio=''):
+def _pagina(cabecera, renglones, es_ingreso, numero, total, marcadas=(), quien_devolvio='',
+            notas=()):
     titulo = 'INGRESO A BODEGA' if es_ingreso else 'SALIDA DE BODEGA'
     codigo = 'FO-SE-013' if es_ingreso else 'FO-SE-012'
     encabezados, anchos = COLUMNAS_INGRESO if es_ingreso else COLUMNAS_SALIDA
@@ -357,11 +393,13 @@ def _pagina(cabecera, renglones, es_ingreso, numero, total, marcadas=(), quien_d
     ]
 
     # La observación no viene impresa en el talonario, pero si el operador
-    # escribió una hay que llevarla a la boleta o se pierde al imprimir.
-    if cabecera.observacion and numero == total:
+    # escribió una hay que llevarla a la boleta o se pierde al imprimir. Las
+    # de lo devuelto van a continuación: tampoco se ven en ningún otro papel.
+    partes = ([cabecera.observacion] if cabecera.observacion else []) + list(notas)
+    if partes and numero == total:
         elementos += [
             Spacer(1, 1.5 * mm),
-            Paragraph(f'<b>OBSERVACIÓN:</b> {cabecera.observacion}', pdf.CELDA_CHICA),
+            Paragraph(linea_de_observacion(partes), pdf.CELDA_CHICA),
         ]
 
     if not es_ingreso and numero == total:
@@ -398,12 +436,13 @@ def boleta_documento(folio):
     total = len(grupos)
     marcadas = casillas_marcadas(lineas, es_ingreso)
     quien_devolvio = '' if es_ingreso else devuelto_por(lineas)
+    notas = [] if es_ingreso else notas_de_devolucion(lineas)
 
     flujo = []
     for numero, grupo in enumerate(grupos, start=1):
         if numero > 1:
             flujo.append(PageBreak())
-        flujo.extend(_pagina(cabecera, grupo, es_ingreso, numero, total, marcadas, quien_devolvio))
+        flujo.extend(_pagina(cabecera, grupo, es_ingreso, numero, total, marcadas, quien_devolvio, notas))
 
     memoria = io.BytesIO()
     documento = SimpleDocTemplate(

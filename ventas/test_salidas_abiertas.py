@@ -1008,3 +1008,48 @@ class LaObservacionDeLoDevueltoTests(BaseSalidasAbiertas):
 
         self.assertEqual(respuesta.status_code, 200)
         self.assertIn('cable <roto> & sin tapa', texto_del_pdf(respuesta.content))
+
+
+class LaBoletaImpresaDiceLoDevueltoTests(BaseSalidasAbiertas):
+    """
+    Lo encontró Diego con la SAL-00011: todo regresó y el papel no lo decía en
+    ningún lado. Las etiquetas se escondían cuando todas decían lo mismo,
+    confiando en la casilla de arriba, pero "devuelto" no tiene casilla. Y
+    "Equipo venta" salía marcada por un indicador que salió vendido y regresó.
+    """
+
+    def renglones(self):
+        return [(r.cantidad, r.etiqueta)
+                for r in boletas.renglones_de(documentos.lineas_del_documento('SAL-00001'))]
+
+    def casillas(self):
+        lineas = documentos.lineas_del_documento('SAL-00001')
+        return boletas.casillas_marcadas(lineas, False) & {c for c, _e in boletas.OPCIONES_TIPO}
+
+    def test_si_todo_regreso_cada_renglon_lo_dice(self):
+        celdas = self.salida(self.celda, 6)
+        registrar_resultado(celdas, usuario=self.operador, devueltas=6,
+                            fecha_regreso=timezone.now(), devuelto_por='diego')
+
+        self.assertEqual(self.renglones(), [(6, 'DEVUELTO')])
+
+    def test_si_todo_se_uso_tambien(self):
+        celdas = self.salida(self.celda, 2)
+        registrar_resultado(celdas, usuario=self.operador, usadas=2)
+
+        self.assertEqual(self.renglones(), [(2, 'USADO')])
+
+    def test_una_venta_que_regreso_no_marca_equipo_venta(self):
+        venta = self.salida(self.celda, 1, tipo=VENTA)
+        registrar_resultado(venta, usuario=self.operador, vendidas=0, devueltas=1,
+                            fecha_regreso=timezone.now(), devuelto_por='diego')
+
+        self.assertEqual(self.casillas(), set())
+        self.assertEqual(self.renglones(), [(1, 'DEVUELTO')])
+
+    def test_al_salir_se_imprime_como_el_papel(self):
+        """Recién registrada, todo pendiente: sin etiquetas, no se sabe nada todavía."""
+        self.salida(self.celda, 2)
+        self.salida(self.celda, 3)
+
+        self.assertEqual(self.renglones(), [(2, ''), (3, '')])

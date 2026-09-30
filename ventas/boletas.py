@@ -153,6 +153,11 @@ ETIQUETA_DE_ESTADO = {'vendida': 'VENDIDO', 'devuelta': 'DEVUELTO'}
 ETIQUETA_DE_PARTE = {'vendidas': 'VENDIDO', 'usadas': 'USADO', 'devueltas': 'DEVUELTO'}
 
 
+# Lo que ya se entiende sin etiqueta: lo dice una casilla de arriba, o es la
+# boleta al salir, cuando todavía no se sabe nada.
+LAS_DICE_LA_CASILLA = {'', 'VENDIDO', 'DEMO', 'PENDIENTE'}
+
+
 def _pendiente(linea):
     return 'DEMO' if linea.es_demo else 'PENDIENTE'
 
@@ -191,7 +196,13 @@ def renglones_de(lineas):
         else:
             renglones.append(Renglon(linea, linea.cantidad, ''))
 
-    if len({renglon.etiqueta for renglon in renglones}) <= 1:
+    # Solo se esconden si todas dicen lo mismo y la casilla de arriba ya lo
+    # dice —todo vendido, todo en demo—, o si todavía no se sabe nada: la
+    # boleta recién impresa al salir. DEVUELTO y USADO no tienen casilla en el
+    # papel: escondidas, la boleta de algo que regresó entero no decía en
+    # ningún lado que regresó.
+    etiquetas = {renglon.etiqueta for renglon in renglones}
+    if len(etiquetas) <= 1 and etiquetas <= LAS_DICE_LA_CASILLA:
         for renglon in renglones:
             renglon.etiqueta = ''
     return renglones
@@ -245,7 +256,12 @@ def casillas_marcadas(lineas, es_ingreso):
     """
     if es_ingreso:
         return {getattr(lineas[0].movimiento, 'tipo_transaccion', '')}
-    marcadas = {linea.movimiento.tipo_transaccion for linea in lineas}
+    # "Equipo venta" no sale de cómo salió la línea sino de lo que pasó: una
+    # venta que regresó entera no se vendió, y marcarla decía lo contrario.
+    marcadas = {
+        linea.movimiento.tipo_transaccion for linea in lineas
+        if linea.movimiento.tipo_transaccion != MovimientoVenta.TipoTransaccion.VENTA
+    }
     if any(linea.movimiento.cantidad_vendida for linea in lineas):
         marcadas.add(MovimientoVenta.TipoTransaccion.VENTA)
     if any(linea.movimiento.cantidad_usada for linea in lineas):

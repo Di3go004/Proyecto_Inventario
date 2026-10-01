@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load chips %}
+{% load catalogo_extras %}
 {% load navegacion %}
 {% block title %}Catálogo Ventas{% endblock %}
 {% block content %}
@@ -18,7 +19,7 @@
 <form method="get" class="buscador">
   <div class="buscador-principal">
     <input class="search-input" type="text" name="q" value="{{ q }}"
-           placeholder="Buscar por código o nombre…" aria-label="Buscar">
+           placeholder="Buscar por código, nombre o serial…" aria-label="Buscar">
     <button type="submit" class="btn btn-primary">Buscar</button>
   </div>
 
@@ -91,6 +92,55 @@
     </div>
   </details>
 </form>
+
+{% if unidades_encontradas %}
+  {% comment %}
+    Los juegos de indicador y plataforma traen el mismo serial y se venden
+    por separado: buscando uno, aquí se ve si el otro sigue en bodega. La
+    fila lleva a la ficha del producto, que todos pueden abrir; la boleta es
+    enlace solo para quien puede abrirla —al practicante le daría un 403—.
+  {% endcomment %}
+  <section class="card unidades-encontradas" aria-labelledby="titulo-unidades-encontradas">
+    <h2 class="card-titulo" id="titulo-unidades-encontradas">Dónde está cada unidad</h2>
+    <p class="hint">Las que tienen "{{ q }}" en el número de serie.</p>
+    <div class="table-wrap">
+      <table class="tabla-responsiva">
+        <thead>
+          <tr><th>N.º de serie</th><th>Producto</th><th>Dónde está</th></tr>
+        </thead>
+        <tbody>
+          {% for unidad in unidades_encontradas %}
+          <tr data-href="{% url 'articulo_detalle' unidad.articulo.pk %}">
+            <td data-etiqueta="N.º de serie" class="code celda-principal">{{ unidad.numero_serie }}</td>
+            <td data-etiqueta="Producto" class="truncate" title="{{ unidad.articulo.nombre_producto }}">{{ unidad.articulo.nombre_producto }}</td>
+            <td data-etiqueta="Dónde está">
+              {% with paradero=unidad.paradero salida=unidad.movimiento_salida %}
+              <span class="paradero">
+                <span class="chip {{ paradero|clase_paradero }}">{{ paradero.label }}</span>
+                {% if salida %}
+                  <span class="paradero-detalle">
+                    {% if salida.folio %}{% if user.es_practicante %}<span class="code">{{ salida.folio }}</span>{% else %}<a href="{% url 'documento_detalle' salida.folio %}" class="code">{{ salida.folio }}</a>{% endif %}{% endif %}
+                    {% if salida.cliente_nombre %}· {{ salida.cliente_nombre }}{% endif %}
+                  </span>
+                {% elif paradero == 'en_bodega' %}
+                  <span class="paradero-detalle">{{ unidad.articulo.bodega.nombre }}</span>
+                {% endif %}
+              </span>
+              {% endwith %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if total_unidades_encontradas > unidades_encontradas|length %}
+      <p class="hint unidades-encontradas-tope">
+        Se muestran las primeras {{ unidades_encontradas|length }} de {{ total_unidades_encontradas }}.
+        Escribí más del número para encontrar la que buscás.
+      </p>
+    {% endif %}
+  </section>
+{% endif %}
 
 {% include "componentes/paginacion.html" with pagina=pagina etiqueta="artículos" %}
 

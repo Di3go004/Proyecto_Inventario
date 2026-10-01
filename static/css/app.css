@@ -782,3 +782,23 @@ form.card > .errorlist,
 }
 
 .lista-efectos { margin: 0 0 4px; padding-left: 20px; line-height: 1.7; }
+
+/* --- Catálogo: dónde está cada unidad del serial buscado ------------------ */
+
+/* Va entre el buscador y la tabla de productos, que sigue debajo igual. */
+.unidades-encontradas { margin-bottom: 18px; }
+.unidades-encontradas .card-titulo { margin-bottom: 4px; }
+.unidades-encontradas .hint { margin: 0 0 12px; color: var(--text-muted); font-size: .84rem; }
+.unidades-encontradas .unidades-encontradas-tope { margin: 12px 0 0; }
+/* Dentro de la tarjeta sobra otra sombra, y el tope de alto también: son
+   veinte filas a lo sumo. */
+.unidades-encontradas .table-wrap { box-shadow: none; max-height: none; }
+/* El estado y la boleta juntos: en el celular la celda reparte a sus hijos a
+   los extremos, y sueltos quedaría la boleta lejos de su estado. */
+.paradero { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.paradero-detalle { color: var(--text-muted); font-size: .8rem; }
+/* En la tarjeta del celular cada valor va a la derecha: si el estado y la
+   boleta no caben en una línea, que bajen alineados igual. */
+@media (max-width: 1024px) {
+  .tabla-responsiva .paradero { justify-content: flex-end; }
+}

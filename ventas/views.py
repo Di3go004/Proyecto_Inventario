@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import ProtectedError, Q
+from django.db.models import Case, ProtectedError, Q, Value, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
@@ -35,6 +35,12 @@ CARPETA_TEMP_IMPORTACIONES = os.path.join(settings.MEDIA_ROOT, 'tmp_importacione
 # Tope de la consulta de seriales en vivo: pegar una lista larga no debe
 # convertirse en una consulta sin límite.
 LIMITE_SERIALES_CONSULTADOS = 300
+
+# Cuántas unidades enseña el cuadro del buscador. Un juego de indicador y
+# plataforma son dos; un lote de varios juegos, unas cuantas más. Buscar "0"
+# coincide con casi todo, y eso no debe empujar la tabla de productos fuera
+# de la pantalla.
+LIMITE_UNIDADES_EN_BUSQUEDA = 20
 
 
 @login_required
@@ -102,6 +108,10 @@ def catalogo_articulos(request):
     if nivel:
         articulos = [a for a in articulos if a.nivel_alerta == nivel]
 
+    unidades_encontradas, total_unidades_encontradas = (
+        _unidades_que_coinciden(q, articulos) if q else ([], 0)
+    )
+
     pagina = paginar(request, articulos)
 
     # Cuántos filtros hay puestos (sin contar la búsqueda por texto, que
@@ -116,6 +126,8 @@ def catalogo_articulos(request):
         'filtros_activos': filtros_activos,
         'articulos': pagina,
         'pagina': pagina,
+        'unidades_encontradas': unidades_encontradas,
+        'total_unidades_encontradas': total_unidades_encontradas,
         'bodegas': Bodega.objects.filter(tipo=Bodega.Tipo.VENTA),
         'proveedores': Proveedor.objects.order_by('nombre'),
         # Solo las de este módulo: una categoría de herramienta no tiene nada
@@ -130,6 +142,40 @@ def catalogo_articulos(request):
         'precio_max': precio_max,
         'activo': activo,
     })
+
+
+def _unidades_que_coinciden(q, articulos):
+    """
+    Las unidades con lo buscado en el serial, para el cuadro "Dónde está cada
+    unidad", y cuántas son en total.
+
+    Existe por los juegos de indicador y plataforma: traen el mismo serial en
+    las dos cajas —la plataforma se registra con "-P"— y se venden por
+    separado. Buscando el del indicador aparece también la plataforma, y hay
+    que ver de un vistazo si sigue en bodega. La tabla de productos dice qué
+    productos tienen el serial; el cuadro, dónde está cada aparato.
+
+    Solo de los productos que dejaron los filtros: si la tabla no enseña un
+    producto, el cuadro tampoco enseña sus unidades. Recorrer `articulos` acá
+    no cuesta otra consulta: la paginación aprovecha lo ya traído.
+
+    La que coincide completa va primero: quien escribe 260105009 busca ese, no
+    el 0260105009 que solo lo contiene.
+    """
+    coinciden = UnidadArticulo.objects.filter(
+        numero_serie__icontains=q, articulo__in=[a.pk for a in articulos],
+    )
+    primeras = (
+        coinciden
+        .select_related('articulo__bodega')
+        # paradero pregunta por los movimientos y los pasos de cada unidad.
+        .prefetch_related('movimientos', 'pasos')
+        .order_by(
+            Case(When(numero_serie__iexact=q, then=Value(0)), default=Value(1)),
+            'numero_serie',
+        )[:LIMITE_UNIDADES_EN_BUSQUEDA]
+    )
+    return list(primeras), coinciden.count()
 
 
 @login_required

@@ -690,6 +690,22 @@ class UnidadArticulo(models.Model):
     por cantidad, no por unidad.
     """
 
+    class Paradero(models.TextChoices):
+        """
+        Lo que contesta `paradero`. No es un campo: va como lista cerrada para
+        que el color y el texto de cada caso no se escriban a mano en las
+        plantillas, donde uno se puede quedar sin pintar sin que nadie lo note.
+        """
+        EN_BODEGA = 'en_bodega', 'En bodega'
+        CON_TECNICO = 'con_tecnico', 'Con el técnico'
+        DEMO = 'demo', 'En demo'
+        # Salió y no se sabe qué pasó, pero no fue con el técnico ni a demo:
+        # una venta a la que se le corrigió el resultado, por ejemplo.
+        PENDIENTE = 'pendiente', 'Pendiente'
+        VENDIDA = 'vendida', 'Vendida'
+        # No le queda ningún movimiento: se borró la boleta con la que entró.
+        SIN_MOVIMIENTOS = 'sin_movimientos', 'Sin movimientos'
+
     articulo = models.ForeignKey(
         Articulo, on_delete=models.PROTECT, related_name='unidades',
     )
@@ -760,6 +776,38 @@ class UnidadArticulo(models.Model):
     def estado(self):
         """Para pintarlo en la ficha del producto."""
         return 'En bodega' if self.en_bodega else 'Fuera de bodega'
+
+    @property
+    def paradero(self):
+        """
+        Dónde está hoy: en bodega, vendida, o fuera sin resultado todavía —con
+        el técnico o en demo—.
+
+        Sale de en_bodega y movimiento_salida, más cómo quedó su paso por esa
+        salida, así que no hay nada que mantener: la que regresa vuelve a decir
+        "en bodega" sola, y la vendida se queda vendida.
+
+        Distingue lo que el simple "fuera de bodega" junta: la vendida ya no
+        vuelve, la que está con el técnico o en demo todavía puede volver. Es
+        lo que se quiere saber al buscar la plataforma de un indicador.
+        """
+        if self.en_bodega:
+            return self.Paradero.EN_BODEGA
+        salida = self.movimiento_salida
+        if salida is None:
+            return self.Paradero.SIN_MOVIMIENTOS
+        # Se recorre lo ya traído en vez de filtrar: el buscador pregunta esto
+        # por cada fila, y filtrar haría una consulta por unidad.
+        vendida = any(
+            paso.vendida for paso in self.pasos.all() if paso.movimiento_id == salida.pk
+        )
+        if vendida:
+            return self.Paradero.VENDIDA
+        if salida.es_demo:
+            return self.Paradero.DEMO
+        if salida.tipo_transaccion == MovimientoVenta.TipoTransaccion.CON_TECNICO:
+            return self.Paradero.CON_TECNICO
+        return self.Paradero.PENDIENTE
 
     @property
     def boleta_de_referencia(self):

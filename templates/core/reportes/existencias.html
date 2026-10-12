@@ -11,6 +11,11 @@
   </div>
   <div class="page-acciones">
     <a href="{% url 'indice_reportes' %}" class="btn">← Reportes</a>
+    {% comment %}
+      En otra pestaña, como la boleta: el PDF se abre en el visor del
+      navegador para mandarlo a imprimir, y el reporte sigue aquí.
+    {% endcomment %}
+    <a href="?{% url_con formato='pdf' pagina='' %}" class="btn" target="_blank" rel="noopener">Imprimir (PDF)</a>
     <a href="?{% url_con formato='excel' pagina='' %}" class="btn btn-primary">Descargar Excel</a>
   </div>
 </div>

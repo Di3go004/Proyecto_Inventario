@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from core import exportar, fechas, reportes
+from core import exportar, fechas, reportes, reportes_pdf
 from core.forms import CategoriaForm, ProveedorForm
 from core.models import Bodega, Categoria, Proveedor
 from core.paginacion import paginar
@@ -110,6 +110,22 @@ def _excel(nombre, titulo, encabezados, filas, subtitulo='', formatos=None,
     return respuesta
 
 
+def _pdf(nombre, contenido):
+    """
+    Entrega un reporte en PDF para imprimir. "inline" lo abre en el visor del
+    navegador, que es desde donde se manda a la impresora, igual que las
+    boletas; el nombre solo se usa si deciden guardarlo.
+    """
+    respuesta = HttpResponse(contenido, content_type='application/pdf')
+    respuesta['Content-Disposition'] = (
+        f'inline; filename="{nombre}-{timezone.localtime():%Y-%m-%d}.pdf"'
+    )
+    # Se arma en el momento: sin esto el navegador puede seguir enseñando el
+    # de la primera vez aunque la existencia ya haya cambiado.
+    respuesta['Cache-Control'] = 'no-store, must-revalidate'
+    return respuesta
+
+
 def _bodegas_de_venta():
     return Bodega.objects.filter(tipo=Bodega.Tipo.VENTA)
 
@@ -173,6 +189,15 @@ def reporte_existencias(request):
                 12: exportar.FORMATO_FECHA,
             },
         )
+
+    if request.GET.get('formato') == 'pdf':
+        bodega = _bodegas_de_venta().filter(pk=bodega_id).first() if bodega_id.isdigit() else None
+        return _pdf('existencias', reportes_pdf.existencias(
+            filas, detalle, totales, tecnica,
+            bodega=bodega.nombre if bodega else 'Todas',
+            solo_activos=solo_activos,
+            generado_por=request.user.get_full_name() or request.user.username,
+        ))
 
     return render(request, 'core/reportes/existencias.html', {
         'filas': filas,

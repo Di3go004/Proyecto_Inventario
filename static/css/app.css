@@ -325,7 +325,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
   .buscador-principal { flex-direction: column; }
   .filtros-campos { grid-template-columns: 1fr; }
   .page-acciones { width: 100%; }
-  .page-acciones .btn { flex: 1; }
+  /* Cada botón con su texto en un renglón, estirado para llenar la fila; si
+     no caben, el último baja a otra fila. Con flex: 1 se repartían el ancho
+     por igual y tres botones quedaban con el texto partido en dos. */
+  .page-acciones .btn { flex: 1 1 auto; white-space: nowrap; }
 }
 
 /* Celular: la barra superior se apila para que usuario/rol/salir no se

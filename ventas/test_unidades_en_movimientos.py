@@ -76,8 +76,8 @@ class BaseUnidadesEnMovimientos(TestCase):
         datos = self.cabecera(**extra)
         datos.pop('tipo_transaccion')
         datos['linea_tipo'] = [tipo for _linea in lineas]
+        datos['linea_cliente'] = ['Cliente X' for _linea in lineas]
         datos.setdefault('entregado_por', 'Bodega')
-        datos.setdefault('cliente_nombre', 'Cliente X')
         datos.setdefault('envio_recibo', '')
         datos['linea_articulo'] = [str(a.pk) for a, _c, _s in lineas]
         datos['linea_cantidad'] = [str(c) for _a, c, _s in lineas]

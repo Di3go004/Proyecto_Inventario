@@ -563,6 +563,9 @@ def _guardar_documento(cabecera, tipo_transaccion, folio, lineas, tipo_documento
                 cantidad_vendida=linea['cantidad'] if sale_vendida else 0,
                 precio_unitario=precio,
                 usuario=usuario,
+                # El cliente es de la línea, no del encabezado: una salida
+                # pasa por varios. En el ingreso va vacío.
+                cliente_nombre=linea.get('cliente', ''),
                 **cabecera,
             )
             # Las unidades quedan atadas al movimiento que las movió. De ahí
@@ -733,6 +736,9 @@ def documento_detalle(request, folio):
     return render(request, 'ventas/documento_detalle.html', {
         'folio': folio,
         'es_ingreso': es_ingreso,
+        # Lo mismo con los clientes, que son de cada línea: el encabezado ya
+        # no puede sacarlo de la primera, que diría solo el de esa.
+        'clientes': list(dict.fromkeys(linea.cliente_nombre for linea in lineas if linea.cliente_nombre)),
         # La cabecera sale del primer movimiento: los datos del encabezado
         # (fecha, solicitado por, factura) se repiten en todas las líneas.
         'cabecera': cabecera,

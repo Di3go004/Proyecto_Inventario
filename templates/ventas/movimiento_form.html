@@ -72,15 +72,27 @@
                 debajo del producto por lo mismo que los seriales: como columna
                 aparte, en una laptop el campo del producto quedaba de 83 px.
               {% endcomment %}
+              {% comment %}
+                El cliente también es de la línea, como la columna "Nombre
+                cliente" del FO-SE-012: el técnico sale con una sola boleta y
+                pasa por varios clientes.
+              {% endcomment %}
               {% if not es_ingreso %}
-                <label class="linea-tipo-campo">
-                  <span class="linea-tipo-rotulo">Sale como</span>
-                  <select class="linea-tipo" name="linea_tipo">
-                    {% for valor, etiqueta in tipos_de_salida %}
-                      <option value="{{ valor }}"{% if linea.tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
-                    {% endfor %}
-                  </select>
-                </label>
+                <div class="linea-salida">
+                  <label class="linea-tipo-campo">
+                    <span class="linea-tipo-rotulo">Sale como</span>
+                    <select class="linea-tipo" name="linea_tipo">
+                      {% for valor, etiqueta in tipos_de_salida %}
+                        <option value="{{ valor }}"{% if linea.tipo == valor %} selected{% endif %}>{{ etiqueta }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label class="linea-cliente-campo">
+                    <span class="linea-tipo-rotulo">Cliente</span>
+                    <input type="text" class="linea-cliente" name="linea_cliente" value="{{ linea.cliente }}"
+                           maxlength="150" placeholder="Para quién va" aria-label="Cliente de esta línea">
+                  </label>
+                </div>
               {% endif %}
               {% comment %}
                 Los seriales van debajo del producto y no en su propia columna:
@@ -172,14 +184,21 @@
       </div>
       <span class="linea-info"></span>
       {% if not es_ingreso %}
-        <label class="linea-tipo-campo">
-          <span class="linea-tipo-rotulo">Sale como</span>
-          <select class="linea-tipo" name="linea_tipo">
-            {% for valor, etiqueta in tipos_de_salida %}
-              <option value="{{ valor }}">{{ etiqueta }}</option>
-            {% endfor %}
-          </select>
-        </label>
+        <div class="linea-salida">
+          <label class="linea-tipo-campo">
+            <span class="linea-tipo-rotulo">Sale como</span>
+            <select class="linea-tipo" name="linea_tipo">
+              {% for valor, etiqueta in tipos_de_salida %}
+                <option value="{{ valor }}">{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="linea-cliente-campo">
+            <span class="linea-tipo-rotulo">Cliente</span>
+            <input type="text" class="linea-cliente" name="linea_cliente" value=""
+                   maxlength="150" placeholder="Para quién va" aria-label="Cliente de esta línea">
+          </label>
+        </div>
       {% endif %}
       <div class="seriales linea-seriales" data-modo="{% if es_ingreso %}libre{% else %}elegir{% endif %}"
            data-url-verificar="{% url 'api_seriales_ocupados' %}"

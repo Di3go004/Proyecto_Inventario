@@ -77,8 +77,8 @@
         <dd>{{ cabecera.entregado_por|default:"—" }}</dd>
       </div>
       <div>
-        <dt>Cliente</dt>
-        <dd>{{ cabecera.cliente_nombre|default:"—" }}</dd>
+        <dt>{% if clientes|length > 1 %}Clientes{% else %}Cliente{% endif %}</dt>
+        <dd>{{ clientes|join:", "|default:"—" }}</dd>
       </div>
       <div>
         <dt>Envío / recibo</dt>
@@ -116,7 +116,7 @@
     <tr>
       <th style="width:44px;">#</th><th>Producto</th>
       <th class="columna-secundaria">Bodega</th>
-      {% if es_ingreso %}<th>Proveedor</th>{% else %}<th>Tipo</th>{% endif %}
+      {% if es_ingreso %}<th>Proveedor</th>{% else %}<th>Tipo</th><th>Cliente</th>{% endif %}
       <th>Cantidad</th>
       <th>Precio unitario</th><th>Subtotal</th><th>{% if es_ingreso %}Estado{% else %}Resultado{% endif %}</th>
       {% if user.puede_editar %}<th><span class="visualmente-oculto">Acciones</span></th>{% endif %}
@@ -166,6 +166,7 @@
         </td>
       {% else %}
         <td data-etiqueta="Tipo">{{ linea.tipo }}</td>
+        <td data-etiqueta="Cliente" class="truncate" title="{{ linea.cliente_nombre }}">{{ linea.cliente_nombre|default:"—" }}</td>
       {% endif %}
       <td data-etiqueta="Cantidad" class="num">{{ linea.cantidad }}</td>
       <td data-etiqueta="Precio unitario" class="num">Q {{ linea.precio_unitario|floatformat:2 }}</td>

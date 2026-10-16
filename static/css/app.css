@@ -769,9 +769,13 @@ form.card > .errorlist,
 
 /* Cómo sale cada línea de la salida, debajo del producto. El ancho mínimo es
    el de "Préstamo / Demo", la opción más larga: más angosto, se cortaba. */
-.linea-tipo-campo { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+/* "Sale como" y "Cliente" en el mismo renglón; si no caben, el cliente baja. */
+.linea-salida { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 8px; }
+.linea-tipo-campo { display: flex; align-items: center; gap: 8px; }
 .linea-tipo-rotulo { color: var(--text-muted); font-size: .82rem; white-space: nowrap; }
 .linea-tipo-campo .linea-tipo { width: auto; min-width: 176px; padding-top: 6px; padding-bottom: 6px; }
+.linea-cliente-campo { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; }
+.linea-cliente-campo .linea-cliente { flex: 1; min-width: 0; padding-top: 6px; padding-bottom: 6px; }
 
 /* --- Administración → Correcciones --------------------------------------- */
 

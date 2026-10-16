@@ -69,6 +69,11 @@
       var anteriores = cuerpo.querySelectorAll('tr.linea .linea-tipo');
       var tipo = fila.querySelector('.linea-tipo');
       if (tipo && anteriores.length) tipo.value = anteriores[anteriores.length - 1].value;
+      // El cliente igual: en el papel se escribe una vez y vale para las
+      // líneas que siguen, hasta que cambia de cliente.
+      var clientes = cuerpo.querySelectorAll('tr.linea .linea-cliente');
+      var cliente = fila.querySelector('.linea-cliente');
+      if (cliente && clientes.length) cliente.value = clientes[clientes.length - 1].value;
       cuerpo.appendChild(fila);
       window.iniciarAutocompletar(fila);
       if (window.iniciarSeriales) window.iniciarSeriales(fila.querySelector('.seriales'));

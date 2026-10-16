@@ -151,7 +151,11 @@ class DocumentoMovimientoForm(forms.Form):
     ]
 
     # Campos que solo existen en uno de los dos documentos.
-    SOLO_SALIDA = ('entregado_por', 'cliente_nombre', 'envio_recibo')
+    #
+    # El cliente no está: va en cada línea (linea_cliente), como en la columna
+    # "Nombre cliente" del FO-SE-012. Una misma salida pasa por varios
+    # clientes, y como dato del encabezado quedaba el mismo para todas.
+    SOLO_SALIDA = ('entregado_por', 'envio_recibo')
 
     folio = forms.CharField(
         max_length=30, required=False, label='Número de boleta',
@@ -162,7 +166,6 @@ class DocumentoMovimientoForm(forms.Form):
     tipo_transaccion = forms.ChoiceField(choices=TIPOS_VISIBLES, label='Tipo de movimiento')
     solicitado_por = forms.CharField(max_length=150, label='Solicitado por')
     entregado_por = forms.CharField(max_length=150, required=False, label='Entregado por')
-    cliente_nombre = forms.CharField(max_length=150, required=False, label='Cliente')
     no_factura = forms.CharField(max_length=50, required=False, label='No. de factura')
     envio_recibo = forms.CharField(max_length=100, required=False, label='Envío / recibo')
     observacion = forms.CharField(
@@ -316,6 +319,10 @@ class CorreccionSerialForm(forms.Form):
 
 LIMITE_LINEAS = 40
 
+# El que cabe en la columna de la base. Pasado de largo, la boleta entera se
+# caía con un error técnico al guardar; así se avisa en su línea.
+LARGO_DEL_CLIENTE = MovimientoVenta._meta.get_field('cliente_nombre').max_length
+
 # El buscador del FO-SE-013 ofrece los dos catálogos, así que el id de una
 # línea tiene que decir de cuál salió: el 12 de Bodega 1 y 2 no es el 12 de
 # Bodega Técnica.
@@ -467,6 +474,8 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
     seriales = post.getlist('linea_seriales')
     # Solo la salida lleva tipo por línea; el ingreso lo trae en el encabezado.
     tipos = post.getlist('linea_tipo')
+    # Y cliente: una misma salida pasa por varios clientes, cada línea el suyo.
+    clientes = post.getlist('linea_cliente')
 
     # Del documento completo: un mismo serial no puede ir en dos líneas.
     ya_vistos = set()
@@ -479,6 +488,7 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
         precio_texto = (precios[indice] if indice < len(precios) else '').strip()
         seriales_texto = (seriales[indice] if indice < len(seriales) else '').strip()
         tipo = (tipos[indice] if indice < len(tipos) else '').strip()
+        cliente = (clientes[indice] if indice < len(clientes) else '').strip()
 
         # Fila completamente vacía: se ignora en silencio (siempre queda una
         # de más al final para poder seguir agregando).
@@ -493,6 +503,8 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
             'seriales_texto': seriales_texto, 'seriales': [], 'unidades': [],
             'lleva_serie': False, 'disponibles_json': '[]',
             'tipo': None,
+            # El ingreso no lleva cliente: lo que entra viene de un proveedor.
+            'cliente': '' if es_ingreso else cliente,
         }
 
         if not es_ingreso:
@@ -518,6 +530,9 @@ def leer_lineas(post, incluir_tecnica=False, es_ingreso=True):
 
         if not es_ingreso and not tipo_valido and not linea['error']:
             linea['error'] = 'Elegí cómo sale: con el técnico, como demo o vendido.'
+
+        if len(linea['cliente']) > LARGO_DEL_CLIENTE and not linea['error']:
+            linea['error'] = f'El nombre del cliente no puede pasar de {LARGO_DEL_CLIENTE} letras.'
 
         if not linea['error']:
             try:

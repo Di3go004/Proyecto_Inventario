@@ -69,12 +69,12 @@ class BaseMovimientos(TestCase):
         datos = self.cabecera(**extra)
         datos.pop('tipo_transaccion')
         datos.setdefault('entregado_por', 'Bodega')
-        datos.setdefault('cliente_nombre', 'Cliente X')
         datos.setdefault('envio_recibo', '')
         datos['linea_articulo'] = [str(a.pk) for a, _c in lineas]
         datos['linea_cantidad'] = [str(c) for _a, c in lineas]
         datos['linea_texto'] = [a.codigo_interno for a, _c in lineas]
         datos['linea_tipo'] = [tipo for _linea in lineas]
+        datos['linea_cliente'] = ['Cliente X' for _linea in lineas]
         return self.client.post(reverse('movimiento_salida'), datos)
 
 

@@ -101,7 +101,7 @@ class BaseSalidasAbiertas(TestCase):
             'folio': folio,
             'fecha': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             'solicitado_por': 'Ivan Leiva', 'entregado_por': 'Bodega',
-            'cliente_nombre': 'Cliente X', 'envio_recibo': '',
+            'envio_recibo': '',
             'no_factura': '', 'observacion': '',
             'linea_articulo': [str(a.pk) for a, _c, _s, _t in lineas],
             'linea_cantidad': [str(c) for _a, c, _s, _t in lineas],
@@ -109,6 +109,7 @@ class BaseSalidasAbiertas(TestCase):
             'linea_seriales': [s for _a, _c, s, _t in lineas],
             'linea_precio': ['' for _l in lineas],
             'linea_tipo': [t for _a, _c, _s, t in lineas],
+            'linea_cliente': ['Cliente X' for _linea in lineas],
         }
         return self.client.post(reverse('movimiento_salida'), datos)
 

@@ -999,7 +999,9 @@ class LaObservacionDeLoDevueltoTests(BaseSalidasAbiertas):
 
         contenido = boletas.boleta_documento('SAL-00001')
 
-        self.assertEqual(cuantas_hojas(contenido), 1)
+        # En su media carta: si las firmas no cupieran, seguirían en la mitad
+        # de abajo de la misma hoja carta, así que contar hojas no lo diría.
+        self.assertEqual(boletas.medias_hojas('SAL-00001'), 1)
         self.assertIn('…', texto_del_pdf(contenido), 'se cortó con "…"')
 
     def test_lo_que_se_escriba_no_rompe_el_pdf(self):

@@ -14,6 +14,17 @@ Que el tamaño coincida no es un detalle estético: estas boletas se imprimen,
 se firman y se archivan junto a las de papel de los años anteriores. Si
 salieran en carta completa no entrarían en el mismo folder.
 
+**Pero el PDF es una hoja carta**, vertical, con la boleta en cada mitad.
+Antes el PDF medía media carta, y al imprimirlo en la hoja carta de la
+impresora el navegador lo agrandaba para llenarla: la boleta salía del
+tamaño de la hoja entera. Con el PDF y el papel del mismo tamaño no hay nada
+que agrandar, y cada mitad sale a la medida del talonario. Se corta por la
+línea punteada del centro.
+
+En la mitad de abajo va la hoja siguiente de la misma boleta: una de veinte
+hojas sale en diez cartas. Si la boleta es de una sola, la de abajo queda
+en blanco.
+
 El formato de Bodega Técnica (FO-SE-066) sí es carta completa y vive en
 tecnica/boletas.py.
 """
@@ -22,11 +33,12 @@ import io
 from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
-    KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
+    BaseDocTemplate, Frame, FrameBreak, KeepTogether, PageTemplate, Paragraph, Spacer, Table,
 )
 
 from core import fechas, pdf
@@ -37,7 +49,11 @@ from .models import MovimientoVenta
 # Media carta apaisada: la hoja carta cortada a la mitad por el lado largo.
 MEDIA_CARTA = (letter[0], letter[1] / 2)      # 216 × 140 mm
 
+# El tamaño de la boleta, que es el del talonario.
 PAGINA = MEDIA_CARTA
+# El de la hoja que sale de la impresora: carta vertical, con una boleta en
+# cada mitad.
+HOJA = letter                                 # 216 × 279 mm
 MARGEN = 7 * mm
 ANCHO_UTIL = PAGINA[0] - 2 * MARGEN           # ≈ 202 mm
 
@@ -432,12 +448,52 @@ def agrupar_en_paginas(renglones):
     ]
 
 
-def boleta_documento(folio):
+def _linea_de_corte(canvas, _documento):
     """
-    Devuelve los bytes del PDF de un documento completo (todas las líneas que
-    comparten el folio). Lanza MovimientoVenta.DoesNotExist si el folio no
-    existe, para que la vista responda 404 en vez de un PDF vacío.
+    La raya punteada del centro, por donde se corta la hoja. Va en todas,
+    aunque la mitad de abajo quede en blanco: igual se corta para archivar la
+    de arriba con las de papel.
     """
+    canvas.saveState()
+    canvas.setStrokeColor(colors.Color(0.6, 0.6, 0.6))
+    canvas.setLineWidth(0.4)
+    canvas.setDash(3, 3)
+    mitad = HOJA[1] / 2
+    canvas.line(0, mitad, HOJA[0], mitad)
+    canvas.restoreState()
+
+
+class _HojaCarta(BaseDocTemplate):
+    """
+    Una hoja carta vertical con dos marcos de media carta, uno arriba y otro
+    abajo. Cada hoja de la boleta va en uno, a su tamaño real.
+
+    Cuenta cuántos marcos usa. Es lo que dice si una hoja de la boleta se pasó
+    de su media carta: lo que no cabe sigue en el marco siguiente, y la cuenta
+    sube. Contar hojas carta ya no sirve para eso, porque el exceso cabría en
+    la mitad de abajo de la misma hoja.
+    """
+
+    def __init__(self, archivo, **kwargs):
+        super().__init__(
+            archivo, pagesize=HOJA,
+            leftMargin=0, rightMargin=0, topMargin=0, bottomMargin=0, **kwargs,
+        )
+        ancho, alto = PAGINA[0] - 2 * MARGEN, PAGINA[1] - 2 * MARGEN
+        arriba = Frame(MARGEN, HOJA[1] / 2 + MARGEN, ancho, alto, id='arriba')
+        abajo = Frame(MARGEN, MARGEN, ancho, alto, id='abajo')
+        self.addPageTemplates([
+            PageTemplate(id='carta', frames=[arriba, abajo], onPage=_linea_de_corte),
+        ])
+        self.medias_hojas = 0
+
+    def handle_frameBegin(self, *args, **kwargs):
+        self.medias_hojas += 1
+        super().handle_frameBegin(*args, **kwargs)
+
+
+def _armar(folio):
+    """Los bytes del PDF y cuántas medias cartas ocupó la boleta."""
     lineas = documentos.lineas_del_documento(folio)
     if not lineas:
         raise MovimientoVenta.DoesNotExist(f'No hay ninguna boleta con el número {folio}.')
@@ -456,18 +512,35 @@ def boleta_documento(folio):
 
     flujo = []
     for numero, grupo in enumerate(grupos, start=1):
+        # Al marco siguiente, no a la hoja siguiente: la hoja 2 de la boleta
+        # va en la mitad de abajo de la misma carta.
         if numero > 1:
-            flujo.append(PageBreak())
+            flujo.append(FrameBreak())
         flujo.extend(_pagina(cabecera, grupo, es_ingreso, numero, total, marcadas, quien_devolvio, notas))
 
     memoria = io.BytesIO()
-    documento = SimpleDocTemplate(
+    documento = _HojaCarta(
         memoria,
-        pagesize=PAGINA,
-        leftMargin=MARGEN, rightMargin=MARGEN, topMargin=MARGEN, bottomMargin=MARGEN,
         title=f'{"Ingreso" if es_ingreso else "Salida"} {folio}',
         author=pdf.EMPRESA,
         subject='FO-SE-013' if es_ingreso else 'FO-SE-012',
     )
     documento.build(flujo)
-    return memoria.getvalue()
+    return memoria.getvalue(), documento.medias_hojas
+
+
+def boleta_documento(folio):
+    """
+    Devuelve los bytes del PDF de un documento completo (todas las líneas que
+    comparten el folio). Lanza MovimientoVenta.DoesNotExist si el folio no
+    existe, para que la vista responda 404 en vez de un PDF vacío.
+    """
+    return _armar(folio)[0]
+
+
+def medias_hojas(folio):
+    """
+    Cuántas medias cartas ocupa la boleta. Si da más que sus hojas, alguna
+    no cupo en su mitad: es lo que miran las pruebas del tamaño.
+    """
+    return _armar(folio)[1]

@@ -9,9 +9,13 @@ descripción larga) son las correctas, y que la vista responde como debe a
 cada rol. El aspecto visual se revisó abriendo los PDF generados.
 """
 
+import io
+import re
+
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from reportlab.lib.pagesizes import letter
 
 from core.models import Bodega, Proveedor
 from usuarios.models import Usuario
@@ -159,6 +163,12 @@ class TamanoDeLaHojaTests(BaseBoletas):
     El talonario real de FO-SE-013 y FO-SE-012 es de media carta. Salían en
     carta completa, y así la boleta impresa no calzaba con las de papel de
     los años anteriores, que se archivan en el mismo folder.
+
+    Después el PDF pasó a medir media carta, y tampoco: el navegador lo
+    agrandaba para llenar la hoja carta de la impresora. Ahora el PDF es la
+    hoja carta, con una boleta de media carta en cada mitad. Por eso "cabe en
+    una hoja" se cuenta en medias cartas: lo que no cupiera seguiría en la
+    mitad de abajo de la misma carta.
     """
 
     def test_va_en_media_carta_apaisada(self):
@@ -189,9 +199,8 @@ class TamanoDeLaHojaTests(BaseBoletas):
             cuantas=boletas.FILAS_POR_PAGINA,
             observacion='Equipo entregado para demostración en planta del cliente.',
         )
-        contenido = boletas.boleta_documento('SAL-LLENA')
-
-        self.assertEqual(self.cuantas_paginas(contenido), 1)
+        # En su media carta: si no cupiera, seguiría en la mitad de abajo.
+        self.assertEqual(boletas.medias_hojas('SAL-LLENA'), 1)
 
     def test_un_ingreso_lleno_tambien_cabe_en_una_hoja(self):
         self.crear_documento(
@@ -199,9 +208,7 @@ class TamanoDeLaHojaTests(BaseBoletas):
             cuantas=boletas.FILAS_POR_PAGINA,
             observacion='Compra de repuestos para existencia de bodega.',
         )
-        contenido = boletas.boleta_documento('ING-LLENA')
-
-        self.assertEqual(self.cuantas_paginas(contenido), 1)
+        self.assertEqual(boletas.medias_hojas('ING-LLENA'), 1)
 
     def test_la_boleta_aprovecha_toda_la_hoja(self):
         """
@@ -224,10 +231,10 @@ class TamanoDeLaHojaTests(BaseBoletas):
                 self.crear_documento(folio, tipo, cuantas=de_mas)
 
                 with patch.object(boletas, 'FILAS_POR_PAGINA', de_mas):
-                    contenido = boletas.boleta_documento(folio)
+                    medias = boletas.medias_hojas(folio)
 
                 self.assertEqual(
-                    self.cuantas_paginas(contenido), 2,
+                    medias, 2,
                     f'con {de_mas} renglones tendría que desbordar: si cabe, '
                     'es que la hoja se está quedando a medio llenar',
                 )
@@ -263,9 +270,69 @@ class TamanoDeLaHojaTests(BaseBoletas):
                 msg=f'filas del cuerpo: {[round(h / mm, 2) for h in cuerpo]}',
             )
 
+    def test_el_pdf_es_una_hoja_carta_vertical(self):
+        """
+        El PDF mide lo mismo que el papel de la impresora. Medía media carta,
+        y al imprimirlo en carta el navegador lo agrandaba hasta llenar la
+        hoja: la boleta salía del tamaño de la hoja entera.
+        """
+        self.crear_documento('SAL-CARTA', MovimientoVenta.TipoDocumento.SALIDA, cuantas=2)
+        contenido = boletas.boleta_documento('SAL-CARTA')
+
+        cajas = re.findall(rb'/MediaBox\s*\[\s*0 0 612 792\s*\]', contenido)
+        self.assertEqual(len(cajas), self.cuantas_paginas(contenido))
+        self.assertEqual(boletas.HOJA, letter)
+
+    def test_cada_mitad_mide_media_carta(self):
+        """La boleta va a su tamaño real: cada mitad de la carta es una media carta."""
+        documento = boletas._HojaCarta(io.BytesIO())
+        arriba, abajo = documento.pageTemplates[0].frames
+
+        for marco in (arriba, abajo):
+            with self.subTest(marco=marco.id):
+                self.assertAlmostEqual(marco._width + 2 * boletas.MARGEN, boletas.PAGINA[0])
+                self.assertAlmostEqual(marco._height + 2 * boletas.MARGEN, boletas.PAGINA[1])
+        self.assertAlmostEqual(arriba._y1, letter[1] / 2 + boletas.MARGEN)
+        self.assertAlmostEqual(abajo._y1, boletas.MARGEN)
+
+    def test_dos_hojas_de_la_boleta_van_en_una_carta(self):
+        # Una hoja de más: la segunda va en la mitad de abajo, no en otra carta.
+        self.crear_documento('SAL-DOS', MovimientoVenta.TipoDocumento.SALIDA,
+                             cuantas=boletas.FILAS_POR_PAGINA + 1)
+        self.assertEqual(boletas.medias_hojas('SAL-DOS'), 2)
+        self.assertEqual(self.cuantas_paginas(boletas.boleta_documento('SAL-DOS')), 1)
+
+        self.crear_documento('SAL-TRES', MovimientoVenta.TipoDocumento.SALIDA,
+                             cuantas=2 * boletas.FILAS_POR_PAGINA + 1)
+        self.assertEqual(boletas.medias_hojas('SAL-TRES'), 3)
+        self.assertEqual(self.cuantas_paginas(boletas.boleta_documento('SAL-TRES')), 2)
+
+    def test_lleva_la_linea_punteada_para_cortar(self):
+        self.crear_documento('ING-CORTE', MovimientoVenta.TipoDocumento.INGRESO, cuantas=1)
+        dibujo = self.dibujo_de_las_hojas(boletas.boleta_documento('ING-CORTE'))
+
+        # Punteada, de un borde al otro, justo a la mitad de la carta.
+        self.assertIn('[3 3] 0 d', dibujo)
+        self.assertRegex(dibujo, r'\b0 396 m 612 396 l S\b')
+
+    def dibujo_de_las_hojas(self, pdf_bytes):
+        """Lo que dibuja cada hoja, descomprimido (ReportLab lo guarda en ASCII85 + Flate)."""
+        import base64
+        import zlib
+
+        texto = pdf_bytes.decode('latin1')
+        patron = r'/ASCII85Decode /FlateDecode \] /Length \d+\s*>>\s*stream\r?\n(.*?)endstream'
+        partes = []
+        for cuerpo in re.findall(patron, texto, re.S):
+            cuerpo = cuerpo.strip()
+            try:
+                partes.append(zlib.decompress(base64.a85decode(cuerpo, adobe=cuerpo.endswith('~>'))).decode('latin1'))
+            except Exception:
+                continue
+        return '\n'.join(partes)
+
     def cuantas_paginas(self, pdf_bytes):
-        """Cuenta los objetos /Type /Page del PDF (sin /Pages, que es el índice)."""
-        import re
+        """Cuántas hojas carta trae el PDF: los /Type /Page, sin /Pages, que es el índice."""
         return len(re.findall(rb'/Type\s*/Page[^s]', pdf_bytes))
 
 
